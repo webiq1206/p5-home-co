@@ -293,6 +293,7 @@ export function teamReport(row: GuidedRow, links: TeamReportLinks): Message {
       items: uploads.map((file) => (file.url ? `${file.name} ${file.url}` : file.name)),
     });
   }
+  blocks.push({ type: "raw", html: `<div style="margin-top:16px"></div>`, text: "" });
   blocks.push({
     type: "buttons",
     items: [

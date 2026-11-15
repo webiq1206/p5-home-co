@@ -128,6 +128,13 @@ test("every p5 fixture renders admin and customer html and text from the estimat
     else assert.doesNotMatch(admin.html, /Open in QuickBooks/);
     if (fixture.phone) assert.match(admin.html, new RegExp(`tel:\\+1${fixture.phone.replace(/\D/g, "")}`));
     else assert.doesNotMatch(admin.html, /Call \(208\) 555/);
+    const viewAt = admin.html.indexOf(">View full estimate<");
+    assert.ok(viewAt > 0, `${fixture.id} admin is missing View full estimate`);
+    const tableAt = admin.html.lastIndexOf("<table", viewAt);
+    const leadIn = admin.html.slice(Math.max(0, tableAt - 180), tableAt);
+    const gap = leadIn.match(/margin-top:\s*(\d+(?:\.\d+)?)px/);
+    assert.ok(gap, `${fixture.id} admin has no space above the first button`);
+    assert.ok(Number(gap[1]) >= 16, `${fixture.id} space above the first button is ${gap[1]}px`);
     if (fixture.brand === "p5") {
       assert.match(customer.html, /#a58c72/i);
       assert.match(admin.html, /#a58c72/i);
