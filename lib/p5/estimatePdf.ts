@@ -11,7 +11,7 @@ import {BRAND_CHARCOAL} from './brand.ts';
  * header with its contacts on the right, one thin accent rule, a pale finish panel, numbered
  * categories with right-aligned amounts, a lightly tinted total, then exclusions, assumptions and
  * items to confirm, the three next steps, the review panel and the preliminary notice. The small
- * original P5 mark and "A P5 Home Co. brand" sit in the footer of every brand except P5 itself.
+ * original P5 mark and "A P5 Home Co brand" sit in the footer of every brand except P5 itself.
  * No solid dark bars anywhere; totals stand out by size, weight and a light tint.
  */
 const W=612,H=792,L=54,R=558,WIDTH=R-L,TOP=680,BOTTOM=80;
@@ -172,7 +172,7 @@ export async function renderEstimatePdf(doc:EstimateDocument):Promise<Buffer>{
 
   pages.forEach((p,i)=>{
     p.drawLine({start:{x:L,y:62},end:{x:R,y:62},thickness:.5,color:rule});
-    if(mark){p.drawImage(mark,{x:L,y:34,width:20,height:20});p.drawText('A P5 Home Co. brand',{x:L+28,y:40,size:8.5,font:regular,color:soft});}
+    if(mark){p.drawImage(mark,{x:L,y:34,width:20,height:20});p.drawText('A P5 Home Co brand',{x:L+28,y:40,size:8.5,font:regular,color:soft});}
     else p.drawText(`${doc.brand.name}  |  ${doc.brand.domain}`,{x:L,y:40,size:8.5,font:regular,color:soft});
     const label=`${doc.reference}  |  ${i+1} / ${pages.length}`;p.drawText(label,{x:R-regular.widthOfTextAtSize(label,8.5),y:40,size:8.5,font:regular,color:soft});
   });
