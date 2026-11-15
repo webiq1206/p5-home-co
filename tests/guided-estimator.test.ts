@@ -566,17 +566,22 @@ test("the team report carries the full financial picture", () => {
   assert.match(message.text, /Division|09 Finishes/);
 });
 
-test("the customer confirmation carries no figure and no internal wording", () => {
+test("the customer confirmation shows the stored range and no internal wording", () => {
   for (const estimate of [price("bathroom-remodel", { bath: "hall" }, "mid", "remodeling"), price("custom-home", {}, "high", "construction"), price("handyman", { tasks: { faucet: 2 } }, "mid", "handyman")]) {
-    const message = customerConfirmation(rowFor(estimate), "https://p5homeco.com/estimator/e/abc");
-    for (const part of [message.subject, message.text, message.html.replace(/<[^>]+>/g, " ")]) {
-      assert.doesNotMatch(part, /\$\s?\d|\bcost\b|margin|\b\d{2}-\d{2}-\d{2}\b/i);
+    const row = rowFor(estimate);
+    const message = customerConfirmation(row, "https://p5homeco.com/estimator/e/abc");
+    const low = row.customer_view.range!.low.toLocaleString("en-US");
+    const high = row.customer_view.range!.high.toLocaleString("en-US");
+    for (const part of [message.text, message.html]) {
+      assert.ok(part.includes(low), low);
+      assert.ok(part.includes(high), high);
+      assert.doesNotMatch(part, /gross margin|gross profit|\b\d{2}-\d{2}-\d{2}\b/i);
     }
     assert.ok(message.text.includes("https://p5homeco.com/estimator/e/abc"));
     assert.ok(message.text.includes("https://meetings-na2.hubspot.com/client3"));
     assert.ok(message.text.includes(BRAND_CONFIGS[estimate.brand].name));
     assert.match(message.html, /Schedule now/);
-    assert.ok(message.html.indexOf("Schedule now") < message.html.indexOf("View your estimate"));
+    assert.ok(message.html.indexOf("View my estimate") < message.html.indexOf("Schedule now"));
   }
 });
 

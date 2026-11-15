@@ -9,7 +9,7 @@
 
 import type { Bundle, Notifiable } from "./routing.ts";
 
-export type Message = { subject: string; text: string; html: string };
+export type Message = { subject: string; text: string; html: string; messageId?: string };
 
 function escapeHtml(value: string): string {
   return value

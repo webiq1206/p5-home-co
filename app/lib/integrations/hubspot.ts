@@ -612,7 +612,7 @@ async function syncLeasedDeal(dealId: number, row: DealRow): Promise<SyncOutcome
 
     const hubspotDealId = await upsertDeal(
       {
-        name: isMeta ? `${row.utm?.meta_test_lead === "true" ? "TEST LEAD — " : ""}${row.brand} lead: ${[row.first_name, row.last_name].filter(Boolean).join(" ") || "New contact"}` : row.name,
+        name: isMeta ? `${row.utm?.meta_test_lead === "true" ? "TEST LEAD: " : ""}${row.brand} lead: ${[row.first_name, row.last_name].filter(Boolean).join(" ") || "New contact"}` : row.name,
         brand: row.brand as DealSyncInput["brand"],
         stage: row.stage as DealSyncInput["stage"],
         leadSource: row.lead_source as DealSyncInput["leadSource"],

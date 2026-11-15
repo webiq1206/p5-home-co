@@ -6,6 +6,7 @@ import {query} from './database.ts';
 import {protectRequest,limitedBody,json,failed} from './http.ts';
 import {adminRecipients,sendEmail} from './deliveryAdapter.ts';
 import {ESTIMATOR_BRAND as brand} from './brand.ts';
+import {button,layout,type EmailBrand} from './emailKit.ts';
 import {estimateReference} from './estimateDocument.ts';
 
 export function reviewContact(input:Record<string,unknown>){
@@ -56,13 +57,17 @@ export function projectReviewHandler(dependencies={readDraft,query,adminRecipien
         try{
           const recipients=await adminRecipients();
           if(!recipients.length)throw new Error('review-notification-unconfigured');
-          for(const to of recipients)await sendEmail({to,subject:`Project review requested: ${reference}`,attachments:[],
-            key:createHash('sha256').update(`review:${id}:${draft.revision}:${to}`).digest('hex'),
-            text:[`${brand.name}: customer requested a project review.`, `Reference: ${reference}`, `Draft ID: ${id}`, `Revision: ${draft.revision}`,
+          const reviewBrand:EmailBrand={name:brand.name,accent:brand.id==='p5'?'#ceb391':brand.accent,charcoal:'#383837',logoUrl:`https://${brand.domain}${brand.logo}`,siteUrl:`https://${brand.domain}`,phoneDisplay:'(208) 477-1169',phoneTel:'+12084771169',cityLine:'Meridian, ID 83646',replyTo:brand.email,endorsed:brand.id!=='p5'};
+          for(const to of recipients){
+            const text=[`${brand.name}: customer requested a project review.`, `Reference: ${reference}`, `Draft ID: ${id}`, `Revision: ${draft.revision}`,
               `Name: ${contact.name}`, `Email: ${contact.email||'Not supplied'}`, `Phone: ${contact.phone||'Not supplied'}`,
               '', 'Saved project description:',draft.text,'','Saved details:',JSON.stringify(draft.answers,null,2),
               '',`Files: ${draft.uploads.map(f=>f.name).join(', ')||'None'}`,
-              'Review the saved project in the estimator administration area. This request is not a completed price or contract.'].join('\n')});
+              'Review the saved project in the estimator administration area. This request is not a completed price or contract.'].join('\n');
+            const html=layout({brand:reviewBrand,preheader:`Project review requested: ${reference}`,title:'Project review requested',kicker:reference,body:`<p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#383837;white-space:pre-wrap;">${text.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c] as string))}</p>${contact.phone?button({href:`tel:+1${contact.phone.replace(/\D/g,'').slice(-10)}`,label:`Call ${contact.phone}`,variant:'primary',accent:reviewBrand.accent}):''}${contact.email?button({href:`mailto:${contact.email}`,label:'Email',variant:'secondary',accent:reviewBrand.accent}):''}`});
+            await sendEmail({to,subject:`Project review requested: ${reference}`,attachments:[],
+            key:createHash('sha256').update(`review:${id}:${draft.revision}:${to}`).digest('hex'),text,html});
+          }
           await query(`UPDATE p5_estimator_review_requests SET status='sent' WHERE draft_id=$1 AND revision=$2`,[id,draft.revision]);
         }catch{
           await query(`UPDATE p5_estimator_review_requests SET status='needs-review' WHERE draft_id=$1 AND revision=$2`,[id,draft.revision]);

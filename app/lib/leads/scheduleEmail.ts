@@ -10,9 +10,10 @@
  */
 
 import type { Message } from "../notifications/render.ts";
+import { BRAND_CONFIGS } from "../estimator/brands.ts";
+import { SCHEDULE_URL, button as kitButton, layout, type EmailBrand } from "../../../lib/p5/emailKit.ts";
 
-/** HubSpot meetings page. Durations on the page are 15, 30, 60 and 120 minutes. */
-export const SCHEDULE_URL = "https://meetings-na2.hubspot.com/client3";
+export { SCHEDULE_URL };
 
 export const LEAD_PHONE_DISPLAY = "(208) 477-1169";
 
@@ -50,12 +51,27 @@ function esc(value: unknown): string {
 
 function safeHref(value: string): string {
   const trimmed = value.trim();
-  if (!/^https:\/\/[^\s"'<>]+$/.test(trimmed)) return SCHEDULE_URL;
-  return trimmed;
+  return /^https:\/\/[^\s"'<>]+$/.test(trimmed) ? trimmed : SCHEDULE_URL;
 }
 
 function safeAccent(value: string | undefined): string {
   return /^#[0-9a-fA-F]{6}$/.test(value ?? "") ? (value as string) : "#ceb391";
+}
+
+function skin(name: string | undefined, accent: string | undefined): EmailBrand {
+  const known = Object.values(BRAND_CONFIGS).find((brand) => brand.name === (name ?? "").trim());
+  return {
+    name: (name ?? "").trim() || known?.name || "P5 Home Co",
+    accent: safeAccent(accent ?? known?.accent),
+    charcoal: "#383837",
+    logoUrl: known?.logoUrl || "https://p5homeco.com/brands/p5-home-co-lockup-dark.png",
+    siteUrl: known?.site || "https://p5homeco.com",
+    phoneDisplay: "(208) 477-1169",
+    phoneTel: "+12084771169",
+    cityLine: "Meridian, ID 83646",
+    replyTo: "hello@p5homeco.com",
+    endorsed: ((name ?? "").trim() || "P5 Home Co") !== "P5 Home Co",
+  };
 }
 
 function greetingName(firstName: string | null | undefined): string {
@@ -79,48 +95,17 @@ export function bulletproofButton(options: {
   variant: "primary" | "secondary";
   accent?: string;
 }): string {
-  const href = esc(safeHref(options.href));
-  const label = esc(options.label);
-  const accent = safeAccent(options.accent);
-  if (options.variant === "secondary") {
-    return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;margin:0 0 18px;">
-<tr>
-<td align="center" bgcolor="${BUTTON_PAPER}" style="background-color:${BUTTON_PAPER};border:2px solid ${BUTTON_CHARCOAL};">
-<!--[if mso]>
-<v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${href}" style="height:44px;v-text-anchor:middle;width:520px;" arcsize="4%" strokecolor="${BUTTON_CHARCOAL}" fillcolor="${BUTTON_PAPER}">
-<w:anchorlock/>
-<center style="color:${BUTTON_CHARCOAL};font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:bold;">${label}</center>
-</v:roundrect>
-<![endif]-->
-<!--[if !mso]><!-->
-<a href="${href}" target="_blank" style="display:block;padding:12px 20px;background-color:${BUTTON_PAPER};color:${BUTTON_CHARCOAL};font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:700;line-height:20px;text-align:center;text-decoration:none;border:0;mso-hide:all;">${label}</a>
-<!--<![endif]-->
-</td>
-</tr>
-</table>`;
-  }
-  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;margin:8px 0 0;">
-<tr>
-<td align="center" bgcolor="${BUTTON_CHARCOAL}" style="background-color:${BUTTON_CHARCOAL};">
-<!--[if mso]>
-<v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${href}" style="height:56px;v-text-anchor:middle;width:520px;" arcsize="4%" strokecolor="${BUTTON_CHARCOAL}" fillcolor="${BUTTON_CHARCOAL}">
-<w:anchorlock/>
-<center style="color:${BUTTON_WHITE};font-family:Arial,Helvetica,sans-serif;font-size:18px;font-weight:bold;">${label}</center>
-</v:roundrect>
-<![endif]-->
-<!--[if !mso]><!-->
-<a href="${href}" target="_blank" style="display:block;padding:16px 24px;background-color:${BUTTON_CHARCOAL};color:${BUTTON_WHITE};font-family:Arial,Helvetica,sans-serif;font-size:18px;font-weight:700;line-height:24px;text-align:center;text-decoration:none;border:0;mso-hide:all;">${label}</a>
-<!--<![endif]-->
-</td>
-</tr>
-<tr>
-<td bgcolor="${accent}" style="background-color:${accent};height:4px;font-size:0;line-height:0;">&nbsp;</td>
-</tr>
-</table>`;
+  return kitButton({ href: options.href, label: options.label, variant: options.variant, accent: safeAccent(options.accent) });
 }
 
-function wrapHtml(inner: string): string {
-  return `<div style="font-family:Arial,Helvetica,sans-serif;color:${BUTTON_CHARCOAL};max-width:560px;font-size:16px;line-height:1.6;">${inner}</div>`;
+function wrapHtml(inner: string, name?: string, accent?: string): string {
+  const brand = skin(name, accent);
+  return layout({
+    brand,
+    preheader: `${brand.name}. ${LEAD_PHONE_DISPLAY}`,
+    title: brand.name,
+    body: inner,
+  });
 }
 
 function paragraph(text: string): string {
@@ -179,6 +164,8 @@ export function estimatorConfirmation(input: EstimatorConfirmationInput): Messag
       paragraph(phone),
       paragraph(signoff),
     ].join(""),
+    brandName,
+    input.accent,
   );
   return { subject, text, html };
 }
@@ -226,6 +213,8 @@ export function requestConfirmation(input: RequestConfirmationInput): Message {
       paragraph(phone),
       paragraph(signoff),
     ].join(""),
+    brandName,
+    input.accent,
   );
   return { subject, text, html };
 }

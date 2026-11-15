@@ -8,8 +8,8 @@ import { query, queryOne } from "../db.ts";
 import type { InternalReport, PricedEstimate, ReviewReason } from "./price.ts";
 import type { CustomerEstimate, Submission } from "./types.ts";
 
-export type DeliveryStep = { at: string; ok: boolean; detail?: string | null };
-export type Delivery = Partial<Record<"scope" | "lead" | "qboCustomer" | "qboEstimate" | "qboSend" | "teamEmail" | "customerEmail", DeliveryStep>> & {
+export type DeliveryStep = { at: string; ok: boolean; detail?: string | null; state?: "sending" | "sent" | "failed"; key?: string; attempts?: number };
+export type Delivery = Partial<Record<"scope" | "lead" | "qboCustomer" | "qboEstimate" | "qboSend" | "teamEmail" | "customerEmail" | "customerEmailAlert", DeliveryStep>> & {
   qboEstimateId?: string | null;
   qboDocNumber?: string | null;
 };

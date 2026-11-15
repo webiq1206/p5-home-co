@@ -93,6 +93,7 @@ build/contracts/
 !/scripts/integrate-p5-dynamic-questions.mjs
 !/scripts/verify-family-chrome.mjs
 
+!/scripts/render-estimator-emails.mts
 !/scripts/dev.mjs
 !/scripts/test-p5-upload.mts
 /app/p5-qa-check/

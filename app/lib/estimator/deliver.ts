@@ -14,8 +14,8 @@
  *                 lines the customer saw, and sent, according to
  *                 ESTIMATOR_QBO (below) and only when the estimate qualified.
  *   4. team email The full internal report.
- *   5. customer   A short confirmation, only when QuickBooks is not sending
- *                 the official estimate right now.
+ *   5. customer   The branded confirmation, with the stored range, only when
+ *                 QuickBooks is not sending the official estimate right now.
  *
  * ESTIMATOR_QBO controls how far step 3 goes without a person:
  *   create  (default, owner decision 13 November 2026) every estimate a
@@ -33,18 +33,23 @@
  * private note. An estimate whose price was withheld is not written at all.
  */
 
+import { createHash } from "node:crypto";
+
 import { handleIntake } from "../../api/leads/intake/handler.ts";
+import { estimatorTestMode, TEST_INBOX } from "../../../lib/p5/emailKit.ts";
 import { queryOne } from "../db.ts";
 import { qboRequest } from "../finance/qbo/client.ts";
 import { isQboConnected } from "../finance/qbo/oauth.ts";
 import { syncDealToHubSpot } from "../integrations/hubspot.ts";
+import { hubspotContactUrl, hubspotDealUrl } from "../notifications/lead-created.ts";
+import type { Message } from "../notifications/render.ts";
 import { activeTransport } from "../notifications/transport.ts";
 import { ESTIMATE_STATUS_LABEL, estimateStatus, qboWebUrl } from "../scopes/estimate.ts";
 import { buildPayloadFor, createOrReviseEstimate, ensureCustomer, findCustomerCandidates, isSandbox, refreshEstimate } from "../scopes/qbo.ts";
 import { getProject, latestEstimate, loadScopeSettings, logEvent, saveVersion, syncProjectTitle } from "../scopes/store.ts";
 import type { PricingResult, ScopeDoc } from "../scopes/types.ts";
 import { brandConfig } from "./brands.ts";
-import { TEAM_INBOX, customerConfirmation, teamReport } from "./emails.ts";
+import { TEAM_INBOX, customerConfirmation, customerFailureAlert, teamReport } from "./emails.ts";
 import { guidedById, recordDelivery, setGuidedLinks, type Delivery, type GuidedRow } from "./store.ts";
 import { CLASS_LABELS, type BrandId, type EstimateClass } from "./types.ts";
 
@@ -61,7 +66,7 @@ export function qboMode(env: Record<string, string | undefined> = process.env): 
  */
 const NO_EMPLOYEE = null as unknown as number;
 
-const step = (ok: boolean, detail?: string | null) => ({ at: new Date().toISOString(), ok, detail: detail ?? null });
+const step = (ok: boolean, detail?: string | null) => ({ at: new Date().toISOString(), ok, detail: detail ?? null, state: ok ? "sent" as const : "failed" as const });
 const done = (delivery: Delivery, key: keyof Delivery) => (delivery[key] as { ok?: boolean } | undefined)?.ok === true;
 
 export type DeliverInput = {
@@ -245,6 +250,18 @@ export async function deliverEstimate(input: DeliverInput): Promise<Delivery> {
   if (!row) throw new Error("Estimate not found.");
   const brand = brandConfig(row.brand as BrandId);
   const viewUrl = `${input.origin}/estimator/e/${row.token}`;
+  if (brand && brand.live === false) {
+    const skipped = "This estimator is not open yet. Nothing was sent.";
+    await recordDelivery(row.id, {
+      scope: step(true, skipped),
+      lead: step(true, skipped),
+      qboEstimate: step(true, skipped),
+      teamEmail: step(true, skipped),
+      customerEmail: step(true, skipped),
+    });
+    return (await guidedById(input.id))!.delivery;
+  }
+  const testMode = estimatorTestMode(`${row.first_name} ${row.last_name}`, process.env);
 
   // 1. Scope platform project.
   let scope: { projectId: number; versionId: number } | null = null;
@@ -259,21 +276,28 @@ export async function deliverEstimate(input: DeliverInput): Promise<Delivery> {
     }
   }
 
-  // 2. Lead, HubSpot and the standard lead alert.
+  // 2. Lead and HubSpot. The guided team report is the one admin email, so
+  //    intake does not send a second "New lead" message for this form.
   if (!done(row.delivery, "lead")) {
-    try {
-      const lead = await sendLead(row, input.origin, scope?.projectId ?? null, input.service ?? null, input.clientAddress ?? null);
-      if (lead.dealId) await setGuidedLinks(row.id, { leadDealId: lead.dealId });
-      await recordDelivery(row.id, { lead: step(lead.ok, lead.detail) });
-      row = (await guidedById(input.id))!;
-    } catch (error) {
-      await recordDelivery(row.id, { lead: step(false, (error as Error).message) });
+    if (testMode) {
+      await recordDelivery(row.id, { lead: step(true, "test mode: HubSpot skipped") });
+    } else {
+      try {
+        const lead = await sendLead(row, input.origin, scope?.projectId ?? null, input.service ?? null, input.clientAddress ?? null);
+        if (lead.dealId) await setGuidedLinks(row.id, { leadDealId: lead.dealId });
+        await recordDelivery(row.id, { lead: step(lead.ok, lead.detail) });
+        row = (await guidedById(input.id))!;
+      } catch (error) {
+        await recordDelivery(row.id, { lead: step(false, (error as Error).message) });
+      }
     }
   }
 
   // 3. QuickBooks: an unsent estimate for every price the customer was shown.
-  const mode = qboAction(row, qboMode());
-  if (scope && mode !== "off" && !done(row.delivery, "qboSend") && !(mode === "create" && done(row.delivery, "qboEstimate"))) {
+  const mode = testMode ? "off" : qboAction(row, qboMode());
+  if (testMode && !done(row.delivery, "qboEstimate")) {
+    await recordDelivery(row.id, { qboEstimate: step(true, "test mode: QuickBooks skipped") });
+  } else if (scope && mode !== "off" && !done(row.delivery, "qboSend") && !(mode === "create" && done(row.delivery, "qboEstimate"))) {
     try {
       if (!(await isQboConnected())) throw new Error("QuickBooks is not connected.");
       await recordDelivery(row.id, await qboEstimate(row, scope.projectId, mode));
@@ -284,26 +308,86 @@ export async function deliverEstimate(input: DeliverInput): Promise<Delivery> {
 
   row = (await guidedById(input.id))!;
   const transport = activeTransport();
+  const logSend = (stepName: string, to: string, ok: boolean, started: number, msgId: string) => {
+    const hashed = createHash("sha256").update(to.trim().toLowerCase()).digest("hex").slice(0, 12);
+    console.log(`[email] step=${stepName} row=${row.id} brand=${row.brand} to=${hashed} ok=${ok} ms=${Date.now() - started} msgId=${msgId}`);
+  };
+  const stamp = (message: Message, key: string): Message => ({
+    ...message,
+    subject: testMode && !message.subject.startsWith("TEST LEAD:") ? `TEST LEAD: ${message.subject}`.slice(0, 250) : message.subject,
+    messageId: `<${key}@p5homeco.com>`,
+  });
+  const freshSending = (key: "teamEmail" | "customerEmail") => {
+    const current = row.delivery?.[key];
+    if (current?.state !== "sending" || !current.at) return false;
+    const at = Date.parse(current.at);
+    return Number.isFinite(at) && Date.now() - at < 10 * 60 * 1000;
+  };
 
-  // 4. The team's report.
-  if (!done(row.delivery, "teamEmail")) {
+  // 4. One admin email. A send already in flight is left alone for 10 minutes.
+  if (!done(row.delivery, "teamEmail") && !freshSending("teamEmail")) {
     const official = await officialStatus(row);
-    const message = teamReport(row, {
+    let hubspotContact: string | null = null;
+    let hubspotDeal: string | null = null;
+    if (row.lead_deal_id) {
+      const found = await queryOne<{ hubspot_contact_id: string | null; hubspot_deal_id: string | null }>(
+        "SELECT c.hubspot_contact_id, d.hubspot_deal_id FROM deal d JOIN contact c ON c.id = d.contact_id WHERE d.id = $1",
+        [row.lead_deal_id],
+      ).catch(() => null);
+      hubspotContact = found?.hubspot_contact_id ? hubspotContactUrl(found.hubspot_contact_id) : null;
+      hubspotDeal = found?.hubspot_deal_id ? hubspotDealUrl(found.hubspot_deal_id) : null;
+    }
+    const key = `guided-${row.id}-teamEmail`;
+    await recordDelivery(row.id, { teamEmail: { at: new Date().toISOString(), ok: false, detail: "sending", state: "sending", key, attempts: 1 } });
+    const message = stamp(teamReport(row, {
       scopeUrl: row.scope_project_id ? `${input.origin}/scopes/${row.scope_project_id}` : null,
       qboUrl: official.qboUrl,
       estimateNumber: official.estimateNumber,
       status: official.status,
       customerViewUrl: viewUrl,
-    });
+      leadUrl: row.lead_deal_id ? `${input.origin}/admin/lead/${row.lead_deal_id}` : null,
+      hubspotContactUrl: hubspotContact,
+      hubspotDealUrl: hubspotDeal,
+      testLead: testMode,
+    }), key);
+    const started = Date.now();
     const sent = await transport.send(TEAM_INBOX, message);
-    await recordDelivery(row.id, { teamEmail: step(sent.ok, sent.ok ? TEAM_INBOX : sent.error) });
+    logSend("teamEmail", TEAM_INBOX, sent.ok, started, key);
+    await recordDelivery(row.id, { teamEmail: { at: new Date().toISOString(), ok: sent.ok, detail: sent.ok ? TEAM_INBOX : sent.error, state: sent.ok ? "sent" : "failed", key, attempts: 1 } });
   }
 
-  // 5. The customer hears from QuickBooks when the official estimate was
-  //    sent. Otherwise one short confirmation, with no figures in it.
-  if (!done(row.delivery, "qboSend") && !done(row.delivery, "customerEmail")) {
-    const sent = await transport.send(row.email, customerConfirmation(row, viewUrl));
-    await recordDelivery(row.id, { customerEmail: step(sent.ok, sent.ok ? brand?.name ?? null : sent.error) });
+  // 5. Customer email, always From P5 Home Co. QuickBooks sends the official copy when it already did.
+  //    A failure is retried once inside the transport, then one internal alert.
+  //    The customer is not emailed again automatically.
+  row = (await guidedById(input.id))!;
+  if (!done(row.delivery, "qboSend") && !done(row.delivery, "customerEmail") && !freshSending("customerEmail")) {
+    const previous = row.delivery.customerEmail;
+    const alertOnce = async (reason: string) => {
+      if (row.delivery.customerEmailAlert?.ok) return;
+      const key = `guided-${row.id}-customerEmailAlert`;
+      try {
+        const alert = stamp(customerFailureAlert(row, reason, row.customer_view?.estimateNumber || `GE-${row.id}`), key);
+        const started = Date.now();
+        const sent = await transport.send(TEST_INBOX, alert);
+        logSend("customerEmailAlert", TEST_INBOX, sent.ok, started, key);
+        await recordDelivery(row.id, { customerEmailAlert: { at: new Date().toISOString(), ok: sent.ok, detail: sent.ok ? "alerted" : sent.error, state: sent.ok ? "sent" : "failed", key, attempts: 1 } });
+      } catch (error) {
+        console.error("[email] customer failure alert", (error as Error).message);
+      }
+    };
+    if (previous && previous.ok === false) {
+      await alertOnce(previous.detail || "The customer email failed and was not sent again.");
+    } else {
+      const key = `guided-${row.id}-customerEmail`;
+      const to = testMode ? TEST_INBOX : row.email;
+      await recordDelivery(row.id, { customerEmail: { at: new Date().toISOString(), ok: false, detail: "sending", state: "sending", key, attempts: 1 } });
+      const message = stamp(customerConfirmation(row, viewUrl), key);
+      const started = Date.now();
+      const sent = await transport.send(to, message);
+      logSend("customerEmail", to, sent.ok, started, key);
+      await recordDelivery(row.id, { customerEmail: { at: new Date().toISOString(), ok: sent.ok, detail: sent.ok ? (testMode ? TEST_INBOX : brand?.name ?? null) : sent.error, state: sent.ok ? "sent" : "failed", key, attempts: 1 } });
+      if (!sent.ok) await alertOnce(sent.error);
+    }
   }
 
   return (await guidedById(input.id))!.delivery;

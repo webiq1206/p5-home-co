@@ -1,4 +1,5 @@
 import {estimateEmail} from './estimateEmail.ts';
+import {estimatorTestMode,renderEmail,type EmailBrand} from './emailKit.ts';
 import {suppressSyntheticEstimateNotifications} from './estimatorNotifications.ts';
 import {estimateReference} from './estimateDocument.ts';
 import {restoreSavedCustomerCopy} from './savedCustomerCopy.ts';
@@ -17,17 +18,28 @@ export function deliveryRetryDecision(destination:string,emailIdempotent:boolean
 /** Owner instruction 2026-09-21: nothing goes to the CRM for now (it will move to the P5 site).
  * P5_CRM_DELIVERY=on turns it back on; no CRM job is queued or sent otherwise. */
 export const CRM_DELIVERY_ENABLED=process.env.P5_CRM_DELIVERY==='on';
+function deliveryAlert(reference:string,error:string){
+ const domain=brand.domain||'p5homeco.com';
+ const mail:EmailBrand={name:brand.name||'P5 Home Co',accent:'#ceb391',charcoal:'#383837',logoUrl:`https://${domain}${brand.logo||'/brands/p5-home-co-lockup-dark.png'}`,siteUrl:`https://${domain}`,phoneDisplay:'(208) 477-1169',phoneTel:'+12084771169',cityLine:'Meridian, ID 83646',replyTo:'hello@p5homeco.com'};
+ return renderEmail({brand:mail,preheader:`Estimate ${reference} needs delivery review.`,title:'Estimate delivery needs attention',kicker:reference.slice(0,8),blocks:[
+  {type:'notice',kind:'review',text:'Do not resubmit the lead to retry delivery.'},
+  {type:'section',title:'Delivery',rows:[{label:'Reference',value:reference},{label:'Reason',value:error||'Delivery failed'}]},
+  {type:'buttons',items:[{label:'Open the estimator admin',href:`https://${domain}/admin/p5-estimators`,variant:'primary'}]},
+ ],footerNote:'Internal delivery alert.'});
+}
 export async function enqueueSubmission(...args:Parameters<typeof enqueueSubmissionImpl>){return withQaWriteFence(args[0],()=>enqueueSubmissionImpl(...args));}
 async function enqueueSubmissionImpl(id:string,revision:number,record:any){
   const operator=qaOperationContext();
   if(operator&&(operator.draftId!==id||!suppressSyntheticEstimateNotifications(record)||record.contact?.email||record.contact?.phone))throw new Error('QA submission contact safeguards failed.');
   const suppressed=suppressSyntheticEstimateNotifications(record);
+  const testMode=!suppressed&&estimatorTestMode(String(record?.contact?.name??""),process.env);
+  const testInbox="hello@p5homeco.com";
   const recipients=suppressed?[]:await adminRecipients();if(!suppressed&&!recipients.length)throw new Error("No estimate administrator is configured");
-  const jobs=suppressed?[{id:randomUUID(),destination:'suppressed:synthetic-qa',payload:record,status:'suppressed'}]:[...recipients.map(email=>({id:randomUUID(),destination:`admin:${email}`,payload:record})),
+  const jobs=suppressed?[{id:randomUUID(),destination:'suppressed:synthetic-qa',payload:record,status:'suppressed'}]:[...recipients.map(email=>({id:randomUUID(),destination:`admin:${testMode?testInbox:email}`,payload:record})),
     // A customer who waited on screen without an email address gets no customer email; one who asked to be
     // emailed is recorded on the submission request (submitEndpoint) and arrives here as the contact email.
-    ...(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(record.contact?.email||'').trim())?[{id:randomUUID(),destination:`customer:${String(record.contact.email).trim()}`,payload:record}]:[]),
-    ...(CRM_DELIVERY_ENABLED?[{id:randomUUID(),destination:"crm",payload:record}]:[])];
+    ...(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(record.contact?.email||'').trim())?[{id:randomUUID(),destination:`customer:${testMode?testInbox:String(record.contact.email).trim()}`,payload:record}]:[]),
+    ...(CRM_DELIVERY_ENABLED&&!testMode?[{id:randomUUID(),destination:"crm",payload:record}]:[])];
   const rows=await query(`WITH accepted AS (
     UPDATE p5_estimator_drafts SET status='submitted',submitted_at=now(),internal_estimate=$1::jsonb,customer_estimate=$2::jsonb
     WHERE id=$3 AND revision=$4 AND status='draft' RETURNING id
@@ -73,7 +85,7 @@ export async function processOutbox(options:{draftId?:string;revision?:number;li
       else {
         const [kind,...address]=destination.split(":");const admin=kind==="admin";const alert=kind==="alert";
         const attachments=alert?[]:[{filename:pdfFilename(row.draft_id,admin?"administrative":"customer"),content:admin?await administrativePdf(row.draft_id,{...record.internal,contact:record.contact,brand:record.brand,estimator:record.estimator,customer:record.customer,scope:record.scope}):await customerPdf(row.draft_id,record.customer)}];
-        const formatted=alert?{text:`Estimate ${row.draft_id} needs delivery review. ${record.error}\nOpen https://${brand.domain}/admin/p5-estimators to inspect the saved record. Do not resubmit the lead to retry delivery.`,html:undefined}:estimateEmail(row.draft_id,record,admin);
+        const formatted=alert?deliveryAlert(String(row.draft_id),String(record.error||"Delivery failed")):estimateEmail(row.draft_id,record,admin);
         providerId=await sendEmail({to:address.join(":"),subject:alert?`${brand.name}: estimate delivery needs attention (ref ${String(row.draft_id).slice(0,8)})`:admin?`${brand.name}: internal estimate record (ref ${String(row.draft_id).slice(0,8)})`:`Your ${brand.name} preliminary estimate ${estimateReference(String(row.draft_id))}`,...formatted,attachments,key});
       }
       await query("UPDATE p5_estimator_outbox SET status='sent',provider_id=$1,sent_at=now(),locked_until=NULL,last_error=NULL WHERE id=$2 AND status='sending'",[providerId,row.id]);
