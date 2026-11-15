@@ -402,9 +402,9 @@ export function layout(input: {
     : "";
   const ink = input.brand.charcoal || CHARCOAL;
   const phone = input.brand.phoneTel
-    ? `<a href="tel:${esc(input.brand.phoneTel)}" style="color:#f4f4f2;text-decoration:underline;">${esc(input.brand.phoneDisplay)}</a>`
-    : esc(input.brand.phoneDisplay);
-  const siteLink = /^https:\/\//i.test(site) ? `<a href="${esc(site)}" style="color:#f4f4f2;text-decoration:underline;">${esc(site.replace(/^https:\/\//, ""))}</a>` : "";
+    ? `<a href="tel:${esc(input.brand.phoneTel)}" style="color:#f4f4f2;text-decoration:underline;"><span style="white-space:nowrap">${esc(input.brand.phoneDisplay)}</span></a>`
+    : `<span style="white-space:nowrap">${esc(input.brand.phoneDisplay)}</span>`;
+  const siteLink = /^https:\/\//i.test(site) ? `<a href="${esc(site)}" style="color:#f4f4f2;text-decoration:underline;"><span style="white-space:nowrap">${esc(site.replace(/^https:\/\//, ""))}</span></a>` : "";
   const footer = [esc(input.brand.name), esc(footerCityLine(input.brand.cityLine)), phone, siteLink].filter((part) => part && part !== "undefined").join(" · ");
   const extra = input.footerNote?.trim() ? `<p style="margin:8px 0 0;font-size:12px;line-height:1.5;color:#d9d9d6;">${esc(input.footerNote.trim())}</p>` : "";
   const kicker = input.kicker?.trim()

@@ -169,6 +169,20 @@ test('the estimate PDF paints the submitting brand and keeps the parent endorsem
  assert.match(raw,/\/Width 32\b/);
  assert.doesNotMatch(raw,/\/Width 1200\b/);
 });
+test('the customer estimate email has one schedule button and the preliminary note last',()=>{
+ const mail=estimateEmail(ID,{customer:{...re10,issue:issueRecord({brandId:site.id,id:ID,revision:1,now:new Date('2026-09-21T18:00:00Z'),contact,scope:scope('re10')})},contact},false);
+ const html=mail.html;
+ const scheduleAt=html.indexOf('>Schedule now<');
+ const noticeAt=html.lastIndexOf('Preliminary estimate, not a contract.');
+ const footerAt=html.lastIndexOf('prepared this estimate');
+ assert.ok(scheduleAt>0&&noticeAt>scheduleAt&&footerAt>noticeAt);
+ assert.match(html,/margin:24px 0;[^>]*>\s*<b[^>]*>Preliminary estimate, not a contract\./);
+ const primary=[...html.matchAll(/font-size:18px;font-weight:(?:700|bold);[^"]*">([^<]+)</g)].map(match=>match[1]);
+ assert.deepEqual([...new Set(primary)],['Schedule now']);
+ assert.match(html,/white-space:nowrap/);
+ assert.ok(mail.text.indexOf('Schedule now:')<mail.text.lastIndexOf('Preliminary estimate, not a contract.'));
+ assert.ok(mail.text.lastIndexOf('Preliminary estimate, not a contract.')<mail.text.lastIndexOf(site.name));
+});
 test('customer text cannot inject markup into the email',()=>{
  const issue=issueRecord({brandId:site.id,id:ID,revision:1,now:new Date('2026-09-21T18:00:00Z'),contact:{...contact,name:'<img src=x onerror=alert(1)>'},scope:scope('handyman',{},'<script>alert(1)</script> fix the door.')});
  const mail=estimateEmail(ID,{customer:{...re10,issue}},false);

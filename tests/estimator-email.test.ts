@@ -132,6 +132,15 @@ test("every p5 fixture renders admin and customer html and text from the estimat
       assert.match(customer.html, /#a58c72/i);
       assert.match(admin.html, /#a58c72/i);
       assert.doesNotMatch(`${customer.html}\n${admin.html}`, /#ceb391/i);
+      const primary = [...customer.html.matchAll(/font-size:18px;font-weight:(?:700|bold);[^"]*">([^<]+)</g)].map((match) => match[1]);
+      assert.deepEqual([...new Set(primary)], ["Schedule now"]);
+      const noticeAt = customer.html.lastIndexOf("Preliminary estimate, not a contract.");
+      assert.ok(noticeAt > customer.html.indexOf(">Schedule now<"));
+      assert.match(customer.html, /margin:24px 0;/);
+    }
+    if (!fixture.withhold && !/fail/i.test(admin.text)) {
+      const ready = admin.html.match(/border-left:4px solid (#[0-9a-fA-F]{6});[^>]*>Ready/i);
+      if (ready) assert.notEqual(ready[1].toLowerCase(), "#9e3324");
     }
     assert.match(customer.html, /View my estimate/);
     assert.match(customer.html, /Schedule now/);

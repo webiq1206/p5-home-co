@@ -7,6 +7,7 @@
  */
 
 import { ESTIMATOR_BRAND } from "../../../lib/p5/brand.ts";
+import { PRELIMINARY_NOTICE } from "../../../lib/p5/estimateDocument.ts";
 import { phoneHref } from "../../../lib/p5/phoneHref.ts";
 import {
   ESTIMATE_DISCLAIMER,
@@ -14,6 +15,7 @@ import {
   estimatorTestMode,
   formatBoise,
   formatMoney,
+  MUTED,
   renderEmail,
   tierNextStep,
   valueTier,
@@ -194,7 +196,7 @@ export function teamReport(row: GuidedRow, links: TeamReportLinks): Message {
   const blocks: Block[] = [
     {
       type: "notice",
-      kind: (row.review ?? []).length || row.price_withheld ? "review" : "confidential",
+      kind: /fail/i.test(links.status) ? "confidential" : (row.review ?? []).length || row.price_withheld ? "review" : "info",
       text: `${statusPill(row, links.status)}. ${links.status}${row.price_withheld ? " The customer was not shown a price." : ""}`,
     },
   ];
@@ -387,11 +389,11 @@ export function customerConfirmation(row: GuidedRow, viewUrl: string): Message {
   if (assumptions.length) blocks.push({ type: "bullets", title: "Assumptions", items: assumptions });
   if (excluded.length) blocks.push({ type: "bullets", title: "Not included", items: excluded });
   if (more && stillNeed.length) blocks.push({ type: "bullets", title: "What we still need", items: stillNeed });
-  blocks.push({ type: "p", text: ESTIMATE_DISCLAIMER });
   blocks.push({ type: "p", text: nextStepCopy(row.project, high) });
+  blocks.push({ type: "p", text: ESTIMATE_DISCLAIMER });
   const actionItems: { label: string; href: string; variant: "primary" | "secondary" }[] = [
-    { label: "View my estimate", href: viewUrl, variant: "primary" },
-    { label: "Schedule now", href: SCHEDULE_URL, variant: "secondary" },
+    { label: "View my estimate", href: viewUrl, variant: "secondary" },
+    { label: "Schedule now", href: SCHEDULE_URL, variant: "primary" },
     { label: "Call us", href: `tel:${brand.phoneTel}`, variant: "secondary" },
     { label: "Reply with questions", href: `mailto:${brand.replyTo}?subject=${encodeURIComponent(subject)}`, variant: "secondary" },
   ];
@@ -400,6 +402,11 @@ export function customerConfirmation(row: GuidedRow, viewUrl: string): Message {
   if (more && !uploadUrl) blocks.push({ type: "p", text: "Reply to this email with your plans." });
   blocks.push({ type: "p", text: `If you have questions, just reply to this email or call ${brand.phoneDisplay}.` });
   blocks.push({ type: "p", text: `The ${brand.name} team` });
+  blocks.push({
+    type: "raw",
+    html: `<p style="margin:24px 0;font-size:13px;line-height:1.55;color:${MUTED};"><b style="color:${brand.charcoal};">${PRELIMINARY_NOTICE.lead}</b> ${PRELIMINARY_NOTICE.text}</p>`,
+    text: `${PRELIMINARY_NOTICE.lead} ${PRELIMINARY_NOTICE.text}`,
+  });
   const range = view?.range && !row.price_withheld ? `${formatMoney(view.range.low)} to ${formatMoney(view.range.high)}` : "a closer look";
   const rendered = renderEmail({
     brand,
