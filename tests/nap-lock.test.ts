@@ -11,7 +11,6 @@ import {
   PUBLIC_ADDRESS,
   PUBLIC_EMAIL,
   PUBLIC_PHONE_DISPLAY,
-  PUBLIC_STREET_ADDRESS,
   SCHEMA_LEGAL_NAME,
   SCHEMA_TELEPHONE,
 } from "../app/publicIdentity.ts";
@@ -21,7 +20,7 @@ import { ESTIMATOR_BRAND } from "../lib/p5/brand.ts";
 const VISIBLE_PHONE = "(208) 477-1169";
 const SCHEMA_PHONE = "+1-208-477-1169";
 const SCHEMA_EMAIL = "hello@p5homeco.com";
-const CITATION_ADDRESS = "4031 W Wapoot St, Meridian, ID 83646";
+const PUBLIC_LOCALITY = "Meridian, ID 83646";
 const VISIBLE_NAME = "P5 Home Co";
 const CONTRACT_ANSWER = "Your contract is with P5 Home Co LLC, Idaho Registered Contractor #8381215. Boise Construction Co, Boise Remodeling Co, Boise Cabinet Co and Boise Handyman Co are DBAs of P5 Home Co.";
 const REGISTRATION_LLC = [
@@ -43,8 +42,7 @@ test("the published name, phone, email and address stay on the citation", () => 
   assert.equal(PUBLIC_PHONE_DISPLAY, VISIBLE_PHONE);
   assert.equal(SCHEMA_TELEPHONE, SCHEMA_PHONE);
   assert.equal(PUBLIC_EMAIL, SCHEMA_EMAIL);
-  assert.equal(PUBLIC_ADDRESS, CITATION_ADDRESS);
-  assert.equal(PUBLIC_STREET_ADDRESS, "4031 W Wapoot St");
+  assert.equal(PUBLIC_ADDRESS, PUBLIC_LOCALITY);
   assert.equal(SCHEMA_LEGAL_NAME, "P5 Home Co LLC");
   assert.equal(ESTIMATOR_BRAND.name, VISIBLE_NAME);
   assert.equal(ESTIMATOR_BRAND.phone, VISIBLE_PHONE);
@@ -63,9 +61,10 @@ test("the published name, phone, email and address stay on the citation", () => 
   assert.equal(organization.telephone, SCHEMA_PHONE);
   assert.equal(organization.contactPoint.telephone, SCHEMA_PHONE);
   assert.equal(organization.email, SCHEMA_EMAIL);
+  assert.equal("streetAddress" in organization.address, false);
   assert.equal(
-    `${organization.address.streetAddress}, ${organization.address.addressLocality}, ${organization.address.addressRegion} ${organization.address.postalCode}`,
-    CITATION_ADDRESS,
+    `${organization.address.addressLocality}, ${organization.address.addressRegion} ${organization.address.postalCode}`,
+    PUBLIC_LOCALITY,
   );
   assert.equal(organization.address.addressCountry, "US");
 
@@ -80,34 +79,34 @@ test("the published name, phone, email and address stay on the citation", () => 
 test("the contact page, vCard and llms files use that same citation", () => {
   assert.deepEqual(CONTACT_NAP, {
     name: VISIBLE_NAME,
-    address: CITATION_ADDRESS,
+    address: PUBLIC_LOCALITY,
     phone: VISIBLE_PHONE,
     email: SCHEMA_EMAIL,
   });
-  assert.equal(CONTACT_LEAD.includes(CITATION_ADDRESS), true);
+  assert.equal(CONTACT_LEAD.includes(PUBLIC_LOCALITY), true);
   assert.equal(CONTACT_LEAD.includes(VISIBLE_PHONE), true);
   assert.equal(CONTACT_LEAD.includes(SCHEMA_EMAIL), true);
 
   const page = readFileSync("app/contact/page.tsx", "utf8");
   assert.match(page, /className="contact-nap"/);
   assert.match(page, /className="contact-nap-name">P5 Home Co</);
-  assert.match(page, /\{PUBLIC_STREET_ADDRESS\}/);
-  assert.match(page, /Meridian, ID 83646/);
+  assert.match(page, /\{PUBLIC_ADDRESS\}/);
   assert.match(page, /\{PUBLIC_PHONE_DISPLAY\}/);
   assert.match(page, /\{PUBLIC_EMAIL\}/);
-  assert.equal(`${PUBLIC_STREET_ADDRESS}, Meridian, ID 83646`, CITATION_ADDRESS);
+  assert.equal(page.includes("PUBLIC_STREET"), false);
 
   const card = unfoldVCard(buildCard());
   assert.match(card, /^ORG:P5 Home Co$/m);
   assert.match(card, /^TEL;TYPE=WORK,VOICE:\+12084771169$/m);
   assert.match(card, /^EMAIL;TYPE=WORK:hello@p5homeco\.com$/m);
-  assert.match(card, /^ADR;TYPE=WORK:;;4031 W Wapoot St;Meridian;ID;83646;USA$/m);
-  assert.equal(card.includes(CITATION_ADDRESS), true);
+  assert.match(card, /^ADR;TYPE=WORK:;;;Meridian;ID;83646;USA$/m);
+  assert.equal(card.includes(PUBLIC_LOCALITY), true);
+  assert.equal(hasStreet(card), false);
   assert.match(readFileSync("app/contact.vcf/route.ts", "utf8"), /buildBusinessVCard/);
 
   for (const file of ["public/llms.txt", "public/llms-full.txt"]) {
     const text = readFileSync(file, "utf8").replace(/\s+/g, " ");
-    assert.equal(text.includes(CITATION_ADDRESS), true, file);
+    assert.equal(text.includes(PUBLIC_LOCALITY), true, file);
     assert.equal(text.includes(VISIBLE_PHONE), true, file);
     assert.equal(text.includes(SCHEMA_EMAIL), true, file);
     assert.equal(nameProblem(withoutRegistrationLlc(text)), null, file);
@@ -128,6 +127,20 @@ test("legal, terms and contractor registration lines keep the legal name", () =>
   assert.equal(readFileSync("public/llms-full.txt", "utf8").includes(CONTRACT_ANSWER), true);
   assert.equal(readFileSync("app/site.ts", "utf8").includes("are DBAs of P5 Home Co LLC"), false);
   assert.equal(readFileSync("public/llms-full.txt", "utf8").includes("are DBAs of P5 Home Co LLC"), false);
+});
+
+test("rendered pages, schema and emails do not publish a street", () => {
+  const hits: string[] = [];
+  const seen = new Set<string>();
+  const check = (label: string, text: string) => {
+    if (!hasStreet(text) || seen.has(label)) return;
+    seen.add(label);
+    hits.push(label);
+  };
+  check("schema", serializeJsonLd(siteSchema));
+  check("vcard", unfoldVCard(buildCard()));
+  for (const file of repoTextFiles()) check(file, readFileSync(file, "utf8"));
+  assert.deepEqual(hits, []);
 });
 
 test("visible pages show the phone as (208) 477-1169 and the name as P5 Home Co", () => {
@@ -151,13 +164,6 @@ test("visible pages show the phone as (208) 477-1169 and the name as P5 Home Co"
       const problem = nameProblem(text);
       if (problem) nameHits.push(`${file}: ${JSON.stringify(problem)}`);
     }
-    if (/Wapoot|4031/.test(text)) {
-      const hasCitation = text.includes(CITATION_ADDRESS)
-        || (text.includes("4031 W Wapoot St") && text.includes("Meridian, ID 83646"));
-      if (!hasCitation) nameHits.push(`${file}: address is not ${CITATION_ADDRESS}`);
-      if (/4031\s+(?!W Wapoot St\b)/.test(text)) nameHits.push(`${file}: street spelling drifted`);
-      if (/Wapoot\s+(?!St\b)/.test(text)) nameHits.push(`${file}: Wapoot is not abbreviated St`);
-    }
   }
   assert.deepEqual(nameHits, []);
 
@@ -168,6 +174,27 @@ test("visible pages show the phone as (208) 477-1169 and the name as P5 Home Co"
   assert.ok(nameFiles().includes("app/site.ts"));
   assert.ok(phoneFiles().includes("app/not-found.tsx"));
 });
+
+function hasStreet(text: string): boolean {
+  const name = ["Wa", "poot"].join("");
+  const number = "4031" + " W";
+  return text.toLowerCase().includes(name.toLowerCase()) || text.includes(number);
+}
+
+function repoTextFiles(): string[] {
+  const found: string[] = [];
+  const skip = new Set(["node_modules", ".git", ".next", "coverage"]);
+  const walk = (dir: string) => {
+    for (const name of readdirSync(dir)) {
+      if (skip.has(name) || name.startsWith(".env")) continue;
+      const path = join(dir, name);
+      if (statSync(path).isDirectory()) walk(path);
+      else if (/\.(ts|tsx|txt|md|mjs|html|json|vcf)$/.test(name) && name !== "package-lock.json") found.push(path);
+    }
+  };
+  walk(".");
+  return found;
+}
 
 function quoted(json: string, key: string): string[] {
   return [...json.matchAll(new RegExp(`"${key}":"([^"]*)"`, "g"))].map((match) => match[1]);
