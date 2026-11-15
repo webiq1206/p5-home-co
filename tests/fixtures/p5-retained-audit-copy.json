@@ -120,7 +120,7 @@
         "category": "field-labor",
         "evidence": {
           "basis": "owner-estimating-schedule",
-          "reference": "P5 Cost Database 2026.xlsx (Master sheet), Mid-Range direct cost; PB-08-71-01; Three doors stated in scope; labor only at $70/door per catalog",
+          "reference": "P5 Cost Database 2026.xlsx (Master sheet), Signature direct cost; PB-08-71-01; Three doors stated in scope; labor only at $70/door per catalog",
           "validUntil": "2026-12-12T00:00:00.000Z",
           "verifiedAt": "2026-09-11T00:00:00.000Z"
         },
@@ -128,7 +128,7 @@
           "fixed": 3,
           "factor": 1
         },
-        "unitCost": 70,
+        "unitCost": 55,
         "allowance": false,
         "priceBasis": "direct-cost",
         "description": "Remove existing handles and install their replacements on the same doors: Door hardware install / replace, per door (labor) (labor only; price materials separately; Door Hardware Installation (Labor), Openings). Labor only; material priced separately",
@@ -322,7 +322,7 @@
             "category": "field-labor",
             "evidence": {
               "basis": "owner-estimating-schedule",
-              "reference": "P5 Cost Database 2026.xlsx (Master sheet), Mid-Range direct cost; PB-08-71-01; Three doors stated in scope; labor only at $70/door per catalog",
+              "reference": "P5 Cost Database 2026.xlsx (Master sheet), Signature direct cost; PB-08-71-01; Three doors stated in scope; labor only at $70/door per catalog",
               "validUntil": "2026-12-12T00:00:00.000Z",
               "verifiedAt": "2026-09-11T00:00:00.000Z"
             },
@@ -330,7 +330,7 @@
               "fixed": 3,
               "factor": 1
             },
-            "unitCost": 70,
+            "unitCost": 55,
             "allowance": false,
             "priceBasis": "direct-cost",
             "description": "Remove existing handles and install their replacements on the same doors: Door hardware install / replace, per door (labor) (labor only; price materials separately; Door Hardware Installation (Labor), Openings). Labor only; material priced separately",

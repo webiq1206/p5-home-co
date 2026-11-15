@@ -70,7 +70,7 @@ test('finish basis is reported truthfully: selected, from documents, or an assum
  assert.equal(issueRecord({...base,scope:scope('re10')}).finishBasis,'not-applicable');
  // The builder-grade tier is never called a "refresh" on a new home.
  const doc=buildEstimateDocument({id:ID,result:re10,brand:brand('construction'),issue:{service:'new-construction',finish:'refresh',finishBasis:'selected'}});
- assert.equal(doc.finish.name,'Builder grade');assert.match(doc.finish.basis,/selected by you/);
+ assert.equal(doc.finish.name,'Essential');assert.match(doc.finish.basis,/selected by you/);
  const repair=buildEstimateDocument({id:ID,result:re10,brand:brand('handyman'),issue:{service:'re10'}});
  assert.equal(repair.finish.heading,'Finish / repair standard');assert.match(repair.finish.detail,/exact match to existing finishes is not guaranteed/);
 });

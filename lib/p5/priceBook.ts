@@ -17,10 +17,10 @@ import type {PlanningRate} from './planningBooks.ts';
  */
 export type FinishTier='builder'|'mid'|'high'|'luxury';
 /** The estimator's finish values, mapped to the book's four tiers. 'refresh' is the value the
- * selector has always stored for its lowest tier; the book calls that tier Builder Grade. */
+ * selector has always stored for its lowest tier; customers see that tier as Essential. */
 export const FINISH_TIER:Record<string,FinishTier>={refresh:'builder','mid-range':'mid','high-end':'high',luxury:'luxury'};
-export const TIER_LABEL:Record<FinishTier,string>={builder:'Builder Grade',mid:'Mid-Range',high:'High-End',luxury:'Luxury'};
-/** The book's own default when no finish is chosen is Mid-Range. */
+export const TIER_LABEL:Record<FinishTier,string>={builder:'Essential',mid:'Signature',high:'Premium',luxury:'Luxury'};
+/** The book's own default when no finish is chosen is Signature. */
 export const finishTier=(finish?:string|null):FinishTier=>FINISH_TIER[String(finish||'')]||'mid';
 
 // Flag bits, in the order scripts/p5-build-price-book.mjs writes them.
@@ -67,7 +67,14 @@ export const PRICE_BOOK_RATEABLE=PRICE_BOOK.filter(row=>UNITS[row[4]]&&COST_TYPE
 export const PRICE_BOOK_PERCENTAGE=PRICE_BOOK.filter(row=>row[5]==='Percentage'&&['% of const.','% of cost'].includes(row[4]));
 export const PRICE_BOOK_INVALID=PRICE_BOOK.filter(row=>!PRICE_BOOK_RATEABLE.includes(row)&&!PRICE_BOOK_PERCENTAGE.includes(row));
 if(PRICE_BOOK_INVALID.length)throw new Error('The price book contains unsupported units or cost types: '+PRICE_BOOK_INVALID.map(row=>row[0]).join(', '));
-/** One line, priced for this project. */
+/** One shared cost-book line, priced. Older brand calculators call this instead of a local price table.
+ * `code` may be the book id (08-71-01) or the catalog id (PB-08-71-01). Percentage lines are not
+ * unit prices and return null. `remodel` adds the line's existing-home premium when the book has one. */
+export function sharedBookRate(code:string,tier:FinishTier='mid',remodel=false):PlanningRate|null{
+  const row=PRICE_BOOK.find(r=>r[0]===String(code||'').replace(/^PB-/,''));
+  if(!row||!UNITS[row[4]]||!COST_TYPES[row[5]])return null;
+  return priceBookRate(row,tier,remodel);
+}
 export function priceBookRate(row:PriceBookRow,tier:FinishTier,remodel:boolean):PlanningRate{
   const [code,division,section,item,uom,costType,allowance,,,finishSensitive,,,,,premium,notes]=row;
   const kind=COST_TYPES[costType];

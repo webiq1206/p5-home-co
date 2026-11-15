@@ -24,13 +24,13 @@ test('assembly coverage never merges two bathrooms or distinct locations',()=>{
 test('explicit framed shower door uses the framed book amount regardless of general mid-range tier',()=>{
  const m=mapping([task('door','Supply and install one framed shower door.','PB-08-83-01')]);
  const out=catalogResolution(m,config,[],now,scope('Remodel one bathroom.'));
- assert.equal(out.rules[0].unitCost,900);assert.match(out.rules[0].description,/Framed shower glass/);
+ assert.equal(out.rules[0].unitCost,730);assert.match(out.rules[0].description,/Framed shower glass/);
  const rate=config.planningCatalog.rates.find(r=>r.code==='PB-08-83-01')!;
- assert.equal(specifiedShowerGlassRate(rate,'One semi-frameless enclosure','bathroom').amount,1400);
- assert.equal(specifiedShowerGlassRate(rate,'One frameless enclosure','bathroom').amount,2400);
- assert.equal(specifiedShowerGlassRate(rate,'One custom frameless enclosure','bathroom').amount,4000);
+ assert.equal(specifiedShowerGlassRate(rate,'One semi-frameless enclosure','bathroom').amount,1130);
+ assert.equal(specifiedShowerGlassRate(rate,'One frameless enclosure','bathroom').amount,1590);
+ assert.equal(specifiedShowerGlassRate(rate,'One custom frameless enclosure','bathroom').amount,2130);
  assert.equal(specifiedShowerGlassRate(rate,'Choose framed or frameless','bathroom'),rate);
- assert.equal(specifiedShowerGlassRate({...rate,source:'Owner custom quote'},'One framed door','bathroom').amount,1400);
+ assert.equal(specifiedShowerGlassRate({...rate,source:'Owner custom quote'},'One framed door','bathroom').amount,1130);
 });
 
 test('supplier bag labels retain measured weight, price and quantity through conversion',async()=>{

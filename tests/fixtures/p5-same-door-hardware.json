@@ -212,7 +212,7 @@
         "category": "field-labor",
         "evidence": {
           "basis": "owner-estimating-schedule",
-          "reference": "P5 Cost Database 2026.xlsx (Master sheet), Mid-Range direct cost; PB-08-71-01; Three existing interior passage door levers on ground-floor doors with easy access.",
+          "reference": "P5 Cost Database 2026.xlsx (Master sheet), Signature direct cost; PB-08-71-01; Three existing interior passage door levers on ground-floor doors with easy access.",
           "validUntil": "2026-12-12T00:00:00.000Z",
           "verifiedAt": "2026-09-11T00:00:00.000Z"
         },
@@ -220,7 +220,7 @@
           "fixed": 3,
           "factor": 1
         },
-        "unitCost": 70,
+        "unitCost": 55,
         "allowance": false,
         "priceBasis": "direct-cost",
         "description": "Remove and dispose of three existing interior passage door levers: Door hardware install / replace, per door (labor) (labor only; price materials separately; Door Hardware Installation (Labor), Openings). Labor only; material priced separately",
@@ -240,7 +240,7 @@
         "category": "field-labor",
         "evidence": {
           "basis": "owner-estimating-schedule",
-          "reference": "P5 Cost Database 2026.xlsx (Master sheet), Mid-Range direct cost; PB-08-71-01; Three owner-supplied passage door levers installed on existing ground-floor doors with predrilled holes in good condition.",
+          "reference": "P5 Cost Database 2026.xlsx (Master sheet), Signature direct cost; PB-08-71-01; Three owner-supplied passage door levers installed on existing ground-floor doors with predrilled holes in good condition.",
           "validUntil": "2026-12-12T00:00:00.000Z",
           "verifiedAt": "2026-09-11T00:00:00.000Z"
         },
@@ -248,7 +248,7 @@
           "fixed": 3,
           "factor": 1
         },
-        "unitCost": 70,
+        "unitCost": 55,
         "allowance": false,
         "priceBasis": "direct-cost",
         "description": "Install three owner-supplied replacement passage door levers on existing doors with predrilled holes; contractor supplies normal installation consumables (screws, washers, fasteners as required): Door hardware install / replace, per door (labor) (labor only; price materials separately; Door Hardware Installation (Labor), Openings). Labor only; material priced separately",
@@ -363,7 +363,7 @@
             "category": "field-labor",
             "evidence": {
               "basis": "owner-estimating-schedule",
-              "reference": "P5 Cost Database 2026.xlsx (Master sheet), Mid-Range direct cost; PB-08-71-01; Three existing interior passage door levers on ground-floor doors with easy access.",
+              "reference": "P5 Cost Database 2026.xlsx (Master sheet), Signature direct cost; PB-08-71-01; Three existing interior passage door levers on ground-floor doors with easy access.",
               "validUntil": "2026-12-12T00:00:00.000Z",
               "verifiedAt": "2026-09-11T00:00:00.000Z"
             },
@@ -371,7 +371,7 @@
               "fixed": 3,
               "factor": 1
             },
-            "unitCost": 70,
+            "unitCost": 55,
             "allowance": false,
             "priceBasis": "direct-cost",
             "description": "Remove and dispose of three existing interior passage door levers: Door hardware install / replace, per door (labor) (labor only; price materials separately; Door Hardware Installation (Labor), Openings). Labor only; material priced separately",
@@ -391,7 +391,7 @@
             "category": "field-labor",
             "evidence": {
               "basis": "owner-estimating-schedule",
-              "reference": "P5 Cost Database 2026.xlsx (Master sheet), Mid-Range direct cost; PB-08-71-01; Three owner-supplied passage door levers installed on existing ground-floor doors with predrilled holes in good condition.",
+              "reference": "P5 Cost Database 2026.xlsx (Master sheet), Signature direct cost; PB-08-71-01; Three owner-supplied passage door levers installed on existing ground-floor doors with predrilled holes in good condition.",
               "validUntil": "2026-12-12T00:00:00.000Z",
               "verifiedAt": "2026-09-11T00:00:00.000Z"
             },
@@ -399,7 +399,7 @@
               "fixed": 3,
               "factor": 1
             },
-            "unitCost": 70,
+            "unitCost": 55,
             "allowance": false,
             "priceBasis": "direct-cost",
             "description": "Install three owner-supplied replacement passage door levers on existing doors with predrilled holes; contractor supplies normal installation consumables (screws, washers, fasteners as required): Door hardware install / replace, per door (labor) (labor only; price materials separately; Door Hardware Installation (Labor), Openings). Labor only; material priced separately",

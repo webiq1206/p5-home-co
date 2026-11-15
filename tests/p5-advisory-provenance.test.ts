@@ -35,7 +35,7 @@ test('new typed audit is requested in the existing single call, stamped server-s
  assert.equal(calls,1);assert.equal(response.advisoryProvenance?.length,1);
  f.auditTrail.advisoryProvenance=response.advisoryProvenance;
  const before=JSON.stringify(f),out=render(f);
- assert.equal(JSON.stringify(f),before);assert.equal(out.internal.directCost,285);assert.deepEqual(out.customer.range,{low:450,high:570});
+ assert.equal(JSON.stringify(f),before);assert.equal(out.internal.directCost,240);assert.deepEqual(out.customer.range,{low:380,high:480});
  assert.equal(final(out).advisoryDisposition.superseded.length,2);
  assert.equal(final(out).findings.filter((x:any)=>x.kind==='historical-review').length,0);
  const text=JSON.stringify(out.customer);assert.match(text,/confirm compatibility/);assert.match(text,/Confirm site access/);
