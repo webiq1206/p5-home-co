@@ -1,7 +1,7 @@
 {
   "source": "p5-home-co",
-  "commit": "ed79fcf662daf3023d7672902d50fef1a4665bef",
-  "generatedAt": "2026-11-15T19:52:39.099Z",
+  "commit": "4897305f043fc7d73653f647b58d985620dbc5d0",
+  "generatedAt": "2026-11-15T20:00:02.129Z",
   "note": "Shared estimator engine published from p5-home-co. Edit shared files there and run scripts/p5-sync.mjs; hash checks remain mandatory in every brand.",
   "files": {
     "app/admin/p5-estimators/page.tsx": "489c406a30e5aba809f6c603738d999c2e412f9b67968281a8ea16e748587b62",
@@ -433,7 +433,7 @@
     "tests/p5-intake-question-memory.test.ts": "6111a16f2d5e03c51a01a91fb97a7bdd9710c4a01ad9e8869ff5a6e51ce294a4",
     "tests/p5-intake-question-state.test.ts": "e6db8df9e27e557393f0542a67bc2e30c4ecd3bc4d1a3f7397ce0e1f23bf4e56",
     "tests/p5-intake-reference.test.ts": "213a0fc884e14971513fe8d0f9d7d7a2571e2a7b650ed157ab8ccab3a59fda23",
-    "tests/p5-intake-reply-to.test.ts": "e378c9f7d1b13b6a109baf617e86c894877bfa2effc9c9d6ce1bbb872c785184",
+    "tests/p5-intake-reply-to.test.ts": "e4652f8c4004373de80ecbef50f7ba73551eae2f78d22299d6748522e510e358",
     "tests/p5-intake-store.test.ts": "316683e4f9098c97e7df495fbcd9db6064d94ef5d48cf2a8cf0aea5e569adc4b",
     "tests/p5-intake-transfer-browser.test.ts": "e6a53a2addac43bd42cb6148232138839f11a234234b13f9524ed09149092bd3",
     "tests/p5-intake-transfer-files.test.ts": "f2dc24f141f5fa9b18a8caf72bb34a95f4cc9f95eb0fcce0752adf781cae7f6b",

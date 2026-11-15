@@ -21,6 +21,7 @@ function adapter(){
   './brand':{ESTIMATOR_BRAND:brand},'./brand.ts':{ESTIMATOR_BRAND:brand},'./emailReplyTo.ts':{safeEmailReplyTo},
   'nodemailer':{createTransport:()=>({sendMail:async(body:any)=>{calls.push({body});return {accepted:[body.to],rejected:[],messageId:body.messageId};}})},
   '../../app/lib/notifications/smtp-config.ts':{getSmtpConfig:()=>({from,replyTo:mailbox,options:{}}),assertSmtpAccepted:(result:any)=>assert.equal(result.accepted.length,1)},
+  '../../app/lib/notifications/transport.ts':{sendWithRetry:async(send:()=>Promise<void>)=>{await send();return {ok:true};}},
   '../../app/lib/notifications/dispatch.ts':{},'../../app/lib/leads/intake.ts':{},'../../app/lib/leads/synthetic-qa.ts':{},'../../app/lib/leads/settings.ts':{},
   '../../server/services/emailTransport':{getUncachableEmailClient:async()=>({client:{emails:{send}},fromEmail:mailbox})},
   '../../server/resend':{getUncachableResendClient:async()=>({client:{emails:{send}},fromEmail:mailbox})},
