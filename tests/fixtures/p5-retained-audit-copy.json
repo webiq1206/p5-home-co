@@ -128,7 +128,7 @@
           "fixed": 3,
           "factor": 1
         },
-        "unitCost": 55,
+        "unitCost": 67,
         "allowance": false,
         "priceBasis": "direct-cost",
         "description": "Remove existing handles and install their replacements on the same doors: Door hardware install / replace, per door (labor) (labor only; price materials separately; Door Hardware Installation (Labor), Openings). Labor only; material priced separately",
@@ -330,7 +330,7 @@
               "fixed": 3,
               "factor": 1
             },
-            "unitCost": 55,
+            "unitCost": 67,
             "allowance": false,
             "priceBasis": "direct-cost",
             "description": "Remove existing handles and install their replacements on the same doors: Door hardware install / replace, per door (labor) (labor only; price materials separately; Door Hardware Installation (Labor), Openings). Labor only; material priced separately",

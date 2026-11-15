@@ -172,7 +172,7 @@ test('missing pages and partial observations cannot be certified as a complete p
 test('the real owner rate prices only the requested contractor labor',()=>{
  const r=record(),selection=projectPriceSelection(r,config,proposal()),compiled=compileProjectPrices(r,selection,config,now);
  assert.deepEqual(compiled.problems,[]);assert.equal(compiled.lines.length,1);
- assert.equal(compiled.lines[0].quantity,3);assert.equal(compiled.lines[0].unitCost,55);assert.equal(compiled.lines[0].quantity*compiled.lines[0].unitCost,165);
+ assert.equal(compiled.lines[0].quantity,3);assert.equal(compiled.lines[0].unitCost,67);assert.equal(compiled.lines[0].quantity*compiled.lines[0].unitCost,201);
  const result=calculateProjectEstimate(r,selection,config,projectReviewReceipt(r,selection,review(r)),now);
  assert.equal(result.status,'estimated',JSON.stringify(result));assert.ok('customer'in result&&result.customer.range);
  assert.ok(!JSON.stringify('customer'in result&&result.customer).includes('unitCost'));
@@ -203,7 +203,7 @@ test('bounded supporting effort is costed as a disclosed allowance without inven
  const proposed={...proposal(),estimatingQuantities:quantities};
  proposed.lines.push({id:'cleanup-price',rateId:'PB-01-74-10',quantityId:'cleanup-effort',requirementIds:['cleanup'],catalogQuote:config.planningCatalog!.rates.find(rate=>rate.code==='PB-01-74-10')!.description,coverageEvidence:'Cleanup labor for the included work; no material purchase.',specificationChecks:[{requirementId:'cleanup',specificationIndex:0,basis:'scope-condition',evidenceIds:['e1'],explanation:'Controlled fixture carries the same known installation conditions.'}]});
  const selection=projectPriceSelection(r,config,proposed),compiled=compileProjectPrices(r,selection,config,now);
- assert.deepEqual(compiled.problems,[]);assert.equal(compiled.lines.reduce((sum,line)=>sum+line.quantity*line.unitCost,0),186.5);
+ assert.deepEqual(compiled.problems,[]);assert.equal(compiled.lines.reduce((sum,line)=>sum+line.quantity*line.unitCost,0),222.5);
  assert.equal(r.quantities.length,1);assert.equal(r.quantities[0].value,3);
  const result=calculateProjectEstimate(r,selection,config,projectReviewReceipt(r,selection,review(r)),now);
  assert.equal(result.status,'estimated');assert.ok('customer'in result&&result.customer.assumptions.some((a:string)=>a.includes('15 to 45 minutes')));
@@ -329,7 +329,7 @@ test('revisions invalidate old prices and review even when work-item identities 
  const repriced=projectPriceSelection(current,config,proposal());
  assert.ok(calculateProjectEstimate(current,repriced,config,receipt,now).problems.some(p=>p.code==='stale-review'));
  const fresh=calculateProjectEstimate(current,repriced,config,projectReviewReceipt(current,repriced,review(current)),now);
- assert.equal(fresh.status,'estimated');assert.equal(fresh.compiled.lines[0].quantity*fresh.compiled.lines[0].unitCost,110);
+ assert.equal(fresh.status,'estimated');assert.equal(fresh.compiled.lines[0].quantity*fresh.compiled.lines[0].unitCost,134);
 });
 test('the workflow performs separate scope and pricing reviews with no legacy correction calls',async()=>{
  const calls:string[]=[];
@@ -448,7 +448,7 @@ test('an invented review alternative is repaired without redirecting the accepte
   return {value:review(r),sourceUrls:[]};
  };
  const result=await priceProjectRecord(r,config,{request,now});assert.equal(result.status,'estimated');assert.equal(priceCalls,1);assert.equal(reviewCalls,2);
- assert.equal(result.status==='estimated'&&result.compiled.lines[0].unitCost,55);
+ assert.equal(result.status==='estimated'&&result.compiled.lines[0].unitCost,67);
  // Omitting a false rate from the structured references does not conceal it.
  unsupported.findings[0].catalogEvidence=[{rateId:'PB-08-71-01',quote:config.planningCatalog!.rates.find(rate=>rate.code==='PB-08-71-01')!.description}];
  assert.throws(()=>verifiedReviewCatalog(unsupported,config.planningCatalog!.rates),ProjectRecordError);

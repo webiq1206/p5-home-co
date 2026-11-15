@@ -11,7 +11,7 @@ test('saved .8 same-three-doors scope retains one replacement labor charge and e
  const f=fixture();const before=JSON.stringify(f.scope);
  const result=applyPricingCorrections(f);
  const labor=f.resolution.rules.filter((r:any)=>r.category==='field-labor');
- assert.equal(labor.length,1);assert.equal(labor[0].quantity.fixed,3);assert.equal(labor[0].unitCost,55);
+ assert.equal(labor.length,1);assert.equal(labor[0].quantity.fixed,3);assert.equal(labor[0].unitCost,67);
  assert.ok(result.coveredTaskIds.includes('door_lever_removal_disposal'));
  assert.ok(f.mappingTasks[0].existingLineIds.includes(labor[0].id));
  const pool=f.resolution.rules.find((r:any)=>r.id==='minor-work-allowance');
@@ -19,7 +19,7 @@ test('saved .8 same-three-doors scope retains one replacement labor charge and e
  assert.equal(JSON.stringify(f.scope),before,'original evidence remains untouched');
  const once=JSON.stringify(f.resolution);applyPricingCorrections(f);assert.equal(JSON.stringify(f.resolution),once);
  const priced=finishScopePricing(f.scope,f.configuration,f.now,f.resolution,{tasks:f.tasks},f.scope.extraction);
- assert.equal(priced.internal.directCost,240);
+ assert.equal(priced.internal.directCost,276);
  assert.ok(!priced.customer.verificationItems.some((n:string)=>/same item counted twice/.test(n)));
 });
 
@@ -33,7 +33,7 @@ test('saved .8 consumables copy reflects retained allowance without changing ori
  assert.match(JSON.stringify(out.customer.verificationItems),/Earlier scope and pricing assumptions.*pending review/,'unknown legacy caveats remain explicitly pending');
  assert.match(copy,/shared[^.]*allowance[^.]*consumables/i);
  assert.equal(JSON.stringify(audit),original);
- assert.equal(out.internal.directCost,405,'copy repair does not change prices');
+ assert.equal(out.internal.directCost,477,'copy repair does not change prices');
 });
 
 test('consumables copy preserves warnings, negations, unknown coverage and unpaid allowances',()=>{

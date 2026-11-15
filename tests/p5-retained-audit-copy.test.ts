@@ -21,8 +21,8 @@ test('saved .9 shared-line allegation is reconciled to final one-charge evidence
  const out=render(f);
  assert.doesNotMatch(notes(out),/Duplicate labor charge|consolidate to one per-door charge/i);
  assert.match(notes(out),/removal and installation.*share.*one.*labor charge/i);
- assert.equal(out.internal.directCost,240);
- assert.deepEqual(out.customer.range,{low:380,high:470});
+ assert.equal(out.internal.directCost,276);
+ assert.deepEqual(out.customer.range,{low:435,high:540});
  assert.equal(JSON.stringify(f),before);
  const decisions=(out.internal.scopePricing as any).customerCopyDecisions;
  assert.equal(decisions.length,3);
@@ -43,7 +43,7 @@ test('saved .9 affirmative included-within-labor claim reflects actual exclusive
  const f=fixture();const out=render(f);
  assert.doesNotMatch(notes(out),/consumables[^.]*included within the labor-only rate/i);
  assert.match(notes(out),/consumables.*shared preliminary job-support allowance/i);
- assert.equal(out.internal.directCost,240);
+ assert.equal(out.internal.directCost,276);
  assert.deepEqual(out.internal.scopePricing.verification,f.auditTrail.verification);
 });
 

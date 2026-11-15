@@ -25,7 +25,7 @@ function guided(project: string, answers: Record<string, unknown>, tier: FinishT
 
 test("shared book, scope platform and guided estimator agree on v2 unit prices", () => {
   const lines: [string, FinishTier, boolean, string, number][] = [
-    ["08-71-01", "mid", false, "handyman", 55],
+    ["08-71-01", "mid", false, "handyman", 67],
     ["12-31-01", "mid", true, "kitchen", 330],
     ["90-10-01", "mid", false, "new-construction", 200],
     ["09-01-08", "mid", false, "re10", 155],

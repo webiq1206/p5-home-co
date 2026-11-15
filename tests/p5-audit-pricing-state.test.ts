@@ -12,7 +12,7 @@ test('exact saved .11 result reproduces a blocked $285 ledger with no full-door 
  const f=fixture(),a=f.scopePricing;
  const config={finance:f.financeSnapshot,costBooks:[{...f.costBookSnapshot,rules:[],assumptions:[]}]};
  const out=finishScopePricing(f.scope,config,new Date(f.evaluatedAt),a.originalResolution,a,f.scope.extraction);
- assert.equal(out.internal.directCost,240);assert.equal(out.customer.range,null);
+ assert.equal(out.internal.directCost,276);assert.equal(out.customer.range,null);
  assert.equal(out.internal.lines.length,2);
  assert.ok(out.internal.lines.every((line:any)=>!line.evidence.reference.includes('PB-02-41-29')));
  assert.ok(out.internal.scopePricing.finalExplanation.advisoryDisposition.blockers.length>0);
@@ -23,7 +23,7 @@ test('exact saved .11 audit input distinguishes retained facts from all mapper h
  const original={answers:f.scope.answers,text:f.scope.text,extraction:f.scope.extraction};
  await requestPricingAudit(async(_instructions,input)=>{
   calls++;const p=input as any;
-  assert.equal(p.currentPricing.lines.reduce((sum:number,line:any)=>sum+line.directCost,0),240);
+  assert.equal(p.currentPricing.lines.reduce((sum:number,line:any)=>sum+line.directCost,0),276);
   assert.deepEqual(p.currentPricing.lines.map((line:any)=>line.id),['scope-1','minor-work-allowance']);
   const labor=p.currentPricing.lines[0];assert.equal(labor.canonicalRate.code,'PB-08-71-01');assert.match(labor.description,/labor only; price materials separately/);
   assert.ok(p.tasks.every((task:any)=>!('notes' in task)&&!('additions' in task)));
