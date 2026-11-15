@@ -79,7 +79,7 @@ test("public schema publishes the citation address, rounded geo and the seven se
   });
   assert.equal(JSON.stringify(organization).includes("Jared"), false);
   assert.deepEqual(organization.sameAs, [
-    "https://www.facebook.com/1228704823655951",
+    "https://www.facebook.com/p5homeco",
     "https://www.google.com/search?kgmid=/g/11ntl1t7dc",
     P5_GBP_MAPS_URL,
   ]);

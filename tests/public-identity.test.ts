@@ -181,7 +181,7 @@ test("the family footer prints the approved NAP, hours, registration and family 
     assert.match(html, new RegExp(`<a href="https://${site.replace(".", "\\.")}" rel="noopener">`), site);
   }
   assert.ok(text.includes(ADU_D3_LINE), "Boise ADU Co line");
-  assert.ok(html.includes("https://www.facebook.com/1228704823655951"));
+  assert.ok(html.includes("https://www.facebook.com/p5homeco"));
   // Owner call A: P5's Google Business Profile, once, beside the Facebook page.
   assert.equal((html.match(/data-testid="link-footer-google"/g) ?? []).length, 1);
   assert.ok(html.includes('<a href="https://www.google.com/search?kgmid=/g/11ntl1t7dc" rel="noopener" target="_blank" data-testid="link-footer-google">P5 Home Co on Google</a>'));
