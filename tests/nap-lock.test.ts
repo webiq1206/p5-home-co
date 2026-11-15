@@ -1,0 +1,231 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { createRequire } from "node:module";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import ts from "typescript";
+
+import { CONTACT_LEAD, CONTACT_NAP } from "../app/contact/content.ts";
+import {
+  PUBLIC_ADDRESS,
+  PUBLIC_EMAIL,
+  PUBLIC_PHONE_DISPLAY,
+  PUBLIC_STREET_ADDRESS,
+  SCHEMA_LEGAL_NAME,
+  SCHEMA_TELEPHONE,
+} from "../app/publicIdentity.ts";
+import { serializeJsonLd, siteSchema } from "../app/structuredData.ts";
+import { ESTIMATOR_BRAND } from "../lib/p5/brand.ts";
+
+const VISIBLE_PHONE = "(208) 477-1169";
+const SCHEMA_PHONE = "+1-208-477-1169";
+const SCHEMA_EMAIL = "hello@p5homeco.com";
+const CITATION_ADDRESS = "4031 W Wapoot St, Meridian, ID 83646";
+const VISIBLE_NAME = "P5 Home Co";
+
+const PHONE_FORMS = new Set([
+  VISIBLE_PHONE,
+  SCHEMA_PHONE,
+  "+12084771169",
+  "tel:+12084771169",
+  "sms:+12084771169",
+]);
+
+const PHONE_PATTERN = /(?:\+?1[\s().-]*)?\(?\s*208\s*\)?[\s().-]*477[\s().-]*1169/g;
+
+test("the published name, phone, email and address stay on the citation", () => {
+  assert.equal(PUBLIC_PHONE_DISPLAY, VISIBLE_PHONE);
+  assert.equal(SCHEMA_TELEPHONE, SCHEMA_PHONE);
+  assert.equal(PUBLIC_EMAIL, SCHEMA_EMAIL);
+  assert.equal(PUBLIC_ADDRESS, CITATION_ADDRESS);
+  assert.equal(PUBLIC_STREET_ADDRESS, "4031 W Wapoot St");
+  assert.equal(SCHEMA_LEGAL_NAME, "P5 Home Co LLC");
+  assert.equal(ESTIMATOR_BRAND.name, VISIBLE_NAME);
+  assert.equal(ESTIMATOR_BRAND.phone, VISIBLE_PHONE);
+  assert.equal(ESTIMATOR_BRAND.email, SCHEMA_EMAIL);
+  const family = readFileSync("lib/familyBrand.ts", "utf8");
+  assert.match(family, /name: "P5 Home Co"|name: 'P5 Home Co'/);
+  assert.match(family, /copyrightName: 'P5 Home Co'/);
+  assert.match(family, /display: PUBLIC_PHONE_DISPLAY/);
+  assert.match(family, /email: PUBLIC_EMAIL/);
+
+  const organization = siteSchema["@graph"][0];
+  const website = siteSchema["@graph"][1];
+  assert.equal(organization.name, VISIBLE_NAME);
+  assert.equal(website.name, VISIBLE_NAME);
+  assert.equal(organization.legalName, SCHEMA_LEGAL_NAME);
+  assert.equal(organization.telephone, SCHEMA_PHONE);
+  assert.equal(organization.contactPoint.telephone, SCHEMA_PHONE);
+  assert.equal(organization.email, SCHEMA_EMAIL);
+  assert.equal(
+    `${organization.address.streetAddress}, ${organization.address.addressLocality}, ${organization.address.addressRegion} ${organization.address.postalCode}`,
+    CITATION_ADDRESS,
+  );
+  assert.equal(organization.address.addressCountry, "US");
+
+  const json = serializeJsonLd(siteSchema);
+  assert.deepEqual(quoted(json, "telephone"), [SCHEMA_PHONE, SCHEMA_PHONE]);
+  assert.deepEqual(quoted(json, "email"), [SCHEMA_EMAIL]);
+  assert.equal(json.includes(`"name":"${VISIBLE_NAME}"`), true);
+  assert.equal(json.includes('"legalName":"P5 Home Co LLC"'), true);
+  assert.equal(json.includes("P5 Home Co."), false);
+});
+
+test("the contact page, vCard and llms files use that same citation", () => {
+  assert.deepEqual(CONTACT_NAP, {
+    name: VISIBLE_NAME,
+    address: CITATION_ADDRESS,
+    phone: VISIBLE_PHONE,
+    email: SCHEMA_EMAIL,
+  });
+  assert.equal(CONTACT_LEAD.includes(CITATION_ADDRESS), true);
+  assert.equal(CONTACT_LEAD.includes(VISIBLE_PHONE), true);
+  assert.equal(CONTACT_LEAD.includes(SCHEMA_EMAIL), true);
+
+  const page = readFileSync("app/contact/page.tsx", "utf8");
+  assert.match(page, /className="contact-nap"/);
+  assert.match(page, /className="contact-nap-name">P5 Home Co</);
+  assert.match(page, /\{PUBLIC_STREET_ADDRESS\}/);
+  assert.match(page, /Meridian, ID 83646/);
+  assert.match(page, /\{PUBLIC_PHONE_DISPLAY\}/);
+  assert.match(page, /\{PUBLIC_EMAIL\}/);
+  assert.equal(`${PUBLIC_STREET_ADDRESS}, Meridian, ID 83646`, CITATION_ADDRESS);
+
+  const card = unfoldVCard(buildCard());
+  assert.match(card, /^ORG:P5 Home Co$/m);
+  assert.match(card, /^TEL;TYPE=WORK,VOICE:\+12084771169$/m);
+  assert.match(card, /^EMAIL;TYPE=WORK:hello@p5homeco\.com$/m);
+  assert.match(card, /^ADR;TYPE=WORK:;;4031 W Wapoot St;Meridian;ID;83646;USA$/m);
+  assert.equal(card.includes(CITATION_ADDRESS), true);
+  assert.match(readFileSync("app/contact.vcf/route.ts", "utf8"), /buildBusinessVCard/);
+
+  for (const file of ["public/llms.txt", "public/llms-full.txt"]) {
+    const text = readFileSync(file, "utf8").replace(/\s+/g, " ");
+    assert.equal(text.includes(CITATION_ADDRESS), true, file);
+    assert.equal(text.includes(VISIBLE_PHONE), true, file);
+    assert.equal(text.includes(SCHEMA_EMAIL), true, file);
+    assert.equal(/P5 Home Co LLC|P5 Home Co, LLC|P5 Home Co\.\s*LLC|P5 Home Co\.\s+[a-z]/.test(text), false, file);
+  }
+});
+
+test("visible pages show the phone as (208) 477-1169 and the name as P5 Home Co", () => {
+  const phoneHits: string[] = [];
+  for (const file of phoneFiles()) {
+    const text = withoutComments(readFileSync(file, "utf8"));
+    for (const match of text.matchAll(PHONE_PATTERN)) {
+      if (!PHONE_FORMS.has(match[0])) phoneHits.push(`${file}: ${JSON.stringify(match[0])}`);
+    }
+  }
+  assert.deepEqual(phoneHits, []);
+
+  const nameHits: string[] = [];
+  for (const file of nameFiles()) {
+    const text = withoutComments(readFileSync(file, "utf8"));
+    // The identity module may name the legal entity once. Visible pages may not.
+    if (file === "app/publicIdentity.ts") {
+      const legalNames = text.match(/P5 Home Co LLC/g) ?? [];
+      if (legalNames.length !== 1) nameHits.push(`${file}: schema legalName count ${legalNames.length}`);
+    } else if (/P5 Home Co LLC|P5 Home Co, LLC|P5 Home Co\.\s*LLC|P5 Home Co\.\s+[a-z]/.test(text)) {
+      const match = text.match(/P5 Home Co LLC|P5 Home Co, LLC|P5 Home Co\.\s*LLC|P5 Home Co\.\s+[a-z]/);
+      nameHits.push(`${file}: ${JSON.stringify(match?.[0])}`);
+    }
+    if (/Wapoot|4031/.test(text)) {
+      const hasCitation = text.includes(CITATION_ADDRESS)
+        || (text.includes("4031 W Wapoot St") && text.includes("Meridian, ID 83646"));
+      if (!hasCitation) nameHits.push(`${file}: address is not ${CITATION_ADDRESS}`);
+      if (/4031\s+(?!W Wapoot St\b)/.test(text)) nameHits.push(`${file}: street spelling drifted`);
+      if (/Wapoot\s+(?!St\b)/.test(text)) nameHits.push(`${file}: Wapoot is not abbreviated St`);
+    }
+  }
+  assert.deepEqual(nameHits, []);
+
+  const about = withoutComments(readFileSync("app/about/page.tsx", "utf8") + readFileSync("app/about/AboutClient.tsx", "utf8"));
+  assert.equal(about.includes("P5 Home Co."), false);
+  assert.equal(about.includes("P5 Home Co LLC"), false);
+  assert.ok(nameFiles().includes("app/contact/page.tsx"));
+  assert.ok(nameFiles().includes("app/site.ts"));
+  assert.ok(phoneFiles().includes("app/not-found.tsx"));
+});
+
+function quoted(json: string, key: string): string[] {
+  return [...json.matchAll(new RegExp(`"${key}":"([^"]*)"`, "g"))].map((match) => match[1]);
+}
+
+function withoutComments(source: string): string {
+  return source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:"'])\/\/.*$/gm, "$1");
+}
+
+function unfoldVCard(card: string): string {
+  return card.replace(/\r\n[ \t]/g, "").replace(/\\,/g, ",").replace(/\\;/g, ";").replace(/\\\\/g, "\\");
+}
+
+function buildCard(): string {
+  const loaded = loadTs(fileURLToPath(new URL("../lib/vcard.ts", import.meta.url)));
+  const build = loaded.buildBusinessVCard;
+  assert.equal(typeof build, "function");
+  return (build as () => string)();
+}
+
+function loadTs(entry: string): Record<string, unknown> {
+  const require = createRequire(import.meta.url);
+  const cache = new Map<string, { exports: Record<string, unknown> }>();
+  const compile = (file: string) => ts.transpileModule(readFileSync(file, "utf8"), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true },
+  }).outputText;
+  const load = (file: string): Record<string, unknown> => {
+    const cached = cache.get(file);
+    if (cached) return cached.exports;
+    const exported: Record<string, unknown> = {};
+    const commonjs = { exports: exported };
+    cache.set(file, commonjs);
+    const localRequire = (id: string) => {
+      if (id.startsWith(".") || id.startsWith("@/")) return load(resolveImport(file, id));
+      return require(id);
+    };
+    new Function("require", "exports", "module", compile(file))(localRequire, exported, commonjs);
+    return commonjs.exports;
+  };
+  return load(entry);
+}
+
+function resolveImport(fromFile: string, id: string): string {
+  const root = fileURLToPath(new URL("..", import.meta.url));
+  const base = id.startsWith("@/") ? join(root, id.slice(2)) : join(dirname(fromFile), id);
+  const found = [base, `${base}.ts`, `${base}.tsx`].find((candidate) => existsSync(candidate));
+  assert.ok(found, `Missing module ${id} from ${fromFile}`);
+  return found;
+}
+
+function nameFiles(): string[] {
+  return [
+    ...walk("app", new Set(["admin", "portal", "legal", "api", "lib"])),
+    ...walk("components", new Set()),
+    "public/llms.txt",
+    "public/llms-full.txt",
+    "lib/familyBrand.ts",
+    "lib/vcard.ts",
+  ];
+}
+
+function phoneFiles(): string[] {
+  return [
+    ...walk("app", new Set(["admin", "portal"])),
+    ...walk("components", new Set()),
+    "public/llms.txt",
+    "public/llms-full.txt",
+    "lib/familyBrand.ts",
+    "lib/vcard.ts",
+    "lib/p5/brand.ts",
+  ];
+}
+
+function walk(dir: string, skip: Set<string>, found: string[] = []): string[] {
+  for (const name of readdirSync(dir)) {
+    if (name.startsWith(".") || skip.has(name)) continue;
+    const path = join(dir, name);
+    if (statSync(path).isDirectory()) walk(path, skip, found);
+    else if (/\.(ts|tsx|txt)$/.test(name)) found.push(path);
+  }
+  return found;
+}
