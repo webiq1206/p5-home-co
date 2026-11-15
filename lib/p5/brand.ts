@@ -26,6 +26,7 @@ export const ESTIMATOR_BRAND = {
   "defaultService": "",
   "email": "hello@p5homeco.com",
   "phone": "(208) 477-1169",
+  "cityLine": "Meridian, ID 83646",
   "ink": BRAND_CHARCOAL,
   "paper": "#FBFAF6",
   "logo": "/brands/p5-home-co-lockup-dark.png",

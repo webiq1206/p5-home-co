@@ -1,5 +1,5 @@
 import {ESTIMATOR_BRAND as brand} from './brand.ts';
-import {button,scheduleBlock,type EmailBrand} from './emailKit.ts';
+import {button,emailBrandFrom,scheduleBlock,type EmailBrand} from './emailKit.ts';
 import {phoneHref} from './phoneHref.ts';
 import {estimateLinkUrl} from './estimateLinks.ts';
 import {legalIdentityLine} from './brandIdentity.ts';
@@ -37,8 +37,8 @@ export function customerEstimateDocument(id:string,record:any){
  return buildEstimateDocument({id,result:record.customer||{},brand:brand as unknown as EstimateBrand,issue:record.customer?.issue||fallbackIssue(id,record),submittedAt:record.submittedAt||null,legalLine:legalIdentityLine()});
 }
 const C={ink:brand.ink,muted:'#565D58',soft:'#6F7671',line:'#E1E5DD',page:'#F4F4F2'} as const;
-function scopeEmailBrand():EmailBrand{
- return {name:brand.name,accent:brand.id==='p5'?'#ceb391':brand.accent,charcoal:'#383837',logoUrl:`https://${brand.domain}${brand.logo}`,siteUrl:`https://${brand.domain}`,phoneDisplay:'(208) 477-1169',phoneTel:'+12084771169',cityLine:'Meridian, ID 83646',replyTo:brand.email,endorsed:brand.id!=='p5'};
+function scopeEmailBrand(source:{name:string;domain:string;email:string;phone:string;accent:string;ink:string;logo:string}):EmailBrand{
+ return emailBrandFrom({...source,cityLine:source.domain===brand.domain?brand.cityLine:''});
 }
 function customerHtml(doc:EstimateDocument,link=''){
  const tint=tintOf(doc.brand.accent);const accent=doc.brand.accent;
@@ -75,12 +75,11 @@ function customerHtml(doc:EstimateDocument,link=''){
  parts.push(`<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse">${doc.nextSteps.map(([title,body],i)=>`<tr><td style="padding:0 12px 12px 0;vertical-align:top;font-size:16px;font-weight:700;color:${C.ink};width:28px">${String(i+1).padStart(2,'0')}</td><td style="padding:0 0 12px;vertical-align:top"><p style="margin:0 0 2px;font-size:15px;font-weight:700;color:${C.ink}">${escape(title)}</p><p style="margin:0;font-size:14px;line-height:1.5;color:${C.muted}">${escape(body)}</p></td></tr>`).join('')}</table>`);
  parts.push(`<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;margin:8px 0 16px"><tr><td align="center" style="padding:18px 16px;background:${tint};border:1px solid ${accent}"><a href="${escape(doc.review.mailto)}" style="display:inline-block;padding:12px 22px;border:1px solid ${C.ink};border-radius:6px;background:#FFFFFF;font-size:15px;font-weight:700;color:${C.ink};text-decoration:none;${FONT}">${escape(doc.review.label)}</a><p style="margin:10px 0 0;font-size:14px;color:${C.muted}"><a href="${escape(doc.review.mailto)}" style="color:${C.muted}">${escape(doc.review.email)}</a> &nbsp;|&nbsp; <a href="${escape(doc.review.tel)}" style="color:${C.muted};text-decoration:none">${escape(doc.review.phone)}</a></p></td></tr></table>`);
  parts.push(`<p style="margin:0;font-size:13px;line-height:1.55;color:${C.muted}"><b style="color:${C.ink}">${escape(doc.notice.lead)}</b> ${escape(doc.notice.text)}</p>`);
- parts.push(scheduleBlock(scopeEmailBrand()).html);
+ parts.push(scheduleBlock(scopeEmailBrand(doc.brand)).html);
  return parts.join('');
 }
 export function customerLayout(doc:EstimateDocument,body:string){
  const site=`https://${doc.brand.domain}`;
- const endorsement=doc.brand.endorsed?`<p style="margin:12px 0 0;font-size:12px;line-height:1.6;color:${C.soft}"><img src="${escape(`${site}/p5-estimate/p5-mark.png`)}" alt="P5 Home Co" width="18" height="18" style="width:18px;height:18px;border:0;vertical-align:middle;margin-right:6px">A P5 Home Co brand</p>`:'';
  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light"><title>${escape(`${doc.title} ${doc.reference}`)}</title><style>body{margin:0;padding:0}@media (max-width:640px){.container{width:100%!important}.pad{padding:20px 16px!important}h1{font-size:24px!important}}</style></head>
 <body style="margin:0;padding:0;background:${C.page};${FONT};-webkit-text-size-adjust:100%">
 <div style="display:none;max-height:0;overflow:hidden;opacity:0">${escape(`${doc.total?`${doc.total.label}: ${doc.total.amount}. `:''}Estimate ${doc.reference}`)}</div>
@@ -96,7 +95,7 @@ export function customerLayout(doc:EstimateDocument,body:string){
  <tr><td class="pad" style="padding:0 28px 28px">${body}</td></tr>
  <tr><td class="pad" style="padding:18px 28px 22px;border-top:1px solid ${C.line}">
   <p style="margin:0;font-size:13px;line-height:1.6;color:${C.muted}"><b style="color:${C.ink}">${escape(doc.brand.name)}</b> &nbsp;|&nbsp; <a href="${escape(doc.review.tel)}" style="color:${C.muted};text-decoration:none">${escape(doc.brand.phone)}</a> &nbsp;|&nbsp; <a href="mailto:${escape(doc.brand.email)}" style="color:${C.muted}">${escape(doc.brand.email)}</a> &nbsp;|&nbsp; <a href="${escape(site)}" style="color:${C.muted}">${escape(doc.brand.domain)}</a></p>
-  ${endorsement}${doc.legalLine?`<p style="margin:6px 0 0;font-size:11px;line-height:1.5;color:${C.soft}">${escape(doc.legalLine)}</p>`:''}
+  ${doc.legalLine?`<p style="margin:6px 0 0;font-size:11px;line-height:1.5;color:${C.soft}">${escape(doc.legalLine)}</p>`:''}
  </td></tr>
 </table></td></tr></table></body></html>`;
 }
@@ -110,8 +109,8 @@ export function customerText(doc:EstimateDocument,link=''){
  lines.push('ASSUMPTIONS & ITEMS TO CONFIRM');for(const [label,values] of doc.assumptionRows){lines.push(`${label}:`);for(const v of values)lines.push(`  - ${v}`);}lines.push('');
  lines.push('NEXT STEPS');doc.nextSteps.forEach(([title,body],i)=>lines.push(`${String(i+1).padStart(2,'0')} ${title}: ${body}`));
  lines.push('',`${doc.review.label}: ${doc.review.email} | ${doc.review.phone}`,'',`${doc.notice.lead} ${doc.notice.text}`,'',`${doc.brand.name} | ${doc.brand.phone} | ${doc.brand.email} | ${doc.brand.domain}`);
- if(doc.brand.endorsed)lines.push('A P5 Home Co brand');if(doc.legalLine)lines.push(doc.legalLine);
- lines.push('','Your complete estimate is attached as a PDF.','',scheduleBlock(scopeEmailBrand()).text);
+ if(doc.legalLine)lines.push(doc.legalLine);
+ lines.push('','Your complete estimate is attached as a PDF.','',scheduleBlock(scopeEmailBrand(doc.brand)).text);
  return lines.join('\n');
 }
 /**

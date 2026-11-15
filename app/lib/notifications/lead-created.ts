@@ -45,8 +45,7 @@ function mailBrand(name: string): EmailBrand {
     phoneDisplay: "(208) 477-1169",
     phoneTel: "+12084771169",
     cityLine: "Meridian, ID 83646",
-    replyTo: "hello@p5homeco.com",
-    endorsed: (known?.id ?? "p5") !== "p5",
+    replyTo: known?.site ? `hello@${known.site.replace(/^https:\/\//, "")}` : "hello@p5homeco.com",
   };
 }
 

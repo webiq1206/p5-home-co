@@ -1,5 +1,5 @@
 import {phoneHref as dialHref} from './phoneHref.ts';
-import {scheduleBlock,type EmailBrand} from './emailKit.ts';
+import {emailBrandFrom,scheduleBlock} from './emailKit.ts';
 import {intakeContactLabel,intakeChoiceLabel,intakeSavedAt} from './intakeDisplay.ts';
 import {ESTIMATOR_BRAND as brand} from './brand.ts';
 import {INTAKE_SITES,INTAKE_RECIPIENTS} from './intakePolicy.ts';
@@ -11,7 +11,7 @@ export interface IntakeEmailFile {name:string;size:number;url?:string;attached?:
 /** Only submitted fields and customer-visible conversation enter this projection.
  * Extraction, private notes, provider traces and internal costs never enter it. */
 export function renderIntakeEmail(s:IntakeSnapshot,team:boolean,files:IntakeEmailFile[]){
- const site=INTAKE_SITES[s.currentSite],ref=intakeReference(s.projectId,s.reference),accent=brand.id===s.currentSite?brand.accent:'#D0B496';
+ const site=INTAKE_SITES[s.currentSite],ref=intakeReference(s.projectId,s.reference),accent=brand.accent;
  const rows=[['Name',s.contact.name],['Email',s.contact.email],['Phone',s.contact.phone],['Preferred contact',intakeContactLabel(s.contact.preferredContact)],['Primary team',s.routing.teamName],['Supporting work',s.routing.supportingServices.map(x=>x.replaceAll('-',' ')).join(', ')],['Submitted through',INTAKE_SITES[s.originSite].name]];
  const answers=Object.entries(s.scope.answers).filter(([,v])=>v?.trim()).map(([k,v])=>[Object.hasOwn(SCOPE_FIELDS,k)?SCOPE_FIELDS[k as keyof typeof SCOPE_FIELDS].label:k,Object.hasOwn(SCOPE_FIELDS,k)&&SCOPE_FIELDS[k as keyof typeof SCOPE_FIELDS].kind==='choice'?intakeChoiceLabel(k,v||''):v||'']);
  const details=[['Desired outcome',s.details.desiredOutcome],['Project context',s.details.workContext],['Budget',s.details.budget]].filter(([,v])=>v);
@@ -21,7 +21,7 @@ export function renderIntakeEmail(s:IntakeSnapshot,team:boolean,files:IntakeEmai
  const conversation=s.details.transcript.map(m=>`${m.role==='user'?(team?'Customer':'You'):'Project assistant'}${m.label?` · ${m.label}`:''}: ${m.text}${m.caption?`\n${m.caption}`:''}${m.files?.length?`\nFiles: ${m.files.join(', ')}`:''}`).join('\n\n');
  const title=team?'New project request':'Your project request has been received';
  const phone=brand.phone,phoneHref=dialHref(phone);
- const mailBrand:EmailBrand={name:site.name,accent,charcoal:'#383837',logoUrl:`https://${site.domain}${brand.logo}`,siteUrl:`https://${site.domain}`,phoneDisplay:'(208) 477-1169',phoneTel:'+12084771169',cityLine:'Meridian, ID 83646',replyTo:INTAKE_RECIPIENTS[s.currentSite],endorsed:site.name!=='P5 Home Co'};
+ const mailBrand=emailBrandFrom({name:site.name,domain:site.domain,email:INTAKE_RECIPIENTS[s.currentSite],phone:brand.phone,accent:brand.accent,ink:brand.ink,logo:brand.logo,cityLine:brand.cityLine});
  const schedule=team?{html:'',text:''}:scheduleBlock(mailBrand);
  const text=[site.name,title,`Request ${ref}`,`Received: ${intakeSavedAt(s.savedAt)}`,'','WHAT HAPPENS NEXT',next,`Call ${phone}: ${phoneHref}`,'',...rows.map(([k,v])=>`${k}: ${v||'Not provided'}`),'','PROJECT SCOPE',s.scope.text||'See submitted answers and files.','',...answers.concat(details).map(([k,v])=>`${k}: ${v}`),'','FILES',fileNote,fileText,...(s.unresolved.length?['','DETAILS TO CONFIRM',...s.unresolved]:[]),...(conversation?['',team?'CUSTOMER SUBMITTED CONVERSATION':'YOUR SUBMITTED CONVERSATION',conversation]:[]),'',`Contact ${INTAKE_RECIPIENTS[s.currentSite]} about this request.`,...(!s.contact.email?['No customer confirmation email was requested; follow up using the supplied phone number.']:[]),...(schedule.text?[schedule.text]:[])].join('\n');
  const paragraph=(v:string)=>`<p style="margin:0 0 16px;white-space:pre-wrap;overflow-wrap:anywhere">${escape(v)}</p>`;

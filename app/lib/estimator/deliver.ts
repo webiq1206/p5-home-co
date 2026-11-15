@@ -36,7 +36,7 @@
 import { createHash } from "node:crypto";
 
 import { handleIntake } from "../../api/leads/intake/handler.ts";
-import { estimatorTestMode, TEST_INBOX } from "../../../lib/p5/emailKit.ts";
+import { estimatorTestMode } from "../../../lib/p5/emailKit.ts";
 import { queryOne } from "../db.ts";
 import { qboRequest } from "../finance/qbo/client.ts";
 import { isQboConnected } from "../finance/qbo/oauth.ts";
@@ -67,6 +67,7 @@ export function qboMode(env: Record<string, string | undefined> = process.env): 
 const NO_EMPLOYEE = null as unknown as number;
 
 const step = (ok: boolean, detail?: string | null) => ({ at: new Date().toISOString(), ok, detail: detail ?? null, state: ok ? "sent" as const : "failed" as const });
+const TEST_INBOX = "hello@p5homeco.com";
 const done = (delivery: Delivery, key: keyof Delivery) => (delivery[key] as { ok?: boolean } | undefined)?.ok === true;
 
 export type DeliverInput = {

@@ -1,5 +1,5 @@
 import {estimateEmail} from './estimateEmail.ts';
-import {estimatorTestMode,renderEmail,type EmailBrand} from './emailKit.ts';
+import {emailBrandFrom,estimatorTestMode,renderEmail} from './emailKit.ts';
 import {suppressSyntheticEstimateNotifications} from './estimatorNotifications.ts';
 import {estimateReference} from './estimateDocument.ts';
 import {restoreSavedCustomerCopy} from './savedCustomerCopy.ts';
@@ -19,12 +19,11 @@ export function deliveryRetryDecision(destination:string,emailIdempotent:boolean
  * P5_CRM_DELIVERY=on turns it back on; no CRM job is queued or sent otherwise. */
 export const CRM_DELIVERY_ENABLED=process.env.P5_CRM_DELIVERY==='on';
 function deliveryAlert(reference:string,error:string){
- const domain=brand.domain||'p5homeco.com';
- const mail:EmailBrand={name:brand.name||'P5 Home Co',accent:'#ceb391',charcoal:'#383837',logoUrl:`https://${domain}${brand.logo||'/brands/p5-home-co-lockup-dark.png'}`,siteUrl:`https://${domain}`,phoneDisplay:'(208) 477-1169',phoneTel:'+12084771169',cityLine:'Meridian, ID 83646',replyTo:'hello@p5homeco.com'};
+ const mail=emailBrandFrom(brand);
  return renderEmail({brand:mail,preheader:`Estimate ${reference} needs delivery review.`,title:'Estimate delivery needs attention',kicker:reference.slice(0,8),blocks:[
   {type:'notice',kind:'review',text:'Do not resubmit the lead to retry delivery.'},
   {type:'section',title:'Delivery',rows:[{label:'Reference',value:reference},{label:'Reason',value:error||'Delivery failed'}]},
-  {type:'buttons',items:[{label:'Open the estimator admin',href:`https://${domain}/admin/p5-estimators`,variant:'primary'}]},
+  {type:'buttons',items:[{label:'Open the estimator admin',href:`${mail.siteUrl}/admin/p5-estimators`,variant:'primary'}]},
  ],footerNote:'Internal delivery alert.'});
 }
 export async function enqueueSubmission(...args:Parameters<typeof enqueueSubmissionImpl>){return withQaWriteFence(args[0],()=>enqueueSubmissionImpl(...args));}
@@ -33,7 +32,7 @@ async function enqueueSubmissionImpl(id:string,revision:number,record:any){
   if(operator&&(operator.draftId!==id||!suppressSyntheticEstimateNotifications(record)||record.contact?.email||record.contact?.phone))throw new Error('QA submission contact safeguards failed.');
   const suppressed=suppressSyntheticEstimateNotifications(record);
   const testMode=!suppressed&&estimatorTestMode(String(record?.contact?.name??""),process.env);
-  const testInbox="hello@p5homeco.com";
+  const testInbox=brand.email;
   const recipients=suppressed?[]:await adminRecipients();if(!suppressed&&!recipients.length)throw new Error("No estimate administrator is configured");
   const jobs=suppressed?[{id:randomUUID(),destination:'suppressed:synthetic-qa',payload:record,status:'suppressed'}]:[...recipients.map(email=>({id:randomUUID(),destination:`admin:${testMode?testInbox:email}`,payload:record})),
     // A customer who waited on screen without an email address gets no customer email; one who asked to be

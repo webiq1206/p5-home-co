@@ -61,16 +61,15 @@ function safeAccent(value: string | undefined): string {
 function skin(name: string | undefined, accent: string | undefined): EmailBrand {
   const known = Object.values(BRAND_CONFIGS).find((brand) => brand.name === (name ?? "").trim());
   return {
-    name: (name ?? "").trim() || known?.name || "P5 Home Co",
+    name: (name ?? "").trim() || known?.name || "",
     accent: safeAccent(accent ?? known?.accent),
     charcoal: "#383837",
-    logoUrl: known?.logoUrl || "https://p5homeco.com/brands/p5-home-co-lockup-dark.png",
-    siteUrl: known?.site || "https://p5homeco.com",
+    logoUrl: known?.logoUrl || "",
+    siteUrl: known?.site || "",
     phoneDisplay: "(208) 477-1169",
     phoneTel: "+12084771169",
     cityLine: "Meridian, ID 83646",
-    replyTo: "hello@p5homeco.com",
-    endorsed: ((name ?? "").trim() || "P5 Home Co") !== "P5 Home Co",
+    replyTo: known?.site ? `hello@${known.site.replace(/^https:\/\//, "")}` : "",
   };
 }
 

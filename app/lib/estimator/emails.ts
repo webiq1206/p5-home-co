@@ -10,7 +10,6 @@ import { phoneHref } from "../../../lib/p5/phoneHref.ts";
 import {
   ESTIMATE_DISCLAIMER,
   SCHEDULE_URL,
-  TEST_INBOX,
   estimatorTestMode,
   formatBoise,
   formatMoney,
@@ -28,8 +27,8 @@ import { flowById } from "./flows.ts";
 import type { GuidedRow } from "./store.ts";
 import { TIER_LABELS, type BrandId, type Tier } from "./types.ts";
 
-/** Where the full internal report goes. */
-export const TEAM_INBOX = TEST_INBOX;
+/** Where the full internal report goes. The From name stays P5 Home Co at send time. */
+export const TEAM_INBOX = "hello@p5homeco.com";
 
 const money = (n: number | null | undefined) =>
   n === null || n === undefined || !Number.isFinite(Number(n)) ? "unknown" : formatMoney(Number(n));
@@ -43,12 +42,11 @@ export function emailBrandFor(id: string | null | undefined): EmailBrand {
     accent: live.accent,
     charcoal: "#383837",
     logoUrl: live.logoUrl,
-    siteUrl: live.site || "https://p5homeco.com",
+    siteUrl: live.site,
     phoneDisplay: "(208) 477-1169",
     phoneTel: "+12084771169",
     cityLine: "Meridian, ID 83646",
-    replyTo: "hello@p5homeco.com",
-    endorsed: live.id !== "p5",
+    replyTo: live.site ? `hello@${live.site.replace(/^https:\/\//, "")}` : "hello@p5homeco.com",
   };
 }
 

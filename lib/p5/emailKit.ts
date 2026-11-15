@@ -17,15 +17,7 @@ export const LINE = "#e1e5dd";
 export const REVIEW = "#c48d3f";
 export const REVIEW_BG = "#fbf1e3";
 
-/** Live p5homeco.com accent bar: familyBrand.accent and --terracotta. */
-export const P5_LIVE_ACCENT = "#ceb391";
-
 export const SCHEDULE_URL = "https://meetings-na2.hubspot.com/client3";
-export const P5_FROM = "P5 Home Co <hello@p5homeco.com>";
-export const TEST_INBOX = "hello@p5homeco.com";
-export const COMPANY_CITY = "Meridian, ID 83646";
-export const COMPANY_PHONE_DISPLAY = "(208) 477-1169";
-export const COMPANY_PHONE_TEL = "+12084771169";
 
 /** t1886u. Kept verbatim on every customer estimate email. */
 export const ESTIMATE_DISCLAIMER =
@@ -46,17 +38,54 @@ export type ValueTier = "small" | "standard" | "major";
 export type EmailBrand = {
   name: string;
   accent: string;
-  charcoal: "#383837";
+  /** Button and footer ground. Callers pass the site ink from brand.ts. */
+  charcoal: string;
   /** Absolute https PNG. Omitted from the header when it is not https. */
   logoUrl: string;
   siteUrl: string;
-  phoneDisplay: "(208) 477-1169";
-  phoneTel: "+12084771169";
-  cityLine: "Meridian, ID 83646";
+  phoneDisplay: string;
+  phoneTel: string;
+  cityLine: string;
   replyTo: string;
-  /** Child brands add "{name} is a P5 Home Co brand." */
-  endorsed?: boolean;
 };
+
+/** The fields a brand.ts record supplies. Shared mail reads these and nothing else. */
+export type BrandSource = {
+  name: string;
+  domain: string;
+  email: string;
+  phone: string;
+  accent: string;
+  ink: string;
+  logo: string;
+  cityLine?: string;
+};
+
+export function phoneTelFrom(phone: string): string {
+  const digits = phone.replace(/\D/g, "");
+  if (digits.length === 10) return `+1${digits}`;
+  if (digits.length === 11 && digits.startsWith("1")) return `+${digits}`;
+  return digits ? `+${digits}` : "";
+}
+
+/** Build the email brand from the site-owned brand record. No parent name or URL is filled in here. */
+export function emailBrandFrom(source: BrandSource): EmailBrand {
+  const domain = String(source.domain || "").replace(/^https:\/\//, "").replace(/\/+$/, "");
+  const logo = String(source.logo || "");
+  const logoPath = logo.startsWith("/") ? logo : logo ? `/${logo}` : "";
+  const logoUrl = /^https:\/\//i.test(logo) ? logo : domain && logoPath ? `https://${domain}${logoPath}` : "";
+  return {
+    name: source.name,
+    accent: source.accent,
+    charcoal: source.ink,
+    logoUrl,
+    siteUrl: domain ? `https://${domain}` : "",
+    phoneDisplay: source.phone,
+    phoneTel: phoneTelFrom(source.phone),
+    cityLine: source.cityLine ?? "",
+    replyTo: source.email,
+  };
+}
 
 /** A name containing "test", or ESTIMATOR_TEST_MODE on the env the caller passes. */
 export function estimatorTestMode(
@@ -127,7 +156,7 @@ export function button(options: {
   if (!isRealHref(options.href)) return "";
   const href = esc(options.href.trim());
   const label = esc(options.label);
-  const accent = /^#[0-9a-fA-F]{6}$/.test(options.accent ?? "") ? options.accent : P5_LIVE_ACCENT;
+  const accent = /^#[0-9a-fA-F]{6}$/.test(options.accent ?? "") ? options.accent : CHARCOAL;
   if ((options.variant ?? "primary") === "secondary") {
     return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;margin:0 0 12px;">
 <tr>
@@ -210,7 +239,7 @@ export function amountBlock(input: {
   note?: string;
   accent: string;
 }): string {
-  const accent = /^#[0-9a-fA-F]{6}$/.test(input.accent) ? input.accent : P5_LIVE_ACCENT;
+  const accent = /^#[0-9a-fA-F]{6}$/.test(input.accent) ? input.accent : CHARCOAL;
   const label = input.label?.trim() || (input.mode === "withheld" ? "Estimate status" : "Preliminary estimate");
   let figure: string;
   if (input.mode === "withheld" || input.low == null || input.high == null) {
@@ -301,7 +330,7 @@ function blockText(block: Block): string[] {
   if (block.type === "buttons") {
     return block.items.filter((item) => isRealHref(item.href)).map((item) => `${item.label}: ${item.href!.trim()}`);
   }
-  if (block.type === "schedule") return scheduleBlock({ accent: P5_LIVE_ACCENT } as EmailBrand, block.note).text.split("\n");
+  if (block.type === "schedule") return scheduleBlock({ name: "", accent: CHARCOAL, charcoal: CHARCOAL, logoUrl: "", siteUrl: "", phoneDisplay: "", phoneTel: "", cityLine: "", replyTo: "" }, block.note).text.split("\n");
   return block.text.trim() ? block.text.trim().split("\n") : [];
 }
 
@@ -309,11 +338,15 @@ export function toText(blocks: readonly Block[]): string {
   return blocks.flatMap((block) => blockText(block)).join("\n");
 }
 
+function footerBits(brand: EmailBrand): string[] {
+  const site = brand.siteUrl.replace(/^https:\/\//, "").replace(/\/+$/, "");
+  return [brand.name, brand.cityLine, brand.phoneDisplay, site].map((part) => part.trim()).filter(Boolean);
+}
+
 function footerText(brand: EmailBrand, footerNote?: string): string[] {
-  const lines = [`P5 Home Co · ${COMPANY_CITY} · ${COMPANY_PHONE_DISPLAY}`];
-  if (brand.endorsed && brand.name !== "P5 Home Co") lines.push(`${brand.name} is a P5 Home Co brand.`);
+  const lines = [footerBits(brand).join(" · ")];
   if (footerNote?.trim()) lines.push(footerNote.trim());
-  return lines;
+  return lines.filter(Boolean);
 }
 
 export function layout(input: {
@@ -328,9 +361,12 @@ export function layout(input: {
   const logo = /^https:\/\//i.test(input.brand.logoUrl)
     ? `<img src="${esc(input.brand.logoUrl)}" alt="${esc(input.brand.name)}" width="220" style="display:block;width:220px;max-width:70%;height:auto;border:0;">`
     : "";
-  const phone = `<a href="tel:${esc(input.brand.phoneTel)}" style="color:#f4f4f2;text-decoration:underline;">${esc(input.brand.phoneDisplay)}</a>`;
-  const siteLink = /^https:\/\//i.test(site) ? ` · <a href="${esc(site)}" style="color:#f4f4f2;text-decoration:underline;">${esc(site.replace(/^https:\/\//, ""))}</a>` : "";
-  const endorsement = input.brand.endorsed && input.brand.name !== "P5 Home Co" ? `<p style="margin:8px 0 0;font-size:12px;line-height:1.5;color:#d9d9d6;">${esc(input.brand.name)} is a P5 Home Co brand.</p>` : "";
+  const ink = input.brand.charcoal || CHARCOAL;
+  const phone = input.brand.phoneTel
+    ? `<a href="tel:${esc(input.brand.phoneTel)}" style="color:#f4f4f2;text-decoration:underline;">${esc(input.brand.phoneDisplay)}</a>`
+    : esc(input.brand.phoneDisplay);
+  const siteLink = /^https:\/\//i.test(site) ? `<a href="${esc(site)}" style="color:#f4f4f2;text-decoration:underline;">${esc(site.replace(/^https:\/\//, ""))}</a>` : "";
+  const footer = [esc(input.brand.name), esc(input.brand.cityLine), phone, siteLink].filter((part) => part && part !== "undefined").join(" · ");
   const extra = input.footerNote?.trim() ? `<p style="margin:8px 0 0;font-size:12px;line-height:1.5;color:#d9d9d6;">${esc(input.footerNote.trim())}</p>` : "";
   const kicker = input.kicker?.trim()
     ? `<p style="margin:0 0 6px;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:${MUTED};">${esc(input.kicker.trim())}</p>`
@@ -351,22 +387,22 @@ export function layout(input: {
 }
 @media (prefers-color-scheme:dark){
   .page{background:${PAGE}!important}
-  .card,.pad{background:${WHITE}!important;color:${CHARCOAL}!important}
+  .card,.pad{background:${WHITE}!important;color:${ink}!important}
 }
 </style>
 </head>
-<body class="page" style="margin:0;padding:0;background:${PAGE};color:${CHARCOAL};font-family:Arial,Helvetica,sans-serif;-webkit-text-size-adjust:100%;">
+<body class="page" style="margin:0;padding:0;background:${PAGE};color:${ink};font-family:Arial,Helvetica,sans-serif;-webkit-text-size-adjust:100%;">
 <div style="display:none;max-height:0;overflow:hidden;opacity:0;mso-hide:all;">${esc(input.preheader)}</div>
 <table role="presentation" class="page" cellpadding="0" cellspacing="0" border="0" width="100%" bgcolor="${PAGE}" style="background:${PAGE};">
 <tr><td align="center" style="padding:24px 12px;">
 <table role="presentation" class="container card" cellpadding="0" cellspacing="0" border="0" width="600" bgcolor="${WHITE}" style="width:600px;max-width:100%;border-collapse:collapse;background:${WHITE};border:1px solid ${LINE};">
 <tr><td class="pad" bgcolor="${WHITE}" style="padding:26px 28px 0;background:${WHITE};">${logo}</td></tr>
 <tr><td bgcolor="${input.brand.accent}" style="background-color:${input.brand.accent};height:4px;font-size:0;line-height:0;">&nbsp;</td></tr>
-<tr><td class="pad" bgcolor="${WHITE}" style="padding:22px 28px 0;background:${WHITE};">${kicker}<h1 style="margin:0 0 16px;font-size:28px;line-height:1.25;font-weight:700;color:${CHARCOAL};">${esc(input.title)}</h1></td></tr>
+<tr><td class="pad" bgcolor="${WHITE}" style="padding:22px 28px 0;background:${WHITE};">${kicker}<h1 style="margin:0 0 16px;font-size:28px;line-height:1.25;font-weight:700;color:${ink};">${esc(input.title)}</h1></td></tr>
 <tr><td class="pad" bgcolor="${WHITE}" style="padding:0 28px 28px;background:${WHITE};">${input.body}</td></tr>
-<tr><td class="pad" bgcolor="${CHARCOAL}" style="padding:18px 28px 22px;background:${CHARCOAL};">
-<p style="margin:0;font-size:13px;line-height:1.6;color:#f4f4f2;">P5 Home Co · ${esc(COMPANY_CITY)} · ${phone}${siteLink}</p>
-${endorsement}${extra}
+<tr><td class="pad" bgcolor="${ink}" style="padding:18px 28px 22px;background:${ink};">
+<p style="margin:0;font-size:13px;line-height:1.6;color:#f4f4f2;">${footer}</p>
+${extra}
 </td></tr>
 </table>
 </td></tr>
@@ -406,6 +442,4 @@ export function assertCopy(html: string, text: string, options?: { requireDiscla
   if (/\bundefined\b/.test(plain)) throw new Error("Email copy contains undefined");
   if (plain.includes("{{")) throw new Error("Email copy contains a template placeholder");
   if (options?.requireDisclaimer && !text.includes(ESTIMATE_DISCLAIMER)) throw new Error("Customer email is missing the estimate disclaimer");
-  if (!plain.includes(COMPANY_CITY)) throw new Error("Email is missing Meridian, ID 83646");
-  if (!plain.includes("P5 Home Co")) throw new Error("Email is missing P5 Home Co");
 }

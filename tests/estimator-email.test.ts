@@ -15,7 +15,6 @@ import {
   estimatorTestMode,
   formatMoney,
   isRealHref,
-  P5_FROM,
   valueTier,
 } from "../lib/p5/emailKit.ts";
 import { EMAIL_FIXTURES, renderFixture, rowForFixture } from "./estimator-email-render.ts";
@@ -26,9 +25,9 @@ test("value tiers are config, and every send stays From P5 Home Co", () => {
   assert.equal(valueTier(10_000), "standard");
   assert.equal(valueTier(75_000), "standard");
   assert.equal(valueTier(75_001), "major");
-  assert.equal(P5_FROM, "P5 Home Co <hello@p5homeco.com>");
-  for (const file of ["app/lib/notifications/smtp-config.ts", "app/lib/notifications/transport.ts", "lib/p5/deliveryAdapter.ts", "lib/p5/emailKit.ts"]) {
-    assert.doesNotMatch(readFileSync(file, "utf8"), /useBrandFrom|allowBrandFrom/);
+  assert.match(readFileSync("app/lib/notifications/smtp-config.ts", "utf8"), /P5 Home Co <hello@p5homeco\.com>/);
+  for (const file of ["lib/p5/emailKit.ts", "lib/p5/estimateEmail.ts", "lib/p5/intakeEmail.ts", "lib/p5/outbox.ts", "lib/p5/reviewRequest.ts"]) {
+    assert.doesNotMatch(readFileSync(file, "utf8"), /P5 Home Co|p5homeco\.com/);
   }
   assert.equal(BRAND_CONFIGS.adu.live, false);
   assert.equal(BRAND_CONFIGS.adu.logoUrl, BRAND_CONFIGS.p5.logoUrl);
