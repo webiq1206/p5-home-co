@@ -26,9 +26,12 @@ test("value tiers are config, and every send stays From P5 Home Co", () => {
   assert.equal(valueTier(75_000), "standard");
   assert.equal(valueTier(75_001), "major");
   assert.match(readFileSync("app/lib/notifications/smtp-config.ts", "utf8"), /P5 Home Co <hello@p5homeco\.com>/);
-  for (const file of ["lib/p5/emailKit.ts", "lib/p5/estimateEmail.ts", "lib/p5/intakeEmail.ts", "lib/p5/outbox.ts", "lib/p5/reviewRequest.ts"]) {
+  for (const file of ["lib/p5/estimateEmail.ts", "lib/p5/intakeEmail.ts", "lib/p5/outbox.ts", "lib/p5/reviewRequest.ts"]) {
     assert.doesNotMatch(readFileSync(file, "utf8"), /P5 Home Co|p5homeco\.com/);
   }
+  const kit = readFileSync("lib/p5/emailKit.ts", "utf8");
+  assert.doesNotMatch(kit, /P5 Home Co/);
+  assert.equal(kit.match(/p5homeco\.com/g)?.length, 1);
   assert.equal(BRAND_CONFIGS.adu.live, false);
   assert.equal(BRAND_CONFIGS.adu.logoUrl, BRAND_CONFIGS.p5.logoUrl);
   assert.equal(isRealHref("https://qbo.intuit.com/app/estimate"), false);
@@ -97,6 +100,19 @@ test("every p5 fixture renders admin and customer html and text from the estimat
       }
       assert.match(customer.text, /Preliminary estimate|preliminary/i);
       assert.ok(customer.text.includes(ESTIMATE_DISCLAIMER));
+      const tier = valueTier(estimate.range.high);
+      if (tier === "small") {
+        assert.match(customer.text, /quick visit/);
+        assert.match(customer.text, /by phone/);
+        assert.doesNotMatch(customer.text, /planning consultation|home walkthrough/);
+      } else if (tier === "major") {
+        assert.match(customer.text, /planning consultation/);
+        assert.match(customer.text, /plans and permits/);
+        assert.doesNotMatch(customer.text, /quick visit|home walkthrough/);
+      } else {
+        assert.match(customer.text, /home walkthrough/);
+        assert.doesNotMatch(customer.text, /quick visit|planning consultation/);
+      }
     } else {
       roles.add("withheld");
       assert.match(customer.text, /closer look/);

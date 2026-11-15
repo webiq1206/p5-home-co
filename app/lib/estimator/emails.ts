@@ -14,6 +14,7 @@ import {
   formatBoise,
   formatMoney,
   renderEmail,
+  tierNextStep,
   valueTier,
   type Block,
   type EmailBrand,
@@ -82,21 +83,8 @@ function familyOf(project: string): "cabinets" | "remodel" | "construction" | "l
   return "remodel";
 }
 
-function walkthroughLine(project: string): string {
-  const family = familyOf(project);
-  if (family === "cabinets") return "At the walkthrough we measure and look at finish samples.";
-  if (family === "construction") return "At the walkthrough we review plans, the site and permits.";
-  if (family === "light") return "At the walkthrough we do a quick walk and confirm materials.";
-  return "At the walkthrough we look at layout and structure.";
-}
-
-export function nextStepCopy(project: string, high: number | null | undefined): string {
-  const tier: ValueTier = familyOf(project) === "construction" ? "major" : valueTier(high);
-  const choice = "On the scheduling page, choose the 1 hour option.";
-  const walk = walkthroughLine(project);
-  if (tier === "small") return `The next step is a quick walkthrough. ${walk} ${choice}`;
-  if (tier === "major") return `The next step is a planning consultation. ${walk} ${choice}`;
-  return `The next step is a home walkthrough, so we can see the property and turn this estimate into a true bid. ${walk} ${choice}`;
+export function nextStepCopy(_project: string, high: number | null | undefined): string {
+  return tierNextStep(high);
 }
 
 function thanksCopy(brand: string, project: string, tier: ValueTier): string {
@@ -367,7 +355,7 @@ export function customerConfirmation(row: GuidedRow, viewUrl: string): Message {
   }
   const project = (view?.projectName || "project").trim();
   const high = view?.range?.high ?? null;
-  const tier: ValueTier = familyOf(row.project) === "construction" ? "major" : valueTier(high);
+  const tier: ValueTier = valueTier(high);
   const first = (row.first_name ?? "").trim() || "there";
   const subject = `Your ${project.toLowerCase()} estimate from ${brand.name}`;
   const uploads = uploadsOf(row);

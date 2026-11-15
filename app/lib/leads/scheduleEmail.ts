@@ -11,7 +11,7 @@
 
 import type { Message } from "../notifications/render.ts";
 import { BRAND_CONFIGS } from "../estimator/brands.ts";
-import { SCHEDULE_URL, button as kitButton, layout, type EmailBrand } from "../../../lib/p5/emailKit.ts";
+import { SCHEDULE_URL, button as kitButton, layout, tierNextStep, type EmailBrand } from "../../../lib/p5/emailKit.ts";
 
 export { SCHEDULE_URL };
 
@@ -132,7 +132,7 @@ export function estimatorConfirmation(input: EstimatorConfirmationInput): Messag
   const viewUrl = safeHref(input.viewUrl);
   const subject = `Your ${project} estimate from ${brandName}`;
   const thanks = `Thanks for thinking of ${brandName} for your ${project}. Your estimate is saved, and you can pull it up any time.`;
-  const next = "The next step is a home walkthrough, so we can see the property and turn this estimate into a true bid. On the scheduling page, choose the 1 hour option.";
+  const next = tierNextStep(null);
   const signoff = `The ${brandName} team`;
   const text = [
     `Hi ${first},`,

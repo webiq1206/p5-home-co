@@ -126,9 +126,12 @@ test('a child brand prints P5 Home Co as the brand and keeps the contracting com
  const pdf=(await pdfTextLayers(await renderEstimatePdf(doc))).join('\n');
  assert.match(pdf,/A P5 Home Co brand/);
  assert.doesNotMatch(pdf,/A P5 Home Co\. brand/);
- for(const output of [text,html,pdf]){
-  assert.match(output,/Boise Remodeling Co is a DBA of P5 Home Co, LLC\./);
-  assert.match(output,/Boise remodeling Co|Boise Remodeling Co/);
+ assert.match(pdf,/Boise Remodeling Co is a DBA of P5 Home Co, LLC\./);
+ for(const output of [text,html]){
+  assert.doesNotMatch(output,/is a DBA of/);
+  assert.doesNotMatch(output,/P5 Home Co/);
+  assert.doesNotMatch(output,/LLC/);
+  assert.match(output,/Boise remodeling Co/);
  }
  assert.match(html,/alt="Boise remodeling Co"/);
  assert.doesNotMatch(html,/A P5 Home Co brand/);

@@ -36,7 +36,7 @@
 import { createHash } from "node:crypto";
 
 import { handleIntake } from "../../api/leads/intake/handler.ts";
-import { estimatorTestMode } from "../../../lib/p5/emailKit.ts";
+import { estimatorTestMode, internalDeliveryTo } from "../../../lib/p5/emailKit.ts";
 import { queryOne } from "../db.ts";
 import { qboRequest } from "../finance/qbo/client.ts";
 import { isQboConnected } from "../finance/qbo/oauth.ts";
@@ -67,7 +67,6 @@ export function qboMode(env: Record<string, string | undefined> = process.env): 
 const NO_EMPLOYEE = null as unknown as number;
 
 const step = (ok: boolean, detail?: string | null) => ({ at: new Date().toISOString(), ok, detail: detail ?? null, state: ok ? "sent" as const : "failed" as const });
-const TEST_INBOX = "hello@p5homeco.com";
 const done = (delivery: Delivery, key: keyof Delivery) => (delivery[key] as { ok?: boolean } | undefined)?.ok === true;
 
 export type DeliverInput = {
@@ -326,6 +325,7 @@ export async function deliverEstimate(input: DeliverInput): Promise<Delivery> {
   };
 
   // 4. One admin email. A send already in flight is left alone for 10 minutes.
+  //    Test mode still delivers it, but only to the internal ops mailbox.
   if (!done(row.delivery, "teamEmail") && !freshSending("teamEmail")) {
     const official = await officialStatus(row);
     let hubspotContact: string | null = null;
@@ -351,10 +351,11 @@ export async function deliverEstimate(input: DeliverInput): Promise<Delivery> {
       hubspotDealUrl: hubspotDeal,
       testLead: testMode,
     }), key);
+    const teamTo = testMode ? internalDeliveryTo("test") : TEAM_INBOX;
     const started = Date.now();
-    const sent = await transport.send(TEAM_INBOX, message);
-    logSend("teamEmail", TEAM_INBOX, sent.ok, started, key);
-    await recordDelivery(row.id, { teamEmail: { at: new Date().toISOString(), ok: sent.ok, detail: sent.ok ? TEAM_INBOX : sent.error, state: sent.ok ? "sent" : "failed", key, attempts: 1 } });
+    const sent = await transport.send(teamTo, message);
+    logSend("teamEmail", teamTo, sent.ok, started, key);
+    await recordDelivery(row.id, { teamEmail: { at: new Date().toISOString(), ok: sent.ok, detail: sent.ok ? teamTo : sent.error, state: sent.ok ? "sent" : "failed", key, attempts: 1 } });
   }
 
   // 5. Customer email, always From P5 Home Co. QuickBooks sends the official copy when it already did.
@@ -369,8 +370,9 @@ export async function deliverEstimate(input: DeliverInput): Promise<Delivery> {
       try {
         const alert = stamp(customerFailureAlert(row, reason, row.customer_view?.estimateNumber || `GE-${row.id}`), key);
         const started = Date.now();
-        const sent = await transport.send(TEST_INBOX, alert);
-        logSend("customerEmailAlert", TEST_INBOX, sent.ok, started, key);
+        const alertTo = internalDeliveryTo("alert");
+        const sent = await transport.send(alertTo, alert);
+        logSend("customerEmailAlert", alertTo, sent.ok, started, key);
         await recordDelivery(row.id, { customerEmailAlert: { at: new Date().toISOString(), ok: sent.ok, detail: sent.ok ? "alerted" : sent.error, state: sent.ok ? "sent" : "failed", key, attempts: 1 } });
       } catch (error) {
         console.error("[email] customer failure alert", (error as Error).message);
@@ -380,13 +382,13 @@ export async function deliverEstimate(input: DeliverInput): Promise<Delivery> {
       await alertOnce(previous.detail || "The customer email failed and was not sent again.");
     } else {
       const key = `guided-${row.id}-customerEmail`;
-      const to = testMode ? TEST_INBOX : row.email;
+      const to = testMode ? internalDeliveryTo("test") : row.email;
       await recordDelivery(row.id, { customerEmail: { at: new Date().toISOString(), ok: false, detail: "sending", state: "sending", key, attempts: 1 } });
       const message = stamp(customerConfirmation(row, viewUrl), key);
       const started = Date.now();
       const sent = await transport.send(to, message);
       logSend("customerEmail", to, sent.ok, started, key);
-      await recordDelivery(row.id, { customerEmail: { at: new Date().toISOString(), ok: sent.ok, detail: sent.ok ? (testMode ? TEST_INBOX : brand?.name ?? null) : sent.error, state: sent.ok ? "sent" : "failed", key, attempts: 1 } });
+      await recordDelivery(row.id, { customerEmail: { at: new Date().toISOString(), ok: sent.ok, detail: sent.ok ? (testMode ? to : brand?.name ?? null) : sent.error, state: sent.ok ? "sent" : "failed", key, attempts: 1 } });
       if (!sent.ok) await alertOnce(sent.error);
     }
   }

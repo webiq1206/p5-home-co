@@ -1,5 +1,5 @@
 import {ESTIMATOR_BRAND as brand} from './brand.ts';
-import {button,emailBrandFrom,scheduleBlock,type EmailBrand} from './emailKit.ts';
+import {button,emailBrandFrom,scheduleBlock,tierNextStep,type EmailBrand} from './emailKit.ts';
 import {phoneHref} from './phoneHref.ts';
 import {estimateLinkUrl} from './estimateLinks.ts';
 import {legalIdentityLine} from './brandIdentity.ts';
@@ -34,7 +34,7 @@ function fallbackIssue(id:string,record:any):Partial<EstimateIssue>|null{
  return {...base,issuedAt:''};
 }
 export function customerEstimateDocument(id:string,record:any){
- return buildEstimateDocument({id,result:record.customer||{},brand:brand as unknown as EstimateBrand,issue:record.customer?.issue||fallbackIssue(id,record),submittedAt:record.submittedAt||null,legalLine:legalIdentityLine()});
+ return buildEstimateDocument({id,result:record.customer||{},brand:brand as unknown as EstimateBrand,issue:record.customer?.issue||fallbackIssue(id,record),submittedAt:record.submittedAt||null});
 }
 const C={ink:brand.ink,muted:'#565D58',soft:'#6F7671',line:'#E1E5DD',page:'#F4F4F2'} as const;
 function scopeEmailBrand(source:{name:string;domain:string;email:string;phone:string;accent:string;ink:string;logo:string}=brand):EmailBrand{
@@ -75,7 +75,7 @@ function customerHtml(doc:EstimateDocument,link=''){
  parts.push(`<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse">${doc.nextSteps.map(([title,body],i)=>`<tr><td style="padding:0 12px 12px 0;vertical-align:top;font-size:16px;font-weight:700;color:${C.ink};width:28px">${String(i+1).padStart(2,'0')}</td><td style="padding:0 0 12px;vertical-align:top"><p style="margin:0 0 2px;font-size:15px;font-weight:700;color:${C.ink}">${escape(title)}</p><p style="margin:0;font-size:14px;line-height:1.5;color:${C.muted}">${escape(body)}</p></td></tr>`).join('')}</table>`);
  parts.push(`<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;margin:8px 0 16px"><tr><td align="center" style="padding:18px 16px;background:${tint};border:1px solid ${accent}"><a href="${escape(doc.review.mailto)}" style="display:inline-block;padding:12px 22px;border:1px solid ${C.ink};border-radius:6px;background:#FFFFFF;font-size:15px;font-weight:700;color:${C.ink};text-decoration:none;${FONT}">${escape(doc.review.label)}</a><p style="margin:10px 0 0;font-size:14px;color:${C.muted}"><a href="${escape(doc.review.mailto)}" style="color:${C.muted}">${escape(doc.review.email)}</a> &nbsp;|&nbsp; <a href="${escape(doc.review.tel)}" style="color:${C.muted};text-decoration:none">${escape(doc.review.phone)}</a></p></td></tr></table>`);
  parts.push(`<p style="margin:0;font-size:13px;line-height:1.55;color:${C.muted}"><b style="color:${C.ink}">${escape(doc.notice.lead)}</b> ${escape(doc.notice.text)}</p>`);
- parts.push(scheduleBlock(scopeEmailBrand(doc.brand)).html);
+ parts.push(scheduleBlock(scopeEmailBrand(doc.brand),tierNextStep(doc.total?.high)).html);
  return parts.join('');
 }
 export function customerLayout(doc:EstimateDocument,body:string){
@@ -95,7 +95,6 @@ export function customerLayout(doc:EstimateDocument,body:string){
  <tr><td class="pad" style="padding:0 28px 28px">${body}</td></tr>
  <tr><td class="pad" style="padding:18px 28px 22px;border-top:1px solid ${C.line}">
   <p style="margin:0;font-size:13px;line-height:1.6;color:${C.muted}"><b style="color:${C.ink}">${escape(doc.brand.name)}</b> &nbsp;|&nbsp; <a href="${escape(doc.review.tel)}" style="color:${C.muted};text-decoration:none">${escape(doc.brand.phone)}</a> &nbsp;|&nbsp; <a href="mailto:${escape(doc.brand.email)}" style="color:${C.muted}">${escape(doc.brand.email)}</a> &nbsp;|&nbsp; <a href="${escape(site)}" style="color:${C.muted}">${escape(doc.brand.domain)}</a></p>
-  ${doc.legalLine?`<p style="margin:6px 0 0;font-size:11px;line-height:1.5;color:${C.soft}">${escape(doc.legalLine)}</p>`:''}
  </td></tr>
 </table></td></tr></table></body></html>`;
 }
@@ -109,8 +108,7 @@ export function customerText(doc:EstimateDocument,link=''){
  lines.push('ASSUMPTIONS & ITEMS TO CONFIRM');for(const [label,values] of doc.assumptionRows){lines.push(`${label}:`);for(const v of values)lines.push(`  - ${v}`);}lines.push('');
  lines.push('NEXT STEPS');doc.nextSteps.forEach(([title,body],i)=>lines.push(`${String(i+1).padStart(2,'0')} ${title}: ${body}`));
  lines.push('',`${doc.review.label}: ${doc.review.email} | ${doc.review.phone}`,'',`${doc.notice.lead} ${doc.notice.text}`,'',`${doc.brand.name} | ${doc.brand.phone} | ${doc.brand.email} | ${doc.brand.domain}`);
- if(doc.legalLine)lines.push(doc.legalLine);
- lines.push('','Your complete estimate is attached as a PDF.','',scheduleBlock(scopeEmailBrand(doc.brand)).text);
+ lines.push('','Your complete estimate is attached as a PDF.','',scheduleBlock(scopeEmailBrand(doc.brand),tierNextStep(doc.total?.high)).text);
  return lines.join('\n');
 }
 /**

@@ -1,5 +1,5 @@
 import {estimateEmail} from './estimateEmail.ts';
-import {emailBrandFrom,estimatorTestMode,renderEmail} from './emailKit.ts';
+import {emailBrandFrom,estimatorTestMode,internalDeliveryTo,renderEmail} from './emailKit.ts';
 import {suppressSyntheticEstimateNotifications} from './estimatorNotifications.ts';
 import {estimateReference} from './estimateDocument.ts';
 import {restoreSavedCustomerCopy} from './savedCustomerCopy.ts';
@@ -32,7 +32,7 @@ async function enqueueSubmissionImpl(id:string,revision:number,record:any){
   if(operator&&(operator.draftId!==id||!suppressSyntheticEstimateNotifications(record)||record.contact?.email||record.contact?.phone))throw new Error('QA submission contact safeguards failed.');
   const suppressed=suppressSyntheticEstimateNotifications(record);
   const testMode=!suppressed&&estimatorTestMode(String(record?.contact?.name??""),process.env);
-  const testInbox=brand.email;
+  const testInbox=internalDeliveryTo('test',brand);
   const recipients=suppressed?[]:await adminRecipients();if(!suppressed&&!recipients.length)throw new Error("No estimate administrator is configured");
   const jobs=suppressed?[{id:randomUUID(),destination:'suppressed:synthetic-qa',payload:record,status:'suppressed'}]:[...recipients.map(email=>({id:randomUUID(),destination:`admin:${testMode?testInbox:email}`,payload:record})),
     // A customer who waited on screen without an email address gets no customer email; one who asked to be
@@ -97,7 +97,10 @@ export async function processOutbox(options:{draftId?:string;revision?:number;li
       // The reason is otherwise visible only in the database. Addresses are reduced to the channel name.
       console.error(`[p5-delivery] ${destination.split(':')[0]} ${status} for draft ${row.draft_id} revision ${row.revision} (attempt ${row.attempts}): ${message.slice(0,200)}`);
       await query("UPDATE p5_estimator_outbox SET status=$1,last_error=$2,locked_until=NULL,next_attempt_at=now()+($3*interval '1 second') WHERE id=$4",[status,message.slice(0,500),Math.min(3600,60*2**row.attempts),row.id]);
-      if(!suppressed&&!destination.startsWith("alert:"))for(const email of await adminRecipients())await query("INSERT INTO p5_estimator_outbox(id,draft_id,revision,destination,payload) VALUES($1,$2,$3,$4,$5::jsonb) ON CONFLICT(draft_id,revision,destination) DO NOTHING",[randomUUID(),row.draft_id,row.revision,`alert:${email}`,JSON.stringify({error:message,failedDestination:destination})]);
+      if(!suppressed&&!destination.startsWith("alert:")){
+        const targets=destination.startsWith("customer:")?[internalDeliveryTo("alert",brand)]:await adminRecipients();
+        for(const email of targets)await query("INSERT INTO p5_estimator_outbox(id,draft_id,revision,destination,payload) VALUES($1,$2,$3,$4,$5::jsonb) ON CONFLICT(draft_id,revision,destination) DO NOTHING",[randomUUID(),row.draft_id,row.revision,`alert:${email}`,JSON.stringify({error:message,failedDestination:destination})]);
+      }
       results.push({id:row.id,status});
     }
   }
