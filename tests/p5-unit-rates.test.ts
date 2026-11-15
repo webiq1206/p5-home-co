@@ -88,27 +88,27 @@ test('repair-list units are recognised by dimension and unfamiliar units are ref
 test('the master price book prices each line at the chosen finish, with the remodel premium only in an existing home',async()=>{
   const {priceBookRates,priceBookSummary,finishTier,serviceContext}=await import('../lib/p5/priceBook.ts');
   const rate=(answers:{service:string;finish?:string},code:string)=>priceBookRates(answers).find(r=>r.code===`PB-${code}`);
-  // Kitchen cabinets, installed, per LF: Builder 250 / Mid 500 / High 850 / Luxury 1400, remodel premium 10%.
-  assert.equal(rate({service:'kitchen',finish:'mid-range'},'12-31-01')?.amount,550,'a kitchen remodel adds the 10% existing-home premium');
-  assert.equal(rate({service:'kitchen',finish:'luxury'},'12-31-01')?.amount,1540);
-  assert.equal(rate({service:'new-construction',finish:'refresh'},'12-31-01')?.amount,250,'new construction is base cost at Builder Grade');
-  assert.equal(rate({service:'cabinet-install',finish:'high-end'},'12-31-01')?.amount,850,'cabinet work is base cost, as its tab in the book is');
-  assert.equal(rate({service:'handyman'},'12-31-01')?.amount,500,'a line filed under other work is still offered, at base cost');
-  // No finish chosen: the book's own default, Mid-Range.
+  // Kitchen cabinets, installed, per LF: Essential 175 / Signature 300 / Premium 600 / Luxury 850, remodel premium 10%.
+  assert.equal(rate({service:'kitchen',finish:'mid-range'},'12-31-01')?.amount,330,'a kitchen remodel adds the 10% existing-home premium');
+  assert.equal(rate({service:'kitchen',finish:'luxury'},'12-31-01')?.amount,935);
+  assert.equal(rate({service:'new-construction',finish:'refresh'},'12-31-01')?.amount,175,'new construction is base cost at Essential');
+  assert.equal(rate({service:'cabinet-install',finish:'high-end'},'12-31-01')?.amount,600,'cabinet work is base cost, as its tab in the book is');
+  assert.equal(rate({service:'handyman'},'12-31-01')?.amount,300,'a line filed under other work is still offered, at base cost');
+  // No finish chosen: the book's own default, Signature.
   assert.equal(finishTier(undefined),'mid');
-  assert.equal(rate({service:'kitchen'},'12-31-01')?.amount,550);
+  assert.equal(rate({service:'kitchen'},'12-31-01')?.amount,330);
   // An installed line is typed so the engine never adds labor or material on top of it.
   const cabinets=rate({service:'kitchen'},'12-31-01')!;
   assert.equal(cabinets.type,'Subcontractor');
   assert.match(cabinets.description,/installed price, labor and material together/);
-  assert.match(cabinets.description,/Mid-Range finish/);
+  assert.match(cabinets.description,/Signature finish/);
   assert.match(cabinets.description,/remodel premium 10% included/);
   assert.equal(cabinets.unit,'LF');
   // A labor-only line is typed Labor and says materials are priced separately.
   const gfci=rate({service:'handyman'},'26-01-05')!;
-  assert.equal(gfci.type,'Labor');assert.equal(gfci.amount,130);
+  assert.equal(gfci.type,'Labor');assert.equal(gfci.amount,120);
   assert.match(gfci.description,/labor only; price materials separately/);
-  assert.equal(rate({service:'re10'},'26-01-05')?.amount,130,'no premium is added where the book carries none');
+  assert.equal(rate({service:'re10'},'26-01-05')?.amount,120,'no premium is added where the book carries none');
   // A percentage is not a dollar price and is never offered as a unit rate.
   assert.equal(rate({service:'new-construction'},'00-10-03'),undefined);
   const summary=priceBookSummary();
@@ -211,9 +211,9 @@ test('a complete project is priced from the owner book assembly at the chosen fi
     return (r.internal as any).lines as {description:string;quantity:number;unitCost:number;evidence:{reference:string}}[];
   };
   const home=price({service:'new-construction',sqft:'2000',garageIncluded:'yes',garageSqft:'600',finish:'mid-range',stories:'1',text:'New 2,000 SF home with a 600 SF garage'});
-  assert.deepEqual(home.map(l=>[l.evidence.reference.match(/PB-90-\d\d-\d\d/)?.[0],l.quantity,l.unitCost]),[['PB-90-10-01',2000,210],['PB-90-10-03',600,65]],'mid-range new home 210/SF and garage 65/SF, nothing else');
+  assert.deepEqual(home.map(l=>[l.evidence.reference.match(/PB-90-\d\d-\d\d/)?.[0],l.quantity,l.unitCost]),[['PB-90-10-01',2000,200],['PB-90-10-03',600,65]],'Signature new home 200/SF and garage 65/SF, nothing else');
   const lux=price({service:'new-construction',sqft:'2000',garageIncluded:'no',finish:'luxury',stories:'1',text:'New home'});
-  assert.equal(lux[0].unitCost,475,'luxury tier');
+  assert.equal(lux[0].unitCost,305,'luxury tier');
   const kitchen=price({service:'kitchen',sqft:'180',finish:'high-end',text:'Complete kitchen remodel'});
   assert.equal(kitchen.length,1);assert.equal(kitchen[0].quantity,180);assert.ok(kitchen[0].unitCost>=220,'high-end kitchen per SF, with any remodel premium');
   const bath=price({service:'bathroom',bathrooms:'2',finish:'mid-range',text:'Full remodel of two hall bathrooms'});

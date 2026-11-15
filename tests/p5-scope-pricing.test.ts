@@ -1396,7 +1396,7 @@ test('A task mapped to a master price book line carries the book\'s direct cost 
  const resolved=catalogResolution({tasks:[cabinets],issues:[],notes:[],replacements:[],removeExclusions:[]},booked,[],now,scope);
  assert.deepEqual(resolved.issues,[]);
  const rule=resolved.rules[0];
- assert.equal(rule.unitCost,550,'Mid-Range $500/LF plus the 10% existing-home premium');
+ assert.equal(rule.unitCost,330,'Signature $300/LF plus the 10% existing-home premium');
  assert.equal(rule.quantity.fixed,12);
  assert.equal(rule.category,'subcontractors','an installed price, never split into extra labor or material');
  assert.equal(rule.priceBasis,'direct-cost','overhead and profit are applied once, after this');
@@ -1745,7 +1745,7 @@ test('a requested drywall patch survives a parenthetical paint exclusion',async(
  const patch={id:'patch-drywall',description:'Patch one 12x12 inch hole in garage wall with 5/8 inch Type X drywall, tape, finish and spot-prime (paint excluded).',evidence:'Patch one 12x12 garage wall hole with 5/8 inch Type X, tape, finish, spot-prime. Paint excluded. Applies only to specified patch area.',existingLineIds:[],additions:[{code:'PB-09-01-08',quantity:1,quantityEvidence:'One patch, 1 square foot'}],researchDescription:'',issues:[]};
  const mapping={tasks:[patch],issues:[],notes:[],replacements:[],removeExclusions:[]};
  const result=catalogResolution(mapping,configured,[],now,{...scope,answers:{service:'re10',location:'Boise',area:'1'},text:patch.evidence});
- assert.equal(result.rules.length,2);assert.equal(result.rules[0].unitCost,300);
+ assert.equal(result.rules.length,2);assert.equal(result.rules[0].unitCost,155);
  assert.ok(result.rules.some(r=>r.evidence?.reference.includes('PB-09-91-12')),'explicit primer has its own documented coverage');
  assert.ok(!result.assumptions.some(a=>a.includes('not billable')));
  const excluded={...patch,description:'Drywall patch excluded',evidence:'Drywall patch excluded.'};
@@ -1803,7 +1803,7 @@ test('a one-square-foot repair uses the approved patch service instead of bulk w
  const mapping={tasks:[repair],issues:[],notes:[],replacements:[],removeExclusions:[]};
  const result=catalogResolution(mapping,configured,[],now);
  assert.equal(result.rules.length,2);
- assert.ok(result.rules.some(rule=>rule.evidence.reference.includes('PB-09-01-08')&&rule.unitCost===300&&rule.quantity.fixed===1));
+ assert.ok(result.rules.some(rule=>rule.evidence.reference.includes('PB-09-01-08')&&rule.unitCost===155&&rule.quantity.fixed===1));
  assert.ok(!result.rules.some(rule=>rule.evidence.reference.includes('PB-09-29-05')));
  assert.ok(result.rules.some(rule=>rule.evidence.reference.includes('PB-09-91-12')));
  const wall={...repair,id:'wall',description:'Install garage drywall over a 12 by 12 foot new wall.',additions:[{code:'PB-09-29-05',quantity:144,quantityEvidence:'144 SF'}]};
