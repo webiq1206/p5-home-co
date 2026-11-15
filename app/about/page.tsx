@@ -85,7 +85,7 @@ const aboutSchema = {
         addressCountry: "US",
       },
       description:
-        "Founder of P5 Home Co. Construction project manager, husband, and father of five in Meridian, Idaho.",
+        "Founder of P5 Home Co, a construction project manager, husband, and father of five in Meridian, Idaho.",
       image: `${siteUrl}/images/about/perkins-family-meridian-idaho-1x1.webp`,
     },
     {
