@@ -31,6 +31,7 @@ import {
 } from "../../../lib/leads/intakeContract.ts";
 import { loadSettings } from "../../../lib/leads/settings.ts";
 import { BRANDS, LEAD_SOURCES, type Brand, type LeadSource } from "../../../lib/leads/types.ts";
+import { estimatorTestMode } from "../../../../lib/p5/emailKit.ts";
 import { notifyLeadCreated, notifyLeadDetailsAdded, type LeadCreatedNotifyInput } from "../../../lib/notifications/lead-created.ts";
 import { sendRequestConfirmation } from "../../../lib/leads/sendLeadConfirmation.ts";
 import { scheduleIntentFor } from "../../../lib/leads/scheduleEmail.ts";
@@ -265,6 +266,10 @@ export async function handleIntake(request: Request, after: AfterResponse, deps:
   // Quote pages are public campaign destinations. Their source must reflect
   // retained click context, not a hardcoded label supplied by the browser.
   const isQuoteForm = str(body.form) === "Quote Landing Page";
+  const guidedEstimate = str(body.form ?? body.originalForm) === "Online estimator";
+  const submittedName = `${firstName ?? ""} ${lastName ?? ""}`.trim();
+  const testMode = estimatorTestMode(submittedName, process.env);
+  if (testMode && !submittedName.toLowerCase().includes("test")) firstName = `TEST ${firstName ?? "Lead"}`.trim();
   // The contact channel (form/email/phone) is not itself the marketing source.
   // Respect explicit non-organic integrations, but correct a default "Organic
   // Website" label when the same submission carries paid campaign evidence.
@@ -342,14 +347,14 @@ export async function handleIntake(request: Request, after: AfterResponse, deps:
             heading: "Request received:",
             requestKind: extras.requestKind,
           });
-          followUp(after, late, "Request added");
+          if (!guidedEstimate) followUp(after, late, "Request added");
         } catch (error) {
           console.error("[intake] late request merge failed:", (error as Error).message);
         }
       }
       // Any Step 2 that was waiting for this Step 1.
       try {
-        for (const pending of await applyPendingDetails(brand, extras.externalId)) followUp(after, pending);
+        for (const pending of await applyPendingDetails(brand, extras.externalId)) if (!guidedEstimate) followUp(after, pending);
       } catch (error) {
         console.error("[intake] pending details not applied:", (error as Error).message);
       }
@@ -358,7 +363,7 @@ export async function handleIntake(request: Request, after: AfterResponse, deps:
     // HubSpot right away, bounded so the visitor never waits on HubSpot. A
     // created lead, or a repeat that brought new fields, is pushed now; on a
     // timeout or failure the deal stays pending and the watchdog sends it.
-    const sync = result.dealId > 0 ? startSync(deps.syncHubSpot, result.dealId) : null;
+    const sync = result.dealId > 0 && !testMode ? startSync(deps.syncHubSpot, result.dealId) : null;
     await within(sync, deps.inlineSyncTimeoutMs ?? inlineSyncTimeoutMs());
 
     // Mail runs after the response is finished, so a send failure cannot

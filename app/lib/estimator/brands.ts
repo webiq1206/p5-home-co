@@ -22,6 +22,8 @@ export type BrandConfig = {
     | "Boise Cabinet Co"
     | "Boise ADU Co";
   site: string;
+  /** Absolute https PNG for email. ADU uses the P5 lockup until it has its own. */
+  logoUrl: string;
   /** False keeps the estimator off the public site while the rest is ready. */
   live: boolean;
   accent: string;
@@ -42,6 +44,7 @@ export const BRAND_CONFIGS: Record<BrandId, BrandConfig> = {
     id: "p5",
     name: "P5 Home Co",
     site: "https://p5homeco.com",
+    logoUrl: "https://p5homeco.com/brands/p5-home-co-lockup-dark.png",
     live: true,
     accent: "#ceb391",
     accentInk: "#705a45",
@@ -70,6 +73,7 @@ export const BRAND_CONFIGS: Record<BrandId, BrandConfig> = {
     id: "remodeling",
     name: "Boise Remodeling Co",
     site: "https://boiseremodeling.co",
+    logoUrl: "https://boiseremodeling.co/brand/png/wordmark/light/boise-remodeling-co-wordmark-charcoal-accent-1200w.png",
     live: true,
     accent: "#7d9479",
     accentInk: "#4d6249",
@@ -82,6 +86,7 @@ export const BRAND_CONFIGS: Record<BrandId, BrandConfig> = {
     id: "construction",
     name: "Boise Construction Co",
     site: "https://boiseconstruction.co",
+    logoUrl: "https://boiseconstruction.co/brand/png/wordmark/light/boise-construction-co-wordmark-charcoal-accent-1200w.png",
     live: true,
     accent: "#c48d3f",
     accentInk: "#78531e",
@@ -94,6 +99,7 @@ export const BRAND_CONFIGS: Record<BrandId, BrandConfig> = {
     id: "handyman",
     name: "Boise Handyman Co",
     site: "https://boisehandyman.co",
+    logoUrl: "https://boisehandyman.co/brand/png/wordmark/light/boise-handyman-co-wordmark-charcoal-accent-1200w.png",
     live: true,
     accent: "#c56b4a",
     accentInk: "#92472c",
@@ -106,6 +112,7 @@ export const BRAND_CONFIGS: Record<BrandId, BrandConfig> = {
     id: "cabinet",
     name: "Boise Cabinet Co",
     site: "https://boisecabinet.co",
+    logoUrl: "https://boisecabinet.co/brand/png/wordmark/light/boise-cabinet-co-wordmark-charcoal-accent-1200w.png",
     live: true,
     accent: "#659b9a",
     accentInk: "#356463",
@@ -122,6 +129,7 @@ export const BRAND_CONFIGS: Record<BrandId, BrandConfig> = {
     // stand in. The estimator is configured and tested, and stays unpublished
     // until the site is live and this is set to true.
     site: "",
+    logoUrl: "https://p5homeco.com/brands/p5-home-co-lockup-dark.png",
     live: false,
     accent: "#ceb391",
     accentInk: "#705a45",

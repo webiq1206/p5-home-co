@@ -1,4 +1,4 @@
-import {phoneHref} from './phoneHref.ts';
+import {telHref} from './emailKit.ts';
 import {pricingBasisNotes} from './pricingBasis.ts';
 import {customerPresentation} from './customerProjection.ts';
 /**
@@ -235,7 +235,7 @@ export function buildEstimateDocument(input:{id:string;result:unknown;brand:Esti
     assumptionRows,
     legalLine:clean(input.legalLine,200),
     nextSteps:[['Request a project review','Reply to your estimate email or contact us with your estimate number.'],['Confirm the details',confirmStep(service)],['Receive your final proposal',"You'll receive a written proposal with confirmed scope, pricing and scheduling requirements."]],
-    review:{label:'Request a project review',email:brand.email,phone:brand.phone,mailto:`mailto:${brand.email}?subject=${subject}`,tel:phoneHref(brand.phone),url:`https://${brand.domain}${brand.consultationPath}`},
+    review:{label:'Request a project review',email:brand.email,phone:brand.phone,mailto:`mailto:${brand.email}?subject=${subject}`,tel:telHref(brand.phone),url:`https://${brand.domain}${brand.consultationPath}`},
     notice:PRELIMINARY_NOTICE,
   };
 }

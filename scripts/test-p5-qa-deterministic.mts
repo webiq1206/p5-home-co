@@ -49,7 +49,7 @@ try{
   const config=createPlanningConfiguration({version:PLANNING_MODEL_VERSION,source:'Synthetic acceptance only',authorizedBy:'Test only',importedAt:date.toISOString(),rates:['03-17-01-M','03-17-01-L','03-19-02-M','03-15-02-M','03-15-02-L','03-16-01-M','03-16-01-L','03-14-01-M','03-14-01-L','03-04-01','03-04-02','03-04-03','03-05-02-M','03-05-02-L','REF-GENERAL-HOUR','REF-PLUMBING-HOUR','REF-ELECTRICAL-HOUR'].map(code=>({code,description:'Synthetic cabinetry work',type:code.endsWith('-M')?'Material':'Labor',unit:code.includes('HOUR')?'HR':'LF',amount:100,source:'Synthetic test',basis:'owner-average-cost'}))});
   const text='Change order: supply and install ten feet of base cabinetry. No other work.';
   const answers={service:'change-order',cabinetBaseLf:'10',cabinetUpperLf:'0',cabinetTallLf:'0',location:'Boise',address:'123 Test Street'};
-  const contact={name:'Offline Test',email:'customer@example.invalid',phone:'2085550100'};
+  const contact={name:'Offline Sample',email:'customer@example.invalid',phone:'2085550100'};
   // Brand-neutral: the same script runs on every site against its own domain and services.
   const {ESTIMATOR_BRAND:brand}=await load('brand');
   const site=`https://${brand.domain}`;

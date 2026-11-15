@@ -25,6 +25,8 @@ test('both branded messages preserve all customer fields and exclude extraction/
  for(const site of Object.keys(INTAKE_SITES) as IntakeSite[]){const f=fixture(site);for(const team of [true,false]){
   const message=renderIntakeEmail(f.s,team,[]);
   assert.ok(message.subject.startsWith(INTAKE_SITES[site].name));assert.ok(message.html.includes(INTAKE_RECIPIENTS[site]));
+  assert.match(message.html,/Meridian, ID 83646/);assert.match(message.text,/Meridian, ID 83646/);
+  assert.match(message.html,/\(208\) 477-1169/);assert.match(message.text,/\| \(208\) 477-1169 \|/);
   assert.ok(message.text.includes('Do not move the wall'));assert.ok(message.text.includes('Keep the sink & door'));
   assert.ok(message.html.includes('&lt;script&gt;'));assert.ok(!message.html.includes('<script>'));assert.ok(!message.html.includes('<img src=x'));
   assert.ok(!message.html.includes('NEVER EXPOSE'));assert.ok(!message.text.includes('NEVER EXPOSE'));
