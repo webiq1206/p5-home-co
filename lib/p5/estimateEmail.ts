@@ -37,8 +37,8 @@ export function customerEstimateDocument(id:string,record:any){
  return buildEstimateDocument({id,result:record.customer||{},brand:brand as unknown as EstimateBrand,issue:record.customer?.issue||fallbackIssue(id,record),submittedAt:record.submittedAt||null,legalLine:legalIdentityLine()});
 }
 const C={ink:brand.ink,muted:'#565D58',soft:'#6F7671',line:'#E1E5DD',page:'#F4F4F2'} as const;
-function scopeEmailBrand(source:{name:string;domain:string;email:string;phone:string;accent:string;ink:string;logo:string}):EmailBrand{
- return emailBrandFrom({...source,cityLine:source.domain===brand.domain?brand.cityLine:''});
+function scopeEmailBrand(source:{name:string;domain:string;email:string;phone:string;accent:string;ink:string;logo:string}=brand):EmailBrand{
+ return emailBrandFrom({name:source.name,domain:source.domain,email:source.email,phone:source.phone,accent:source.accent,ink:source.ink,logo:source.logo,cityLine:source.domain===brand.domain?brand.cityLine:''});
 }
 function customerHtml(doc:EstimateDocument,link=''){
  const tint=tintOf(doc.brand.accent);const accent=doc.brand.accent;
@@ -139,7 +139,7 @@ function adminEmail(id:string,record:any){
  if(s.checks.length){parts.push(h2('Checks before a firm proposal'));parts.push(list(checks.shown));if(checks.note)parts.push(`<p style="margin:4px 0 0;font-size:12px;color:${C.soft}">${escape(checks.note)}</p>`);}
  if(open.shown.length){parts.push(h2('Open items'));parts.push(list(open.shown));if(open.note)parts.push(`<p style="margin:4px 0 0;font-size:12px;color:${C.soft}">${escape(open.note)}</p>`);}
  parts.push(`<p style="margin:22px 0 0;font-size:13px;line-height:1.6;color:${C.muted}">Attached: the internal record with every priced line (PDF). <a href="${escape(`${site}/admin/p5-estimators`)}" style="color:${C.ink}">Open the estimator admin</a> for the saved record and the customer copy.</p>`);
- const mail=scopeEmailBrand();
+ const mail=scopeEmailBrand(doc.brand);
  const uploadList=(value:unknown)=>Array.isArray(value)?value.filter((file):file is {name:string;url?:string}=>Boolean(file)&&typeof file==='object'&&typeof (file as {name?:unknown}).name==='string'):[];
  const uploads=[...uploadList(record?.scope?.uploads),...uploadList(record?.uploads)];
  const fileUrl=uploads.map(file=>String(file.url||'')).find(url=>url.startsWith('https://'))||(uploads.length?`${site}/admin/p5-estimators`:'');
