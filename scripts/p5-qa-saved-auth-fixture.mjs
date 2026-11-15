@@ -26,10 +26,14 @@ const {isolatedPool} = await import('../services/document-service/scripts/model-
 const pool = await isolatedPool();
 const cookieHash = createHash('sha256').update('p5-qa-saved-layout-synthetic-session').digest('hex');
 const normalize = statement => statement.replace(/\s+/g, ' ').trim();
-const sessionSelect = normalize(`SELECT u.id, u.email, u.full_name, u.role, u.is_active
-  FROM user_session s
-  JOIN app_user u ON u.id = s.user_id
-  WHERE s.id = $1 AND s.expires_at > now()`);
+// Must stay the resolveSession lookup in app/lib/auth.ts. scopes_only is read
+// through to_jsonb so a contractor is not treated as an administrator, and a
+// database without that column still signs an employee in.
+const sessionSelect = normalize(`SELECT u.id, u.email, u.full_name, u.role, u.is_active,
+            COALESCE((to_jsonb(u)->>'scopes_only')::boolean, false) AS scopes_only
+       FROM user_session s
+       JOIN app_user u ON u.id = s.user_id
+      WHERE s.id = $1 AND s.expires_at > now()`);
 
 try {
   await pool.query('CREATE TABLE app_user (id integer PRIMARY KEY, email text NOT NULL, full_name text NOT NULL, role text NOT NULL, is_active boolean NOT NULL)');
