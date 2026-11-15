@@ -38,7 +38,7 @@ const BRAND_MARKERS = [
   /boise(remodeling|construction|handyman|cabinet)\.co/i,
   /p5homeco\.com/i,
   /\(208\)|208[-. ]?477|2084771169/,
-  /Wapoot|Meridian/i,
+  /Meridian/i,
   /#(7d9479|4d6249|c48d3f|78531e|659b9a|356463|c56b4a|92472c|ceb391|a58c72|705a45|c97c99)\b/i,
 ];
 /** Shared files may import only these. */

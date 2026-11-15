@@ -17,7 +17,7 @@
     "components/family/brandStyle.ts": "2d2f9259c64d41d4e335d0fa9100ab2cd23f4333056bd30c3e0a96cb4ed6ce9e",
     "components/family/track.ts": "51c8593830e68af7c1f4224470d10fb5ef37d19538ced0870c7c13c112e9f05b",
     "lib/family/types.ts": "9aa2525c20c2ef4a8e3136e444ea5c77cbd99d6369dd41c45cc664540214ed7e",
-    "scripts/verify-family-chrome.mjs": "1c20ec3d7a39dcd11311dc0ee01459c31b9417e7603363c6f2e69e97da33e7fb",
+    "scripts/verify-family-chrome.mjs": "6dd85134b11ce8c9a92b3b2c53c523f14eef2678201298ed75f1bf82e116c9e5",
     "styles/family-chrome.css": "3d98f259b7e9e0558f3e1e183a06a18d0ce61796eae5b8039278683b03487ea4",
     "styles/family-tokens.css": "7497e6df3d9c9ff101d01315dbe44207bb1d1bd1ef9d0ec20da8b5899e3371ae"
   }

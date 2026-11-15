@@ -1,9 +1,9 @@
 import { BUSINESS_HOURS_LABEL } from "../lib/businessHours.ts";
 
 /** Customer-facing identity for p5homeco.com. Phone stays in local format;
- * schema telephone is E.164. The street address belongs on this website and
- * in schema (owner decision). Ads stay off it. There is no shop or showroom,
- * so public copy never invites a visit. */
+ * schema telephone is E.164. The public address is the city and postal code.
+ * There is no street on the site or in schema. Ads stay off the locality.
+ * There is no shop or showroom, so public copy never invites a visit. */
 
 export const PUBLIC_REPRESENTATIVE = "Nick Perkins";
 
@@ -30,12 +30,11 @@ export const P5_GBP_PLACE_ID = "ChIJzxMoavs6P6IRNc6i9aOvt6Q";
 export const P5_GBP_MAP_EMBED_URL =
   "https://www.google.com/maps/embed?origin=mfe&pb=!1m2!2m1!1splace_id:ChIJzxMoavs6P6IRNc6i9aOvt6Q";
 
-/** Published NAP address. Character for character with the citation. */
-export const PUBLIC_STREET_ADDRESS = "4031 W Wapoot St";
+/** Published locality. No street. */
 export const PUBLIC_ADDRESS_LOCALITY = "Meridian";
 export const PUBLIC_ADDRESS_REGION = "ID";
 export const PUBLIC_POSTAL_CODE = "83646";
-export const PUBLIC_ADDRESS = "4031 W Wapoot St, Meridian, ID 83646";
+export const PUBLIC_ADDRESS = "Meridian, ID 83646";
 
 export const PUBLIC_EMAIL = "hello@p5homeco.com";
 

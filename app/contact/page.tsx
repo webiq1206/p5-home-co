@@ -9,8 +9,8 @@ import {
   PUBLIC_EMAIL,
   PUBLIC_PHONE_DISPLAY,
   PUBLIC_PHONE_SMS,
+  PUBLIC_ADDRESS,
   PUBLIC_PHONE_TEL,
-  PUBLIC_STREET_ADDRESS,
 } from "../publicIdentity";
 import { serializeJsonLd } from "../structuredData";
 import { ContactChat } from "./ContactChat";
@@ -107,11 +107,7 @@ export default function ContactPage() {
               <div className="contact-card">
                 <address className="contact-nap">
                   <p className="contact-nap-name">P5 Home Co</p>
-                  <p>
-                    {PUBLIC_STREET_ADDRESS}
-                    <br />
-                    Meridian, ID 83646
-                  </p>
+                  <p>{PUBLIC_ADDRESS}</p>
                   <p>
                     <a href={PUBLIC_PHONE_TEL}>{PUBLIC_PHONE_DISPLAY}</a>
                   </p>

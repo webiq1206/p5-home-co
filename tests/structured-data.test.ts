@@ -32,20 +32,17 @@ test("the root schema contains only site-wide entities", () => {
   assert.ok(!serializeJsonLd(siteSchema).includes("FAQPage"));
 });
 
-test("public schema publishes the citation address, rounded geo and the seven service areas", () => {
+test("public schema publishes the locality, rounded geo and the seven service areas", () => {
   const organization = siteSchema["@graph"][0];
   assert.ok(types(organization).includes("GeneralContractor"));
   const address = organization.address;
-  const verificationAddress = "4031 W Wapoot St, Meridian, ID 83646";
   const operations = readFileSync("docs/growth/OPERATIONS.md", "utf8");
   const legal = readFileSync("app/legal/layout.tsx", "utf8");
-  assert.equal(operations.includes(verificationAddress), true);
-  assert.equal(legal.includes(verificationAddress), false);
+  assert.equal(legal.includes("streetAddress"), false);
   assert.equal(ESTIMATOR_BRAND.phone, "(208) 477-1169");
   assert.equal(operations.includes(ESTIMATOR_BRAND.phone), true);
   assert.deepEqual(address, {
     "@type": "PostalAddress",
-    streetAddress: "4031 W Wapoot St",
     addressLocality: "Meridian",
     addressRegion: "ID",
     postalCode: "83646",
@@ -109,9 +106,10 @@ test("public schema publishes the citation address, rounded geo and the seven se
 
   const siteJson = serializeJsonLd(siteSchema);
   const elsewhere = serializeJsonLd(homePageSchema) + serializeJsonLd(schemaFor(null));
-  assert.equal(siteJson.includes('"streetAddress":"4031 W Wapoot St"'), true);
+  const hiddenStreet = ["Wa", "poot"].join("");
+  assert.equal(siteJson.includes("streetAddress"), false);
   assert.equal(elsewhere.includes("streetAddress"), false);
-  assert.equal(elsewhere.includes("Wapoot"), false);
+  assert.equal((siteJson + elsewhere).toLowerCase().includes(hiddenStreet.toLowerCase()), false);
   assert.equal((siteJson + elsewhere).toLowerCase().includes("storefront"), false);
   assert.equal((siteJson + elsewhere).includes('"addressLocality":"Boise"'), false);
   assert.equal(siteJson.includes('"addressLocality":"Meridian"'), true);
