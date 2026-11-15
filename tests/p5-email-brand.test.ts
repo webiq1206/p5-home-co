@@ -8,7 +8,7 @@ import test from "node:test";
 
 import { buildEstimateDocument, type EstimateBrand } from "../lib/p5/estimateDocument.ts";
 import { customerLayout, customerText } from "../lib/p5/estimateEmail.ts";
-import { emailBrandFrom, internalDeliveryTo, renderEmail, tierNextStep, type BrandSource } from "../lib/p5/emailKit.ts";
+import { emailBrandFrom, footerCityLine, internalDeliveryTo, renderEmail, tierNextStep, type BrandSource } from "../lib/p5/emailKit.ts";
 
 const FROM = "From: P5 Home Co <hello@p5homeco.com>";
 const SHARED = ["emailKit.ts", "estimateEmail.ts", "intakeEmail.ts", "outbox.ts", "reviewRequest.ts"];
@@ -73,6 +73,10 @@ test("a cabinet estimate renders as Boise Cabinet Co, and P5 appears only in the
   assert.match(text, /The Boise Cabinet Co team/);
   assert.match(text, /Meridian, ID 83646/);
   assert.match(text, /\(208\) 477-1169/);
+  assert.match(`${html}\n${text}`, /Boise Cabinet Co prepared this estimate\./);
+  assert.match(`${html}\n${text}`, /Meridian, ID 83646/);
+  assert.equal(footerCityLine("Meridian, ID 83646"), "Meridian, ID 83646");
+  assert.equal(footerCityLine("123 Main St"), "");
   assert.equal(internalDeliveryTo("test", cabinet), "hello@p5homeco.com");
   assert.equal(internalDeliveryTo("alert", cabinet), "hello@p5homeco.com");
   assert.notEqual(cabinet.email, internalDeliveryTo("test", cabinet));

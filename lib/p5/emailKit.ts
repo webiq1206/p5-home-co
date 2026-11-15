@@ -74,6 +74,16 @@ export type BrandSource = {
   cityLine?: string;
 };
 
+/**
+ * City and ZIP for an email footer. A line that starts with a street number
+ * is left off, so a street address is never printed.
+ */
+export function footerCityLine(value: string | null | undefined): string {
+  const line = String(value ?? "").replace(/\s+/g, " ").trim();
+  if (!line || /^\d/.test(line)) return "";
+  return line;
+}
+
 export function phoneTelFrom(phone: string): string {
   const digits = phone.replace(/\D/g, "");
   if (digits.length === 10) return `+1${digits}`;
@@ -363,7 +373,7 @@ export function toText(blocks: readonly Block[]): string {
 
 function footerBits(brand: EmailBrand): string[] {
   const site = brand.siteUrl.replace(/^https:\/\//, "").replace(/\/+$/, "");
-  return [brand.name, brand.cityLine, brand.phoneDisplay, site].map((part) => part.trim()).filter(Boolean);
+  return [brand.name, footerCityLine(brand.cityLine), brand.phoneDisplay, site].map((part) => part.trim()).filter(Boolean);
 }
 
 function footerText(brand: EmailBrand, footerNote?: string): string[] {
@@ -389,7 +399,7 @@ export function layout(input: {
     ? `<a href="tel:${esc(input.brand.phoneTel)}" style="color:#f4f4f2;text-decoration:underline;">${esc(input.brand.phoneDisplay)}</a>`
     : esc(input.brand.phoneDisplay);
   const siteLink = /^https:\/\//i.test(site) ? `<a href="${esc(site)}" style="color:#f4f4f2;text-decoration:underline;">${esc(site.replace(/^https:\/\//, ""))}</a>` : "";
-  const footer = [esc(input.brand.name), esc(input.brand.cityLine), phone, siteLink].filter((part) => part && part !== "undefined").join(" · ");
+  const footer = [esc(input.brand.name), esc(footerCityLine(input.brand.cityLine)), phone, siteLink].filter((part) => part && part !== "undefined").join(" · ");
   const extra = input.footerNote?.trim() ? `<p style="margin:8px 0 0;font-size:12px;line-height:1.5;color:#d9d9d6;">${esc(input.footerNote.trim())}</p>` : "";
   const kicker = input.kicker?.trim()
     ? `<p style="margin:0 0 6px;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:${MUTED};">${esc(input.kicker.trim())}</p>`

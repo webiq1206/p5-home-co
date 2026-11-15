@@ -112,10 +112,9 @@ test('PDF and email render the same saved revision, keep its date on every re-re
  }
  assert.match(mail.html,/mailto:[^"]+\?subject=Project%20review%20request%20-%20estimate%20P5-0F1E2D3C/);
 });
-test('a child brand prints P5 Home Co as the brand and keeps the contracting company line',async()=>{
- const legal='Boise Remodeling Co is a DBA of P5 Home Co, LLC.';
- const doc=buildEstimateDocument({id:ID,result:re10,brand:brand('remodeling'),issue:{service:'kitchen'},legalLine:legal});
- assert.equal(doc.legalLine,legal);
+test('a child brand names itself on the estimate and prints the city line',async()=>{
+ const prepared='Boise remodeling Co prepared this estimate.';
+ const doc=buildEstimateDocument({id:ID,result:re10,brand:brand('remodeling'),issue:{service:'kitchen'},legalLine:'Boise Remodeling Co is a DBA of P5 Home Co, LLC.'});
  const emailSource=readFileSync(new URL('../lib/p5/estimateEmail.ts',import.meta.url),'utf8');
  const pdfSource=readFileSync(new URL('../lib/p5/estimatePdf.ts',import.meta.url),'utf8');
  assert.doesNotMatch(emailSource,/P5 Home Co|p5homeco\.com/);
@@ -123,16 +122,20 @@ test('a child brand prints P5 Home Co as the brand and keeps the contracting com
  assert.doesNotMatch(pdfSource,/A P5 Home Co\. brand/);
  const text=customerText(doc);
  const html=customerLayout(doc,'<p>Scope</p>');
- const pdf=(await pdfTextLayers(await renderEstimatePdf(doc))).join('\n');
- assert.match(pdf,/A P5 Home Co brand/);
- assert.doesNotMatch(pdf,/A P5 Home Co\. brand/);
- assert.match(pdf,/Boise Remodeling Co is a DBA of P5 Home Co, LLC\./);
  for(const output of [text,html]){
+  assert.match(output,/Boise remodeling Co prepared this estimate\./);
+  assert.match(output,/Meridian, ID 83646/);
   assert.doesNotMatch(output,/is a DBA of/);
   assert.doesNotMatch(output,/P5 Home Co/);
   assert.doesNotMatch(output,/LLC/);
-  assert.match(output,/Boise remodeling Co/);
+  assert.doesNotMatch(output,/^\d+\s+\w+\s+(?:St|Street|Ave|Avenue|Rd|Road|Dr|Drive|Ln|Lane|Way|Blvd)\b/im);
  }
+ const pdfDoc=buildEstimateDocument({id:ID,result:re10,brand:brand('remodeling'),issue:{service:'kitchen'},legalLine:prepared});
+ const pdf=(await pdfTextLayers(await renderEstimatePdf(pdfDoc))).join('\n');
+ assert.match(pdf,/A P5 Home Co brand/);
+ assert.doesNotMatch(pdf,/A P5 Home Co\. brand/);
+ assert.match(pdf,/Boise remodeling Co prepared this estimate\./);
+ assert.doesNotMatch(pdf,/is a DBA of/);
  assert.match(html,/alt="Boise remodeling Co"/);
  assert.doesNotMatch(html,/A P5 Home Co brand/);
 });

@@ -1,5 +1,5 @@
 import {ESTIMATOR_BRAND as brand} from './brand.ts';
-import {button,emailBrandFrom,scheduleBlock,tierNextStep,type EmailBrand} from './emailKit.ts';
+import {button,emailBrandFrom,footerCityLine,scheduleBlock,tierNextStep,type EmailBrand} from './emailKit.ts';
 import {phoneHref} from './phoneHref.ts';
 import {estimateLinkUrl} from './estimateLinks.ts';
 import {legalIdentityLine} from './brandIdentity.ts';
@@ -34,7 +34,7 @@ function fallbackIssue(id:string,record:any):Partial<EstimateIssue>|null{
  return {...base,issuedAt:''};
 }
 export function customerEstimateDocument(id:string,record:any){
- return buildEstimateDocument({id,result:record.customer||{},brand:brand as unknown as EstimateBrand,issue:record.customer?.issue||fallbackIssue(id,record),submittedAt:record.submittedAt||null});
+ return buildEstimateDocument({id,result:record.customer||{},brand:brand as unknown as EstimateBrand,issue:record.customer?.issue||fallbackIssue(id,record),submittedAt:record.submittedAt||null,legalLine:legalIdentityLine()});
 }
 const C={ink:brand.ink,muted:'#565D58',soft:'#6F7671',line:'#E1E5DD',page:'#F4F4F2'} as const;
 function scopeEmailBrand(source:{name:string;domain:string;email:string;phone:string;accent:string;ink:string;logo:string}=brand):EmailBrand{
@@ -78,8 +78,14 @@ function customerHtml(doc:EstimateDocument,link=''){
  parts.push(scheduleBlock(scopeEmailBrand(doc.brand),tierNextStep(doc.total?.high)).html);
  return parts.join('');
 }
+function preparedLine(doc:EstimateDocument){return `${doc.brand.name} prepared this estimate.`;}
+function customerFooter(doc:EstimateDocument){
+ const city=footerCityLine(brand.cityLine);
+ return [doc.brand.name,city,doc.brand.phone,doc.brand.email,doc.brand.domain].map(part=>String(part||'').trim()).filter(Boolean);
+}
 export function customerLayout(doc:EstimateDocument,body:string){
  const site=`https://${doc.brand.domain}`;
+ const city=footerCityLine(brand.cityLine);
  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light"><title>${escape(`${doc.title} ${doc.reference}`)}</title><style>body{margin:0;padding:0}@media (max-width:640px){.container{width:100%!important}.pad{padding:20px 16px!important}h1{font-size:24px!important}}</style></head>
 <body style="margin:0;padding:0;background:${C.page};${FONT};-webkit-text-size-adjust:100%">
 <div style="display:none;max-height:0;overflow:hidden;opacity:0">${escape(`${doc.total?`${doc.total.label}: ${doc.total.amount}. `:''}Estimate ${doc.reference}`)}</div>
@@ -94,7 +100,8 @@ export function customerLayout(doc:EstimateDocument,body:string){
  </td></tr>
  <tr><td class="pad" style="padding:0 28px 28px">${body}</td></tr>
  <tr><td class="pad" style="padding:18px 28px 22px;border-top:1px solid ${C.line}">
-  <p style="margin:0;font-size:13px;line-height:1.6;color:${C.muted}"><b style="color:${C.ink}">${escape(doc.brand.name)}</b> &nbsp;|&nbsp; <a href="${escape(doc.review.tel)}" style="color:${C.muted};text-decoration:none">${escape(doc.brand.phone)}</a> &nbsp;|&nbsp; <a href="mailto:${escape(doc.brand.email)}" style="color:${C.muted}">${escape(doc.brand.email)}</a> &nbsp;|&nbsp; <a href="${escape(site)}" style="color:${C.muted}">${escape(doc.brand.domain)}</a></p>
+  <p style="margin:0;font-size:13px;line-height:1.6;color:${C.muted}"><b style="color:${C.ink}">${escape(doc.brand.name)}</b>${city?` &nbsp;|&nbsp; ${escape(city)}`:''} &nbsp;|&nbsp; <a href="${escape(doc.review.tel)}" style="color:${C.muted};text-decoration:none">${escape(doc.brand.phone)}</a> &nbsp;|&nbsp; <a href="mailto:${escape(doc.brand.email)}" style="color:${C.muted}">${escape(doc.brand.email)}</a> &nbsp;|&nbsp; <a href="${escape(site)}" style="color:${C.muted}">${escape(doc.brand.domain)}</a></p>
+  <p style="margin:6px 0 0;font-size:11px;line-height:1.5;color:${C.soft}">${escape(preparedLine(doc))}</p>
  </td></tr>
 </table></td></tr></table></body></html>`;
 }
@@ -107,7 +114,7 @@ export function customerText(doc:EstimateDocument,link=''){
  lines.push('EXCLUSIONS');if(doc.exclusions.length){lines.push(doc.exclusionsNote);for(const e of doc.exclusions)lines.push(`  - ${e}`);}else lines.push(doc.exclusionsNote);lines.push('');
  lines.push('ASSUMPTIONS & ITEMS TO CONFIRM');for(const [label,values] of doc.assumptionRows){lines.push(`${label}:`);for(const v of values)lines.push(`  - ${v}`);}lines.push('');
  lines.push('NEXT STEPS');doc.nextSteps.forEach(([title,body],i)=>lines.push(`${String(i+1).padStart(2,'0')} ${title}: ${body}`));
- lines.push('',`${doc.review.label}: ${doc.review.email} | ${doc.review.phone}`,'',`${doc.notice.lead} ${doc.notice.text}`,'',`${doc.brand.name} | ${doc.brand.phone} | ${doc.brand.email} | ${doc.brand.domain}`);
+ lines.push('',`${doc.review.label}: ${doc.review.email} | ${doc.review.phone}`,'',`${doc.notice.lead} ${doc.notice.text}`,'',customerFooter(doc).join(' | '),preparedLine(doc));
  lines.push('','Your complete estimate is attached as a PDF.','',scheduleBlock(scopeEmailBrand(doc.brand),tierNextStep(doc.total?.high)).text);
  return lines.join('\n');
 }
