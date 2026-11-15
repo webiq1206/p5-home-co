@@ -73,9 +73,9 @@ function customerHtml(doc:EstimateDocument,link=''){
  parts.push(`<p style="margin:0;font-size:13px;line-height:1.55;color:${C.muted}"><b style="color:${C.ink}">${escape(doc.notice.lead)}</b> ${escape(doc.notice.text)}</p>`);
  return parts.join('');
 }
-function customerLayout(doc:EstimateDocument,body:string){
+export function customerLayout(doc:EstimateDocument,body:string){
  const site=`https://${doc.brand.domain}`;
- const endorsement=doc.brand.endorsed?`<p style="margin:12px 0 0;font-size:12px;line-height:1.6;color:${C.soft}"><img src="${escape(`${site}/p5-estimate/p5-mark.png`)}" alt="P5" width="18" height="18" style="width:18px;height:18px;border:0;vertical-align:middle;margin-right:6px">A P5 Home Co. brand</p>`:'';
+ const endorsement=doc.brand.endorsed?`<p style="margin:12px 0 0;font-size:12px;line-height:1.6;color:${C.soft}"><img src="${escape(`${site}/p5-estimate/p5-mark.png`)}" alt="P5 Home Co" width="18" height="18" style="width:18px;height:18px;border:0;vertical-align:middle;margin-right:6px">A P5 Home Co brand</p>`:'';
  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light"><title>${escape(`${doc.title} ${doc.reference}`)}</title><style>body{margin:0;padding:0}@media (max-width:640px){.container{width:100%!important}.pad{padding:20px 16px!important}h1{font-size:24px!important}}</style></head>
 <body style="margin:0;padding:0;background:${C.page};${FONT};-webkit-text-size-adjust:100%">
 <div style="display:none;max-height:0;overflow:hidden;opacity:0">${escape(`${doc.total?`${doc.total.label}: ${doc.total.amount}. `:''}Estimate ${doc.reference}`)}</div>
@@ -95,7 +95,7 @@ function customerLayout(doc:EstimateDocument,body:string){
  </td></tr>
 </table></td></tr></table></body></html>`;
 }
-function customerText(doc:EstimateDocument,link=''){
+export function customerText(doc:EstimateDocument,link=''){
  const lines:string[]=[doc.brand.name,'PRELIMINARY ONLINE ESTIMATE',doc.title,...(doc.projectName?[doc.projectName]:[]),`Estimate ${doc.reference}${doc.issuedLabel?` | Prepared ${doc.issuedLabel}`:''}`,'',...(link?[`View or update your estimate online: ${link}`,'']:[])];
  lines.push(`${(doc.total?.label||'Estimate status').toUpperCase()}: ${doc.total?.amount||'Pricing pending review'}`);if(doc.partialNote)lines.push(doc.partialNote);lines.push('');
  lines.push(doc.finish.heading.toUpperCase(),doc.finish.name,doc.finish.detail,doc.finish.basis,'');
@@ -105,7 +105,7 @@ function customerText(doc:EstimateDocument,link=''){
  lines.push('ASSUMPTIONS & ITEMS TO CONFIRM');for(const [label,values] of doc.assumptionRows){lines.push(`${label}:`);for(const v of values)lines.push(`  - ${v}`);}lines.push('');
  lines.push('NEXT STEPS');doc.nextSteps.forEach(([title,body],i)=>lines.push(`${String(i+1).padStart(2,'0')} ${title}: ${body}`));
  lines.push('',`${doc.review.label}: ${doc.review.email} | ${doc.review.phone}`,'',`${doc.notice.lead} ${doc.notice.text}`,'',`${doc.brand.name} | ${doc.brand.phone} | ${doc.brand.email} | ${doc.brand.domain}`);
- if(doc.brand.endorsed)lines.push('A P5 Home Co. brand');if(doc.legalLine)lines.push(doc.legalLine);
+ if(doc.brand.endorsed)lines.push('A P5 Home Co brand');if(doc.legalLine)lines.push(doc.legalLine);
  lines.push('','Your complete estimate is attached as a PDF.');
  return lines.join('\n');
 }

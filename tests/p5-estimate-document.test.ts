@@ -1,7 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
 import {buildEstimateDocument,issueRecord,allocate,estimateReference,confirmStep,ESTIMATE_TEMPLATE_VERSION,type EstimateBrand} from '../lib/p5/estimateDocument.ts';
-import {estimateEmail} from '../lib/p5/estimateEmail.ts';
+import {customerLayout,customerText,estimateEmail} from '../lib/p5/estimateEmail.ts';
+import {renderEstimatePdf} from '../lib/p5/estimatePdf.ts';
 import {customerPdf} from '../lib/p5/pdf.ts';
 import {pdfTextLayers} from '../lib/p5/pdfText.ts';
 import {ESTIMATOR_BRAND} from '../lib/p5/brand.ts';
@@ -104,8 +106,31 @@ test('PDF and email render the same saved revision, keep its date on every re-re
  }
  // "margin" is checked on the text layers only; the HTML carries CSS margins.
  for(const output of [first,mail.text])assert.doesNotMatch(output,/margin/i);
- if(site.id!=='p5')for(const output of [first,mail.text])assert.match(output,/A P5 Home Co\. brand/);
+ if(site.id!=='p5')for(const output of [first,mail.text,mail.html]){
+  assert.match(output,/A P5 Home Co brand/);
+  assert.doesNotMatch(output,/A P5 Home Co\. brand/);
+ }
  assert.match(mail.html,/mailto:[^"]+\?subject=Project%20review%20request%20-%20estimate%20P5-0F1E2D3C/);
+});
+test('a child brand prints P5 Home Co as the brand and keeps the contracting company line',async()=>{
+ const legal='Boise Remodeling Co is a DBA of P5 Home Co, LLC.';
+ const doc=buildEstimateDocument({id:ID,result:re10,brand:brand('remodeling'),issue:{service:'kitchen'},legalLine:legal});
+ assert.equal(doc.legalLine,legal);
+ for(const file of ['estimateEmail.ts','estimatePdf.ts']){
+  const source=readFileSync(new URL('../lib/p5/'+file,import.meta.url),'utf8');
+  assert.match(source,/A P5 Home Co brand/);
+  assert.doesNotMatch(source,/A P5 Home Co\. brand/);
+ }
+ const text=customerText(doc);
+ const html=customerLayout(doc,'<p>Scope</p>');
+ const pdf=(await pdfTextLayers(await renderEstimatePdf(doc))).join('\n');
+ for(const output of [text,html,pdf]){
+  assert.match(output,/A P5 Home Co brand/);
+  assert.doesNotMatch(output,/A P5 Home Co\. brand/);
+  assert.match(output,/Boise Remodeling Co is a DBA of P5 Home Co, LLC\./);
+ }
+ assert.match(html,/alt="P5 Home Co"/);
+ assert.doesNotMatch(html,/alt="P5"(?! Home Co)/);
 });
 test('customer text cannot inject markup into the email',()=>{
  const issue=issueRecord({brandId:site.id,id:ID,revision:1,now:new Date('2026-09-21T18:00:00Z'),contact:{...contact,name:'<img src=x onerror=alert(1)>'},scope:scope('handyman',{},'<script>alert(1)</script> fix the door.')});
