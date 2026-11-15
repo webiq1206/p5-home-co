@@ -1,7 +1,7 @@
 {
   "source": "p5-home-co",
-  "commit": "c599609c95f9148f2d069b2d5f93b0786e47f137",
-  "generatedAt": "2026-11-15T15:46:27.566Z",
+  "commit": "9782fc76a719121bbabe7ede24a8d6ece67e744f",
+  "generatedAt": "2026-11-15T15:59:06.903Z",
   "note": "Shared estimator engine published from p5-home-co. Edit shared files there and run scripts/p5-sync.mjs; hash checks remain mandatory in every brand.",
   "files": {
     "app/admin/p5-estimators/page.tsx": "489c406a30e5aba809f6c603738d999c2e412f9b67968281a8ea16e748587b62",
@@ -513,7 +513,7 @@
     "tests/p5-saved-customer-copy.test.ts": "d8ac255fff882e5104c46f6feedc9b939e05755f8727165bdbdde85f2331931b",
     "tests/p5-scope-components.test.ts": "1345c9191c08a38e905560adeb4af1011d6536fa238b2dcb0c0d8205ad3cdd6c",
     "tests/p5-scope-inventory.test.ts": "7f66957ff37ecd0d67dec62619103882575fb4f21bbe6d98d8eabd18d369969b",
-    "tests/p5-scope-pricing.test.ts": "ac7e40f847312fad97e85fa1c9b30f2f2366165a1d2312899bcefe9c7d0e15bf",
+    "tests/p5-scope-pricing.test.ts": "4f9d68a6b0c7e5ca74eb30e751d8029004a1e1ae7d7df883f53d22cd048065e5",
     "tests/p5-scope-replacement.test.ts": "b93a70f25249c04b2d1ecda397bc6159123b4fed55e8217a217f95b8bcc6e605",
     "tests/p5-selective-patch.test.mjs": "d7929cd8b6e7f1e6328cfbeb724ccffabb28ef6fdd2a2173c50843e5478b9d98",
     "tests/p5-selective-verification-sync.test.mjs": "42e257d1da3d70cf7cede7fb5721c7eb43a8e8e7112ea2ed7642ac25b15fb8f0",

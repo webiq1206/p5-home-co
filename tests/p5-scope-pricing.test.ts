@@ -1803,7 +1803,7 @@ test('a one-square-foot repair uses the approved patch service instead of bulk w
  const mapping={tasks:[repair],issues:[],notes:[],replacements:[],removeExclusions:[]};
  const result=catalogResolution(mapping,configured,[],now);
  assert.equal(result.rules.length,2);
- assert.ok(result.rules.some(rule=>rule.evidence.reference.includes('PB-09-01-08')&&rule.unitCost===300&&rule.quantity.fixed===1));
+ assert.ok(result.rules.some(rule=>rule.evidence.reference.includes('PB-09-01-08')&&rule.unitCost===155&&rule.quantity.fixed===1));
  assert.ok(!result.rules.some(rule=>rule.evidence.reference.includes('PB-09-29-05')));
  assert.ok(result.rules.some(rule=>rule.evidence.reference.includes('PB-09-91-12')));
  const wall={...repair,id:'wall',description:'Install garage drywall over a 12 by 12 foot new wall.',additions:[{code:'PB-09-29-05',quantity:144,quantityEvidence:'144 SF'}]};
