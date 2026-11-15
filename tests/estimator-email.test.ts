@@ -121,6 +121,8 @@ test("every p5 fixture renders admin and customer html and text from the estimat
     if (fixture.uploads.length) {
       assert.match(customer.text, new RegExp(`We received ${fixture.uploads.length} file`));
       assert.match(admin.html, /View uploaded files/);
+      assert.doesNotMatch(customer.html, /href="https?:\/\/[^\"]+\/admin(?:\/|\")/);
+      assert.doesNotMatch(customer.text, /Submit your plans/);
     } else {
       assert.doesNotMatch(admin.html, /View uploaded files/);
     }

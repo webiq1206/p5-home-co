@@ -368,7 +368,6 @@ export function customerConfirmation(row: GuidedRow, viewUrl: string): Message {
   const assumptions = cap(view?.guide?.assumptions ?? view?.assumptions, 5);
   const excluded = cap(view?.guide?.excluded ?? view?.exclusions, 5);
   const stillNeed = cap([...(view?.guide?.undetermined ?? []), ...(view?.guide?.verification ?? [])], 5);
-  const uploadUrl = uploads.find((file) => file.url && /^https:\/\//i.test(file.url))?.url;
   const blocks: Block[] = [
     { type: "p", text: `Hi ${first},` },
     { type: "p", text: thanksCopy(brand.name, project, tier) },
@@ -398,9 +397,8 @@ export function customerConfirmation(row: GuidedRow, viewUrl: string): Message {
     { label: "Call us", href: `tel:${brand.phoneTel}`, variant: "secondary" },
     { label: "Reply with questions", href: `mailto:${brand.replyTo}?subject=${encodeURIComponent(subject)}`, variant: "secondary" },
   ];
-  if (more && uploadUrl) actionItems.splice(1, 0, { label: "Submit your plans", href: uploadUrl, variant: "secondary" });
   blocks.push({ type: "buttons", items: actionItems });
-  if (more && !uploadUrl) blocks.push({ type: "p", text: "Reply to this email with your plans." });
+  if (more) blocks.push({ type: "p", text: "Reply to this email with your plans." });
   blocks.push({ type: "p", text: `If you have questions, just reply to this email or call ${brand.phoneDisplay}.` });
   blocks.push({ type: "p", text: `The ${brand.name} team` });
   blocks.push({
