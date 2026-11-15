@@ -6,6 +6,7 @@
  * report only.
  */
 
+import { ESTIMATOR_BRAND } from "../../../lib/p5/brand.ts";
 import { phoneHref } from "../../../lib/p5/phoneHref.ts";
 import {
   ESTIMATE_DISCLAIMER,
@@ -40,7 +41,7 @@ export function emailBrandFor(id: string | null | undefined): EmailBrand {
   const live = brandConfig(id) ?? BRAND_CONFIGS.p5;
   return {
     name: live.name,
-    accent: live.accent,
+    accent: live.id === ESTIMATOR_BRAND.id || live.id === "adu" ? ESTIMATOR_BRAND.accent : live.accent,
     charcoal: "#383837",
     logoUrl: live.logoUrl,
     siteUrl: live.site,

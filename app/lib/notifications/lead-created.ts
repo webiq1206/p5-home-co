@@ -14,6 +14,7 @@
  * "New lead" email by those lines (inbox-policy.ts) and refuses ambiguity.
  */
 
+import { ESTIMATOR_BRAND } from "../../../lib/p5/brand.ts";
 import { phoneHref } from "../../../lib/p5/phoneHref.ts";
 import { button as kitButton, layout, type EmailBrand } from "../../../lib/p5/emailKit.ts";
 import { PUBLIC_EMAIL } from "../../publicIdentity.ts";
@@ -38,7 +39,7 @@ function mailBrand(name: string): EmailBrand {
   const known = Object.values(BRAND_CONFIGS).find((brand) => brand.name === name.trim());
   return {
     name: known?.name || name.trim() || "P5 Home Co",
-    accent: known?.accent || "#ceb391",
+    accent: known?.id === "p5" || known?.id === "adu" ? ESTIMATOR_BRAND.accent : known?.accent || ESTIMATOR_BRAND.accent,
     charcoal: "#383837",
     logoUrl: known?.logoUrl || "https://p5homeco.com/brands/p5-home-co-lockup-dark.png",
     siteUrl: known?.site || "https://p5homeco.com",

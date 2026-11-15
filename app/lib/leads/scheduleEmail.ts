@@ -10,6 +10,7 @@
  */
 
 import type { Message } from "../notifications/render.ts";
+import { ESTIMATOR_BRAND } from "../../../lib/p5/brand.ts";
 import { BRAND_CONFIGS } from "../estimator/brands.ts";
 import { SCHEDULE_URL, button as kitButton, layout, tierNextStep, type EmailBrand } from "../../../lib/p5/emailKit.ts";
 
@@ -55,14 +56,14 @@ function safeHref(value: string): string {
 }
 
 function safeAccent(value: string | undefined): string {
-  return /^#[0-9a-fA-F]{6}$/.test(value ?? "") ? (value as string) : "#ceb391";
+  return /^#[0-9a-fA-F]{6}$/.test(value ?? "") ? (value as string) : ESTIMATOR_BRAND.accent;
 }
 
 function skin(name: string | undefined, accent: string | undefined): EmailBrand {
   const known = Object.values(BRAND_CONFIGS).find((brand) => brand.name === (name ?? "").trim());
   return {
     name: (name ?? "").trim() || known?.name || "",
-    accent: safeAccent(accent ?? known?.accent),
+    accent: safeAccent(accent ?? (known?.id === ESTIMATOR_BRAND.id || known?.id === "adu" ? ESTIMATOR_BRAND.accent : known?.accent)),
     charcoal: "#383837",
     logoUrl: known?.logoUrl || "",
     siteUrl: known?.site || "",

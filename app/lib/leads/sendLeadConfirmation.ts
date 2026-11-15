@@ -4,13 +4,16 @@
  * never thrown, so it cannot change the visitor's response.
  */
 
+import { ESTIMATOR_BRAND } from "../../../lib/p5/brand.ts";
 import { BRAND_CONFIGS } from "../estimator/brands.ts";
 import { activeTransport } from "../notifications/transport.ts";
 import { normalizeEmail } from "./normalize.ts";
 import { requestConfirmation, type ScheduleIntent } from "./scheduleEmail.ts";
 
 export function accentForBrandName(name: string): string {
-  return Object.values(BRAND_CONFIGS).find((brand) => brand.name === name)?.accent ?? "#ceb391";
+  const known = Object.values(BRAND_CONFIGS).find((brand) => brand.name === name);
+  if (!known || known.id === ESTIMATOR_BRAND.id || known.id === "adu") return ESTIMATOR_BRAND.accent;
+  return known.accent;
 }
 
 export async function sendRequestConfirmation(input: {

@@ -1,6 +1,5 @@
 import {ESTIMATOR_BRAND as brand} from './brand.ts';
-import {button,emailBrandFrom,footerCityLine,scheduleBlock,tierNextStep,type EmailBrand} from './emailKit.ts';
-import {phoneHref} from './phoneHref.ts';
+import {button,emailBrandFrom,footerCityLine,scheduleBlock,telHref,tierNextStep,type EmailBrand} from './emailKit.ts';
 import {estimateLinkUrl} from './estimateLinks.ts';
 import {legalIdentityLine} from './brandIdentity.ts';
 import {buildAdminSummary,adminBasis} from './adminEstimate.ts';
@@ -12,7 +11,7 @@ import {buildEstimateDocument,issueRecord,type EstimateBrand,type EstimateDocume
  * margins appear only in the internal email.
  */
 const escape=(value:unknown)=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]!));
-const customerPhoneLink=(phone:string)=>{const visible=escape(phone);const href=phoneHref(phone);return href?`<a href="${escape(href)}" style="color:${C.ink}">${visible}</a>`:visible;};
+const customerPhoneLink=(phone:string)=>{const visible=escape(phone);const href=telHref(phone);return href?`<a href="${escape(href)}" style="color:${C.ink}">${visible}</a>`:visible;};
 const FONT="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
 /**
  * The customer email is the approved preliminary online estimate in email form. It is built from the
@@ -83,10 +82,16 @@ function customerFooter(doc:EstimateDocument){
  const city=footerCityLine(brand.cityLine);
  return [doc.brand.name,city,doc.brand.phone,doc.brand.email,doc.brand.domain].map(part=>String(part||'').trim()).filter(Boolean);
 }
+function brandFooterHtml(doc:EstimateDocument){
+ const city=footerCityLine(brand.cityLine);
+ const site=`https://${doc.brand.domain}`;
+ const tel=telHref(doc.brand.phone);
+ return `<p style="margin:0;font-size:13px;line-height:1.6;color:${C.muted}"><b style="color:${C.ink}">${escape(doc.brand.name)}</b>${city?` &nbsp;|&nbsp; ${escape(city)}`:''} &nbsp;|&nbsp; ${tel?`<a href="${escape(tel)}" style="color:${C.muted};text-decoration:none">${escape(doc.brand.phone)}</a>`:escape(doc.brand.phone)} &nbsp;|&nbsp; <a href="mailto:${escape(doc.brand.email)}" style="color:${C.muted}">${escape(doc.brand.email)}</a> &nbsp;|&nbsp; <a href="${escape(site)}" style="color:${C.muted}">${escape(doc.brand.domain)}</a></p>`;
+}
+const MOBILE_STYLE=`<style>body{margin:0;padding:0}@media (max-width:640px){.container{width:100%!important}.pad{padding:20px 16px!important}h1{font-size:24px!important}}</style>`;
 export function customerLayout(doc:EstimateDocument,body:string){
  const site=`https://${doc.brand.domain}`;
- const city=footerCityLine(brand.cityLine);
- return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light"><title>${escape(`${doc.title} ${doc.reference}`)}</title><style>body{margin:0;padding:0}@media (max-width:640px){.container{width:100%!important}.pad{padding:20px 16px!important}h1{font-size:24px!important}}</style></head>
+ return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light"><title>${escape(`${doc.title} ${doc.reference}`)}</title>${MOBILE_STYLE}</head>
 <body style="margin:0;padding:0;background:${C.page};${FONT};-webkit-text-size-adjust:100%">
 <div style="display:none;max-height:0;overflow:hidden;opacity:0">${escape(`${doc.total?`${doc.total.label}: ${doc.total.amount}. `:''}Estimate ${doc.reference}`)}</div>
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:${C.page}"><tr><td align="center" style="padding:24px 12px">
@@ -100,7 +105,7 @@ export function customerLayout(doc:EstimateDocument,body:string){
  </td></tr>
  <tr><td class="pad" style="padding:0 28px 28px">${body}</td></tr>
  <tr><td class="pad" style="padding:18px 28px 22px;border-top:1px solid ${C.line}">
-  <p style="margin:0;font-size:13px;line-height:1.6;color:${C.muted}"><b style="color:${C.ink}">${escape(doc.brand.name)}</b>${city?` &nbsp;|&nbsp; ${escape(city)}`:''} &nbsp;|&nbsp; <a href="${escape(doc.review.tel)}" style="color:${C.muted};text-decoration:none">${escape(doc.brand.phone)}</a> &nbsp;|&nbsp; <a href="mailto:${escape(doc.brand.email)}" style="color:${C.muted}">${escape(doc.brand.email)}</a> &nbsp;|&nbsp; <a href="${escape(site)}" style="color:${C.muted}">${escape(doc.brand.domain)}</a></p>
+  ${brandFooterHtml(doc)}
   <p style="margin:6px 0 0;font-size:11px;line-height:1.5;color:${C.soft}">${escape(preparedLine(doc))}</p>
  </td></tr>
 </table></td></tr></table></body></html>`;
@@ -148,18 +153,18 @@ function adminEmail(id:string,record:any){
  const uploadList=(value:unknown)=>Array.isArray(value)?value.filter((file):file is {name:string;url?:string}=>Boolean(file)&&typeof file==='object'&&typeof (file as {name?:unknown}).name==='string'):[];
  const uploads=[...uploadList(record?.scope?.uploads),...uploadList(record?.uploads)];
  const fileUrl=uploads.map(file=>String(file.url||'')).find(url=>url.startsWith('https://'))||(uploads.length?`${site}/admin/p5-estimators`:'');
- parts.push(button({href:doc.customer.phone?phoneHref(doc.customer.phone):'',label:doc.customer.phone?`Call ${doc.customer.phone}`:'Call',variant:'secondary',accent:mail.accent}));
+ parts.push(button({href:telHref(doc.customer.phone),label:doc.customer.phone?`Call ${doc.customer.phone}`:'Call',variant:'secondary',accent:mail.accent}));
  parts.push(button({href:doc.customer.email?`mailto:${doc.customer.email}`:'',label:'Email',variant:'secondary',accent:mail.accent}));
  parts.push(button({href:'https://meetings-na2.hubspot.com/client3',label:'Schedule',variant:'primary',accent:mail.accent}));
  parts.push(button({href:fileUrl,label:'View uploaded files',variant:'secondary',accent:mail.accent}));
- const html=`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><title>${escape(`Internal record ${doc.reference}`)}</title></head><body style="margin:0;padding:0;background:${C.page};${FONT}"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:${C.page}"><tr><td align="center" style="padding:20px 12px"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="width:600px;max-width:100%;border-collapse:collapse;background:#FFFFFF;border:1px solid ${C.line}"><tr><td style="padding:20px 24px 14px;border-bottom:1px solid ${accent}"><img src="${escape(`${site}${doc.brand.logo}`)}" alt="${escape(doc.brand.name)}" width="180" style="display:block;width:180px;max-width:60%;height:auto;border:0"></td></tr><tr><td style="padding:18px 24px 24px">${parts.join('')}</td></tr></table></td></tr></table></body></html>`;
+ const html=`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><title>${escape(`Internal record ${doc.reference}`)}</title>${MOBILE_STYLE}</head><body style="margin:0;padding:0;background:${C.page};${FONT}"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:${C.page}"><tr><td align="center" style="padding:20px 12px"><table role="presentation" class="container" cellpadding="0" cellspacing="0" border="0" width="600" style="width:600px;max-width:100%;border-collapse:collapse;background:#FFFFFF;border:1px solid ${C.line}"><tr><td class="pad" style="padding:20px 24px 14px;border-bottom:1px solid ${accent}"><img src="${escape(`${site}${doc.brand.logo}`)}" alt="${escape(doc.brand.name)}" width="180" style="display:block;width:180px;max-width:60%;height:auto;border:0"></td></tr><tr><td class="pad" style="padding:18px 24px 8px">${parts.join('')}</td></tr><tr><td class="pad" style="padding:18px 24px 22px;border-top:1px solid ${C.line}">${brandFooterHtml(doc)}</td></tr></table></td></tr></table></body></html>`;
  const lines:string[]=['INTERNAL ESTIMATE RECORD - CONFIDENTIAL, DO NOT FORWARD TO THE CUSTOMER','',`${doc.title}${doc.projectName?`: ${doc.projectName}`:''}`,`Estimate ${doc.reference}${doc.issuedLabel?` | ${doc.issuedLabel}`:''}`,`Status: ${s.status}`,'',
   'LEAD',`Customer: ${doc.customer.name||'Not supplied'}`,`Email: ${doc.customer.email||'Not supplied'}`,`Phone: ${doc.customer.phone||'Not supplied'}`,`Location: ${doc.location.join(', ')||'Not stated'}`,`Finish: ${doc.finish.name} (${adminBasis(doc)})`,'',
   'PRICE BUILD-UP',...s.build.map(([k,v])=>`${k}: ${v}`),`Contract price: ${s.contractPrice}`,`Customer ${doc.priceKind==='range'?'range':'price'}: ${s.customerPrice}`,''];
  if(s.trades.length)lines.push('DIRECT COST BY TRADE',...s.trades.map(t=>`${t.trade}: ${t.cost}${t.share?` (${t.share})`:''}`),'');
  if(s.checks.length)lines.push('CHECKS BEFORE A FIRM PROPOSAL',...checks.shown.map(c=>`- ${c}`),...(checks.note?[checks.note]:[]),'');
  if(open.shown.length)lines.push('OPEN ITEMS',...open.shown.map(c=>`- ${c}`),...(open.note?[open.note]:[]),'');
- lines.push('The internal record with every priced line is attached (PDF).',`Admin: ${site}/admin/p5-estimators`);
+ lines.push('The internal record with every priced line is attached (PDF).',`Admin: ${site}/admin/p5-estimators`,'',customerFooter(doc).join(' | '));
  return {html,text:lines.join('\n')};
 }
 export function estimateEmail(id:string,record:any,admin:boolean){

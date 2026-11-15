@@ -128,6 +128,11 @@ test("every p5 fixture renders admin and customer html and text from the estimat
     else assert.doesNotMatch(admin.html, /Open in QuickBooks/);
     if (fixture.phone) assert.match(admin.html, new RegExp(`tel:\\+1${fixture.phone.replace(/\D/g, "")}`));
     else assert.doesNotMatch(admin.html, /Call \(208\) 555/);
+    if (fixture.brand === "p5") {
+      assert.match(customer.html, /#a58c72/i);
+      assert.match(admin.html, /#a58c72/i);
+      assert.doesNotMatch(`${customer.html}\n${admin.html}`, /#ceb391/i);
+    }
     assert.match(customer.html, /View my estimate/);
     assert.match(customer.html, /Schedule now/);
     assert.ok(customer.html.indexOf("View my estimate") < customer.html.indexOf("Schedule now"));

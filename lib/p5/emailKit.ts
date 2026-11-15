@@ -1,3 +1,5 @@
+import { phoneHref } from "./phoneHref.ts";
+
 /**
  * Shared branded email kit for every P5 estimator message.
  *
@@ -84,11 +86,15 @@ export function footerCityLine(value: string | null | undefined): string {
   return line;
 }
 
+/** The one email dial link. 10 US digits become tel:+1…, matching phoneHref. */
+export function telHref(phone: string): string {
+  return phoneHref(phone, "tel");
+}
+
+/** Digits for a tel: href, without the scheme. Empty when the number is not dialable. */
 export function phoneTelFrom(phone: string): string {
-  const digits = phone.replace(/\D/g, "");
-  if (digits.length === 10) return `+1${digits}`;
-  if (digits.length === 11 && digits.startsWith("1")) return `+${digits}`;
-  return digits ? `+${digits}` : "";
+  const href = telHref(phone);
+  return href.startsWith("tel:") ? href.slice(4) : "";
 }
 
 /** Build the email brand from the site-owned brand record. No parent name or URL is filled in here. */

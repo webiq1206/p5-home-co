@@ -38,6 +38,10 @@ test("shared mail files do not hardcode the parent name, URL, logo or accent", (
   }
   const kit = readFileSync(new URL("../lib/p5/emailKit.ts", import.meta.url), "utf8");
   assert.equal(kit.match(/p5homeco\.com/g)?.length, 1);
+  for (const file of SHARED) {
+    const source = readFileSync(new URL(`../lib/p5/${file}`, import.meta.url), "utf8");
+    assert.doesNotMatch(source, /#ceb391|#a58c72/i, file);
+  }
 });
 
 test("a cabinet estimate renders as Boise Cabinet Co, and P5 appears only in the From header", () => {

@@ -6,7 +6,7 @@ import {query} from './database.ts';
 import {protectRequest,limitedBody,json,failed} from './http.ts';
 import {adminRecipients,sendEmail} from './deliveryAdapter.ts';
 import {ESTIMATOR_BRAND as brand} from './brand.ts';
-import {button,emailBrandFrom,layout} from './emailKit.ts';
+import {button,emailBrandFrom,layout,telHref} from './emailKit.ts';
 import {estimateReference} from './estimateDocument.ts';
 
 export function reviewContact(input:Record<string,unknown>){
@@ -64,7 +64,7 @@ export function projectReviewHandler(dependencies={readDraft,query,adminRecipien
               '', 'Saved project description:',draft.text,'','Saved details:',JSON.stringify(draft.answers,null,2),
               '',`Files: ${draft.uploads.map(f=>f.name).join(', ')||'None'}`,
               'Review the saved project in the estimator administration area. This request is not a completed price or contract.'].join('\n');
-            const html=layout({brand:reviewBrand,preheader:`Project review requested: ${reference}`,title:'Project review requested',kicker:reference,body:`<p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:${brand.ink};white-space:pre-wrap;">${text.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c] as string))}</p>${contact.phone?button({href:`tel:${contact.phone.replace(/\D/g,'').replace(/^1?(\d{10})$/,'+1$1')}`,label:`Call ${contact.phone}`,variant:'primary',accent:reviewBrand.accent}):''}${contact.email?button({href:`mailto:${contact.email}`,label:'Email',variant:'secondary',accent:reviewBrand.accent}):''}`});
+            const html=layout({brand:reviewBrand,preheader:`Project review requested: ${reference}`,title:'Project review requested',kicker:reference,body:`<p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:${brand.ink};white-space:pre-wrap;">${text.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c] as string))}</p>${contact.phone?button({href:telHref(contact.phone),label:`Call ${contact.phone}`,variant:'primary',accent:reviewBrand.accent}):''}${contact.email?button({href:`mailto:${contact.email}`,label:'Email',variant:'secondary',accent:reviewBrand.accent}):''}`});
             await sendEmail({to,subject:`Project review requested: ${reference}`,attachments:[],
             key:createHash('sha256').update(`review:${id}:${draft.revision}:${to}`).digest('hex'),text,html});
           }
