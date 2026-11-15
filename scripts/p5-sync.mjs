@@ -25,6 +25,9 @@ function siblingPath(name){const candidates=[name,name.split('-').map(part=>part
 
 /** Files each brand owns. They are never copied, never listed in the manifest and never retired. */
 export const BRAND_OWNED=['lib/p5/brand.ts','lib/p5/deliveryAdapter.ts','lib/p5/intakeDeliveryRuntime.ts','lib/p5/intakeCrmValidation.ts','tests/p5-intake-local-crm.test.ts','lib/p5/database.ts','lib/p5/adminAuth.ts','lib/p5/progress.ts','lib/p5/projectIntent.ts','lib/p5/typedAlternatives.ts','lib/p5/crmRecords.ts','lib/p5/shared-manifest.json',
+  // Same-named site contract tests may protect different conversion APIs and privacy routes.
+  // Keep P5's versions active here without copying or retiring another brand's local variants.
+  'tests/p5-estimator-conversion-acceptance.test.ts','tests/p5-privacy-ads-disclosure.test.ts','tests/p5-privacy-section-5.test.ts',
   // Database preservation tooling and the pricing recovery harness follow each site's own schema and document service.
   'scripts/p5-schema-statements.mjs','scripts/p5-prepare-database.mjs','tests/p5-database-safety.test.mjs','scripts/test-p5-pricing-recovery.mts'];
 /** Modules that exist only in p5-home-co: its QA continuation service, the document service and
