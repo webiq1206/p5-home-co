@@ -1,7 +1,7 @@
 {
   "source": "p5-home-co",
-  "commit": "a8e88acc61d53144ec3a8613be097257e4384556",
-  "generatedAt": "2026-11-15T19:28:07.396Z",
+  "commit": "b3fcb4912ab360ff44fc0342f0ceab5813f72531",
+  "generatedAt": "2026-11-15T19:38:46.248Z",
   "note": "Shared estimator engine published from p5-home-co. Edit shared files there and run scripts/p5-sync.mjs; hash checks remain mandatory in every brand.",
   "files": {
     "app/admin/p5-estimators/page.tsx": "489c406a30e5aba809f6c603738d999c2e412f9b67968281a8ea16e748587b62",
@@ -164,7 +164,7 @@
     "lib/p5/objectStorage.ts": "85847be9ed74090540c80ee54a5dfb14e4bd96c796f9d1e3fee6ab29e6fcacb5",
     "lib/p5/openaiReasoning.ts": "4df761635a8b0bbd3618500e63a85c97ab35b4461ddc1888f5299a49044bba04",
     "lib/p5/origin.ts": "14590525c4e443514bd0e73ec20b8190209842631893fac5606c55de7d25924e",
-    "lib/p5/outbox.ts": "b2fe3542c9a44ef4b8be7e8827e62aa06d497f8d7eb64af2366309d730a8f1e7",
+    "lib/p5/outbox.ts": "935e1ea1923f4de3af864de8fa944414fec4906dde93a19d1940d84547cf807d",
     "lib/p5/pdf.ts": "71a4afb74cf0089f44966ed3cf7a57f2a13c529c7059f3b8755e4e40a9d960e0",
     "lib/p5/pdfAccess.ts": "e39916f767fd8b03f285c38f847754ad3766e1d6a110162e61af10cc2c8b7ce8",
     "lib/p5/pdfText.ts": "7a4769bde5e44c8eb075b5281aed6a3f17f5ef05d6ecb42ac7a9555fd409ff59",
@@ -465,7 +465,8 @@
     "tests/p5-notification-policy.test.ts": "cc9cb3d30f60f012cb9dfa53fb620f3c361403d84751777b76533451d243f697",
     "tests/p5-object-storage.test.ts": "a866741ebd3186928594bda8056bf01b3b181369671b175f6412bba748198274",
     "tests/p5-openai-reasoning.test.ts": "9d552040af45fba3f3076068aff22edfccb5f797ea8bc4f4e28b54303cba308c",
-    "tests/p5-outbox.test.ts": "d4833856fd69136241326690156d0b8f3495c144ed0227d1160f302279048cbd",
+    "tests/p5-outbox-routing.test.ts": "f58f3828419ab4541b431bf08509ccdbc2f5b6008907fc5d003c9731ddea92bc",
+    "tests/p5-outbox.test.ts": "0189c0e40d18e1d70b22f4ee63707ee2fe19cb5feb8fe61c8eb2b32a8f05498e",
     "tests/p5-page-limit.test.ts": "7482b83b220c6706f1fdbb2775a5b66cd54ad2c20a2d29df8ee397c5804eaffc",
     "tests/p5-page-quantity-totals.test.ts": "dc3ddaa1413e6a72cce7042b5573c2fdf475647fce0a3ddc42ca1e9220e4ba5a",
     "tests/p5-pdf-access.test.ts": "2008c53369a31c62e35c87f3c26c6e70d876d1dc9af43bc8cf3ecaba65f0d410",

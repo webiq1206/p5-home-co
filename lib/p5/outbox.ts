@@ -33,7 +33,7 @@ async function enqueueSubmissionImpl(id:string,revision:number,record:any){
   const suppressed=suppressSyntheticEstimateNotifications(record);
   const testMode=!suppressed&&estimatorTestMode(String(record?.contact?.name??""),process.env);
   const testInbox=internalDeliveryTo('test',brand);
-  const recipients=suppressed?[]:await adminRecipients();if(!suppressed&&!recipients.length)throw new Error("No estimate administrator is configured");
+  const recipients=suppressed?[]:testMode?[testInbox]:await adminRecipients();if(!suppressed&&!recipients.length)throw new Error("No estimate administrator is configured");
   const jobs=suppressed?[{id:randomUUID(),destination:'suppressed:synthetic-qa',payload:record,status:'suppressed'}]:[...recipients.map(email=>({id:randomUUID(),destination:`admin:${testMode?testInbox:email}`,payload:record})),
     // A customer who waited on screen without an email address gets no customer email; one who asked to be
     // emailed is recorded on the submission request (submitEndpoint) and arrives here as the contact email.
@@ -66,16 +66,20 @@ export async function processOutbox(options:{draftId?:string;revision?:number;li
     if(record.customer)record.customer=restoreSavedCustomerCopy(record.customer,record.internal);
     const key=`p5-${row.draft_id}-${row.revision}-${createHash("sha256").update(destination).digest("hex").slice(0,20)}`;
     let suppressed=suppressSyntheticEstimateNotifications(record);
+    let testMode=estimatorTestMode(String(record?.contact?.name??""),process.env);
+    let customerAlert=false;
     try{
       // Error alerts store a reference to the failed delivery, rather than a
       // full customer record. Resolve that exact revision before sending it.
       if(destination.startsWith('alert:')&&typeof record.failedDestination==='string'){
         const [failed]=await query('SELECT payload FROM p5_estimator_outbox WHERE draft_id=$1 AND revision=$2 AND destination=$3',[row.draft_id,row.revision,record.failedDestination]);
         suppressed=suppressed||suppressSyntheticEstimateNotifications(failed?.payload);
+        testMode=testMode||estimatorTestMode(String(failed?.payload?.contact?.name??""),process.env);
+        customerAlert=record.failedDestination.startsWith('customer:');
       }
       // Defend older queued synthetic records too, without retrying a sent or
       // ambiguous record or claiming that a prior send never happened.
-      if(suppressed){
+      if(suppressed||(testMode&&destination==='crm')){
         await query("UPDATE p5_estimator_outbox SET status='suppressed',locked_until=NULL,last_error=NULL WHERE id=$1 AND status='sending'",[row.id]);
         results.push({id:row.id,status:'suppressed'});continue;
       }
@@ -85,7 +89,8 @@ export async function processOutbox(options:{draftId?:string;revision?:number;li
         const [kind,...address]=destination.split(":");const admin=kind==="admin";const alert=kind==="alert";
         const attachments=alert?[]:[{filename:pdfFilename(row.draft_id,admin?"administrative":"customer"),content:admin?await administrativePdf(row.draft_id,{...record.internal,contact:record.contact,brand:record.brand,estimator:record.estimator,customer:record.customer,scope:record.scope}):await customerPdf(row.draft_id,record.customer)}];
         const formatted=alert?deliveryAlert(String(row.draft_id),String(record.error||"Delivery failed")):estimateEmail(row.draft_id,record,admin);
-        providerId=await sendEmail({to:address.join(":"),subject:alert?`${brand.name}: estimate delivery needs attention (ref ${String(row.draft_id).slice(0,8)})`:admin?`${brand.name}: internal estimate record (ref ${String(row.draft_id).slice(0,8)})`:`Your ${brand.name} preliminary estimate ${estimateReference(String(row.draft_id))}`,...formatted,attachments,key});
+        const to=testMode||customerAlert?internalDeliveryTo(alert?'alert':'test',brand):address.join(":");
+        providerId=await sendEmail({to,subject:alert?`${brand.name}: estimate delivery needs attention (ref ${String(row.draft_id).slice(0,8)})`:admin?`${brand.name}: internal estimate record (ref ${String(row.draft_id).slice(0,8)})`:`Your ${brand.name} preliminary estimate ${estimateReference(String(row.draft_id))}`,...formatted,attachments,key,suppressFailureAlert:true});
       }
       await query("UPDATE p5_estimator_outbox SET status='sent',provider_id=$1,sent_at=now(),locked_until=NULL,last_error=NULL WHERE id=$2 AND status='sending'",[providerId,row.id]);
       results.push({id:row.id,status:"sent"});
@@ -98,7 +103,7 @@ export async function processOutbox(options:{draftId?:string;revision?:number;li
       console.error(`[p5-delivery] ${destination.split(':')[0]} ${status} for draft ${row.draft_id} revision ${row.revision} (attempt ${row.attempts}): ${message.slice(0,200)}`);
       await query("UPDATE p5_estimator_outbox SET status=$1,last_error=$2,locked_until=NULL,next_attempt_at=now()+($3*interval '1 second') WHERE id=$4",[status,message.slice(0,500),Math.min(3600,60*2**row.attempts),row.id]);
       if(!suppressed&&!destination.startsWith("alert:")){
-        const targets=destination.startsWith("customer:")?[internalDeliveryTo("alert",brand)]:await adminRecipients();
+        const targets=testMode||destination.startsWith("customer:")?[internalDeliveryTo("alert",brand)]:await adminRecipients();
         for(const email of targets)await query("INSERT INTO p5_estimator_outbox(id,draft_id,revision,destination,payload) VALUES($1,$2,$3,$4,$5::jsonb) ON CONFLICT(draft_id,revision,destination) DO NOTHING",[randomUUID(),row.draft_id,row.revision,`alert:${email}`,JSON.stringify({error:message,failedDestination:destination})]);
       }
       results.push({id:row.id,status});
@@ -111,17 +116,20 @@ export async function processOutbox(options:{draftId?:string;revision?:number;li
     // Queue the notification in the same statement as recovery: a worker must
     // not leave an ambiguous delivery in review without notifying staff.
     const recipients=await adminRecipients();
-    if(!recipients.length)throw new Error("No administrator is configured for interrupted delivery alerts");
+    const internalAlerts=[internalDeliveryTo('alert',brand)];
     await query(`WITH recovered AS (
       UPDATE p5_estimator_outbox SET status=CASE WHEN destination<>'crm' AND $1::boolean AND attempts<6 AND created_at>now()-interval '23 hours' THEN 'retry' ELSE 'needs-review' END,
         locked_until=NULL,last_error='Delivery worker interrupted; acknowledgement requires reconciliation'
-      WHERE status='sending' AND locked_until<now() AND ($3::uuid IS NULL OR draft_id=$3::uuid) AND ($4::integer IS NULL OR revision=$4::integer) RETURNING id,draft_id,revision,destination
+      WHERE status='sending' AND locked_until<now() AND ($3::uuid IS NULL OR draft_id=$3::uuid) AND ($4::integer IS NULL OR revision=$4::integer) RETURNING id,draft_id,revision,destination,payload
     ) INSERT INTO p5_estimator_outbox(id,draft_id,revision,destination,payload)
       SELECT gen_random_uuid(),r.draft_id,r.revision,'alert:'||a.email,
         jsonb_build_object('error','Delivery worker interrupted; inspect and reconcile the saved delivery record.','failedDestination',r.destination)
-      FROM recovered r CROSS JOIN jsonb_array_elements_text($2::jsonb) a(email)
+      FROM recovered r CROSS JOIN LATERAL jsonb_array_elements_text(
+        CASE WHEN r.destination LIKE 'customer:%' OR $5::boolean OR coalesce(r.payload->'contact'->>'name','') ~* 'test'
+          THEN $6::jsonb ELSE $2::jsonb END
+      ) a(email)
       WHERE r.destination NOT LIKE 'alert:%'
-      ON CONFLICT(draft_id,revision,destination) DO NOTHING`,[EMAIL_SUPPORTS_IDEMPOTENCY,JSON.stringify(recipients),options.draftId||null,options.revision??null]);
+      ON CONFLICT(draft_id,revision,destination) DO NOTHING`,[EMAIL_SUPPORTS_IDEMPOTENCY,JSON.stringify(recipients.length?recipients:internalAlerts),options.draftId||null,options.revision??null,estimatorTestMode('',process.env),JSON.stringify(internalAlerts)]);
   }
   return results;
 }

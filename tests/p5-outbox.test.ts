@@ -25,7 +25,7 @@ test('a revision-scoped run claims, recovers and alerts only that saved revision
  // check for one draft never reclassifies an in-flight send of another draft.
  assert.ok(source.includes("status='sending' AND locked_until<now() AND ($1::uuid IS NULL OR draft_id=$1::uuid) AND ($2::integer IS NULL OR revision=$2::integer) LIMIT 1"));
  assert.ok(source.includes("WHERE status='sending' AND locked_until<now() AND ($3::uuid IS NULL OR draft_id=$3::uuid) AND ($4::integer IS NULL OR revision=$4::integer) RETURNING"));
- assert.ok(source.includes('[EMAIL_SUPPORTS_IDEMPOTENCY,JSON.stringify(recipients),options.draftId||null,options.revision??null]'));
+ assert.ok(source.includes('options.draftId||null,options.revision??null,estimatorTestMode(\'\',process.env),JSON.stringify(internalAlerts)]'));
  assert.ok(source.includes('deliveryRetryDecision(destination,EMAIL_SUPPORTS_IDEMPOTENCY,row.attempts,new Date(row.created_at))'));
 });
 
