@@ -65,7 +65,7 @@ test("the contact page is self-canonical, mapped, and does not invite a visit", 
   assert.doesNotMatch(flat, /visit us|stop by|get directions|directions to|boiseadu\.co/i);
   assert.equal(flat.includes("\u2014") || flat.includes("\u2013"), false);
   assert.equal(P5_GBP_MAP_EMBED_URL.includes(P5_GBP_PLACE_ID), true);
-  assert.equal(P5_GBP_MAP_EMBED_URL.includes("Wapoot"), false);
+  assert.equal(P5_GBP_MAP_EMBED_URL.toLowerCase().includes(["wa", "poot"].join("")), false);
   assert.ok(sitemap().some((entry) => entry.url === "https://p5homeco.com/contact"));
 });
 

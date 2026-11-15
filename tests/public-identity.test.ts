@@ -50,7 +50,7 @@ test("public contact copy keeps useful details without street or administrative 
   assert.equal(PUBLIC_REGISTRATION.includes("("), false);
   assert.equal(IDAHO_DOPL_LICENSE_SEARCH, "https://edopl.idaho.gov/OnlineServices/?link=PubSearch");
   assert.match(LLMS_CONTACT, /Serving Boise and the Treasure Valley/);
-  assert.doesNotMatch(PUBLIC_NAP + LLMS_CONTACT, /Wapoot|public representative|staffed storefront/i);
+  assert.doesNotMatch(PUBLIC_NAP + LLMS_CONTACT, new RegExp(`${["Wa", "poot"].join("")}|public representative|staffed storefront`, "i"));
   assert.match(LLMS_CONTACT, /hello@p5homeco\.com/);
   assert.equal(PUBLIC_NAP.includes("Jared") || SISTER_LINE.includes("Jared") || LLMS_CONTACT.includes("Jared"), false);
 });
@@ -103,7 +103,7 @@ test("the registration number renders in both modes and estimator pages omit the
   assert.equal(linked.includes(`href="${IDAHO_DOPL_LICENSE_SEARCH}" target="_blank" rel="noopener noreferrer"`), true);
   assert.match(linked, /title="Idaho contractor registration"/);
   assert.match(linked, /aria-label="Idaho contractor registration 8381215, opens in a new tab"/);
-  assert.doesNotMatch(linked, /look it up|look up registration|public representative|staffed storefront|Wapoot/i);
+  assert.doesNotMatch(linked, new RegExp(`look it up|look up registration|public representative|staffed storefront|${["Wa", "poot"].join("")}`, "i"));
   assert.equal(plain.includes(IDAHO_DOPL_LICENSE_SEARCH), false);
   assert.match(plain, new RegExp(`class="public-registration">${PUBLIC_REGISTRATION}</p>`));
 
@@ -175,7 +175,7 @@ test("the family footer prints the approved NAP, hours, registration and family 
   assert.ok(html.includes(`href="${IDAHO_DOPL_LICENSE_SEARCH}" target="_blank" rel="noopener noreferrer"`));
   assert.match(html, /title="Idaho contractor registration"/);
   assert.match(html, /aria-label="Idaho contractor registration 8381215, opens in a new tab"/);
-  assert.doesNotMatch(html, /look it up|look up registration|public representative|staffed storefront|Wapoot/i);
+  assert.doesNotMatch(html, new RegExp(`look it up|look up registration|public representative|staffed storefront|${["Wa", "poot"].join("")}`, "i"));
   // SISTER_LINE: every sibling linked with rel="noopener" (no noreferrer), and the ADU line.
   for (const site of ["boiseconstruction.co", "boiseremodeling.co", "boisecabinet.co", "boisehandyman.co"]) {
     assert.match(html, new RegExp(`<a href="https://${site.replace(".", "\\.")}" rel="noopener">`), site);

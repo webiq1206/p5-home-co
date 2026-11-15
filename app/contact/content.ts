@@ -19,7 +19,7 @@ export const CONTACT_DESCRIPTION =
   "Call, text or email P5 Home Co for a free quote on your Treasure Valley home project. Mon to Sat hours, instant estimates online and a written scope first.";
 
 export const CONTACT_LEAD =
-  "P5 Home Co answers calls, texts and email for home projects across the Treasure Valley. Reach us at 4031 W Wapoot St, Meridian, ID 83646, at (208) 477-1169, or at hello@p5homeco.com. Hours are Monday to Friday, 9 AM to 6 PM, and Saturday, 9 AM to 4 PM Mountain. Sunday is closed.";
+  "P5 Home Co answers calls, texts and email for home projects across the Treasure Valley. Reach us in Meridian, ID 83646, at (208) 477-1169, or at hello@p5homeco.com. Hours are Monday to Friday, 9 AM to 6 PM, and Saturday, 9 AM to 4 PM Mountain. Sunday is closed.";
 
 function spokenHours(value: string): string {
   return value.split(":00").join("").split(" - ").join(" to ");

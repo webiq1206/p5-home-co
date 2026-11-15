@@ -9,7 +9,6 @@ import {
   P5_FACEBOOK_URL,
   P5_GOOGLE_BUSINESS_PROFILE_URL,
   P5_GBP_MAPS_URL,
-  PUBLIC_STREET_ADDRESS,
   PUBLIC_ADDRESS_LOCALITY,
   PUBLIC_ADDRESS_REGION,
   PUBLIC_POSTAL_CODE,
@@ -70,7 +69,6 @@ export const siteSchema = {
       },
       address: {
         "@type": "PostalAddress",
-        streetAddress: PUBLIC_STREET_ADDRESS,
         addressLocality: PUBLIC_ADDRESS_LOCALITY,
         addressRegion: PUBLIC_ADDRESS_REGION,
         postalCode: PUBLIC_POSTAL_CODE,
