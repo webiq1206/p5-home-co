@@ -31,7 +31,6 @@ import {
 } from "../../../lib/leads/intakeContract.ts";
 import { loadSettings } from "../../../lib/leads/settings.ts";
 import { BRANDS, LEAD_SOURCES, type Brand, type LeadSource } from "../../../lib/leads/types.ts";
-import { estimatorTestMode } from "../../../../lib/p5/emailKit.ts";
 import { notifyLeadCreated, notifyLeadDetailsAdded, type LeadCreatedNotifyInput } from "../../../lib/notifications/lead-created.ts";
 import { sendRequestConfirmation } from "../../../lib/leads/sendLeadConfirmation.ts";
 import { scheduleIntentFor } from "../../../lib/leads/scheduleEmail.ts";
@@ -267,9 +266,6 @@ export async function handleIntake(request: Request, after: AfterResponse, deps:
   // retained click context, not a hardcoded label supplied by the browser.
   const isQuoteForm = str(body.form) === "Quote Landing Page";
   const guidedEstimate = str(body.form ?? body.originalForm) === "Online estimator";
-  const submittedName = `${firstName ?? ""} ${lastName ?? ""}`.trim();
-  const testMode = estimatorTestMode(submittedName, process.env);
-  if (testMode && !submittedName.toLowerCase().includes("test")) firstName = `TEST ${firstName ?? "Lead"}`.trim();
   // The contact channel (form/email/phone) is not itself the marketing source.
   // Respect explicit non-organic integrations, but correct a default "Organic
   // Website" label when the same submission carries paid campaign evidence.
@@ -363,7 +359,7 @@ export async function handleIntake(request: Request, after: AfterResponse, deps:
     // HubSpot right away, bounded so the visitor never waits on HubSpot. A
     // created lead, or a repeat that brought new fields, is pushed now; on a
     // timeout or failure the deal stays pending and the watchdog sends it.
-    const sync = result.dealId > 0 && !testMode ? startSync(deps.syncHubSpot, result.dealId) : null;
+    const sync = result.dealId > 0 ? startSync(deps.syncHubSpot, result.dealId) : null;
     await within(sync, deps.inlineSyncTimeoutMs ?? inlineSyncTimeoutMs());
 
     // Mail runs after the response is finished, so a send failure cannot

@@ -253,7 +253,7 @@ export function keyValueTable(rows: readonly Field[]): string {
       const value = esc(row.value);
       const href = isRealHref(row.href) ? esc(row.href.trim()) : "";
       const cell = href ? `<a href="${href}" style="color:${CHARCOAL};">${value}</a>` : value.replace(/\n/g, "<br>");
-      return `<tr><td style="padding:7px 12px 7px 0;border-bottom:1px solid ${LINE};font-size:13px;line-height:1.4;color:${MUTED};vertical-align:top;width:38%;">${esc(row.label)}</td><td style="padding:7px 0;border-bottom:1px solid ${LINE};font-size:15px;line-height:1.45;color:${CHARCOAL};vertical-align:top;">${cell}</td></tr>`;
+      return `<tr><td style="padding:7px 12px 7px 0;border-bottom:1px solid ${LINE};font-size:13px;line-height:1.4;color:${MUTED};vertical-align:top;width:38%;">${esc(row.label)}</td><td style="padding:7px 0;border-bottom:1px solid ${LINE};font-size:15px;line-height:1.45;color:${CHARCOAL};vertical-align:top;overflow-wrap:anywhere;word-break:break-word;">${cell}</td></tr>`;
     })
     .join("")}</table>`;
 }
@@ -268,7 +268,7 @@ export function bulletList(items: readonly string[]): string {
   const rows = items.map((item) => item.trim()).filter((item) => item && item !== "undefined" && !item.includes("{{"));
   if (!rows.length) return "";
   return `<ul style="margin:0 0 8px;padding:0 0 0 18px;">${rows
-    .map((item) => `<li style="margin:0 0 6px;font-size:15px;line-height:1.5;color:${CHARCOAL};">${esc(item)}</li>`)
+    .map((item) => `<li style="margin:0 0 6px;font-size:15px;line-height:1.5;color:${CHARCOAL};overflow-wrap:anywhere;word-break:break-word;">${esc(item)}</li>`)
     .join("")}</ul>`;
 }
 

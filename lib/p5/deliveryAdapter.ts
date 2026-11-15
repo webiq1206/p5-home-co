@@ -2,6 +2,7 @@ import {collectAttribution,sourceFromAttribution} from "./leadAttribution.ts";
 import {safeEmailReplyTo} from './emailReplyTo.ts';
 import {createTransport} from "nodemailer";
 import {getSmtpConfig, assertSmtpAccepted} from "../../app/lib/notifications/smtp-config.ts";
+import {sendWithRetry} from "../../app/lib/notifications/transport.ts";
 import {peopleWithRole} from "../../app/lib/notifications/dispatch.ts";
 import {ingestLead} from "../../app/lib/leads/intake.ts";
 import {estimatorDeliveryMode} from "../../app/lib/leads/synthetic-qa.ts";
@@ -15,9 +16,14 @@ export const deliveryBrand=(record:any)=>typeof record?.brand==="string"&&record
 export async function sendEmail(input:{to:string;replyTo?:string;subject:string;text:string;html?:string;attachments:{filename:string;content:Buffer;contentType?:string}[];key:string;suppressFailureAlert?:boolean}){
   const config=getSmtpConfig();
   const transport=createTransport(config.options);
-  const result=await transport.sendMail({from:config.from,to:input.to,replyTo:safeEmailReplyTo(input.replyTo,config.replyTo),subject:input.subject,text:input.text,html:input.html,attachments:input.attachments,messageId:`<${input.key}@${brand.domain}>`});
-  assertSmtpAccepted(result);
-  return String(result.messageId);
+  let providerId='';
+  const delivery=await sendWithRetry(async()=>{
+    const result=await transport.sendMail({from:config.from,to:input.to,replyTo:safeEmailReplyTo(input.replyTo,config.replyTo),subject:input.subject,text:input.text,html:input.html,attachments:input.attachments,messageId:`<${input.key}@${brand.domain}>`});
+    assertSmtpAccepted(result);
+    providerId=String(result.messageId);
+  });
+  if(!delivery.ok)throw new Error(delivery.error);
+  return providerId;
 }
 export async function syncCrm(record:any,key:string){
   const mode=estimatorDeliveryMode(record.contact.name,record.contact.email);

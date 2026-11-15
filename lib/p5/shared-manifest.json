@@ -1,7 +1,7 @@
 {
   "source": "p5-home-co",
-  "commit": "d5495f25e940443d834c804c179ce8c593344aca",
-  "generatedAt": "2026-11-15T19:40:16.525Z",
+  "commit": "5eba855d5b9178861b31c63e440d8aaf24add6b1",
+  "generatedAt": "2026-11-15T19:44:25.050Z",
   "note": "Shared estimator engine published from p5-home-co. Edit shared files there and run scripts/p5-sync.mjs; hash checks remain mandatory in every brand.",
   "files": {
     "app/admin/p5-estimators/page.tsx": "489c406a30e5aba809f6c603738d999c2e412f9b67968281a8ea16e748587b62",
@@ -95,11 +95,11 @@
     "lib/p5/driveEndpoint.ts": "7ea92a11f464715d5ff7ffe94b4fdb581d099b550726a04934d94edfef328730",
     "lib/p5/duplicateCharges.ts": "d14e035ffbfba9a6ee1d9c383909340b7687cccd67501b3878794566b59c9f68",
     "lib/p5/dynamicQuestions.ts": "a842e81acaac16c94cb51215631167ed740d1e40fbf6ceac77d4f72339b1684e",
-    "lib/p5/emailKit.ts": "1d37f803382b44cded12989a52f85b99e4d1e759dcc8e12ea68579e28cf84c77",
+    "lib/p5/emailKit.ts": "204a6c1fa6d6defa83738b26ac380ea78e209743cf4741764403c227baec0533",
     "lib/p5/emailReplyTo.ts": "9d57d9f21181422a73d97f127649c94c296ca488f18b6ceebec18e6e2feb0abf",
     "lib/p5/estimateDocument.ts": "518a2def097f01d18e87d9fa248b7c20c3e2e30c3663e50fe3d03c6ff01fe984",
     "lib/p5/estimateDriver.ts": "7e86bb8c32ba9e07680d45d3d4327d4f73521925c7d469f5669e900bca0245e9",
-    "lib/p5/estimateEmail.ts": "dfe740c0f1b812f9416e5a456c7c689f650c5d6c76d2ed6f8d0161c498de39ca",
+    "lib/p5/estimateEmail.ts": "427726b793820157130c2125876d9b7898183c333657173ff184b657a89ef4c9",
     "lib/p5/estimateLinks.ts": "9dacd407e7c541e370670a7daa5650e8ebf792e534dd10f4b32899764520b6d5",
     "lib/p5/estimatePdf.ts": "fbc8da123b356ceeb0e357599b988995b6b3daa56f9651dc079b995c6779971a",
     "lib/p5/estimateRevisions.ts": "8215ffd84e99684078b279cbaa96c5a9ec250f48721d728f31073a1be6212e58",
