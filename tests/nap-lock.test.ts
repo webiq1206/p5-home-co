@@ -23,6 +23,13 @@ const SCHEMA_PHONE = "+1-208-477-1169";
 const SCHEMA_EMAIL = "hello@p5homeco.com";
 const CITATION_ADDRESS = "4031 W Wapoot St, Meridian, ID 83646";
 const VISIBLE_NAME = "P5 Home Co";
+const CONTRACT_ANSWER = "Your contract is with P5 Home Co LLC, Idaho Registered Contractor #8381215. Boise Construction Co, Boise Remodeling Co, Boise Cabinet Co and Boise Handyman Co are DBAs of P5 Home Co LLC.";
+const REGISTRATION_LLC = [
+  CONTRACT_ANSWER,
+  "P5 Home Co LLC · Idaho Registered Contractor",
+  "P5 Home Co LLC, Meridian, Idaho.",
+  "are DBAs of P5 Home Co LLC",
+];
 
 const PHONE_FORMS = new Set([
   VISIBLE_PHONE,
@@ -105,8 +112,20 @@ test("the contact page, vCard and llms files use that same citation", () => {
     assert.equal(text.includes(CITATION_ADDRESS), true, file);
     assert.equal(text.includes(VISIBLE_PHONE), true, file);
     assert.equal(text.includes(SCHEMA_EMAIL), true, file);
-    assert.equal(/P5 Home Co LLC|P5 Home Co, LLC|P5 Home Co\.\s*LLC|P5 Home Co\.\s+[a-z]/.test(text), false, file);
+    assert.equal(nameProblem(withoutRegistrationLlc(text)), null, file);
   }
+});
+
+test("legal, terms and contractor registration lines keep the legal name", () => {
+  for (const file of ["app/legal/layout.tsx", "app/legal/privacy/page.tsx", "app/legal/terms/page.tsx"]) {
+    assert.equal(readFileSync(file, "utf8").includes("P5 Home Co. LLC"), true, file);
+  }
+  const about = readFileSync("app/about/AboutClient.tsx", "utf8");
+  assert.equal(about.includes("P5 Home Co LLC · Idaho Registered Contractor"), true);
+  assert.equal(about.includes("P5 Home Co LLC, Meridian, Idaho."), true);
+  assert.equal(about.includes("are DBAs of P5 Home Co LLC"), true);
+  assert.equal(readFileSync("app/site.ts", "utf8").includes(CONTRACT_ANSWER), true);
+  assert.equal(readFileSync("public/llms-full.txt", "utf8").includes(CONTRACT_ANSWER), true);
 });
 
 test("visible pages show the phone as (208) 477-1169 and the name as P5 Home Co", () => {
@@ -121,14 +140,14 @@ test("visible pages show the phone as (208) 477-1169 and the name as P5 Home Co"
 
   const nameHits: string[] = [];
   for (const file of nameFiles()) {
-    const text = withoutComments(readFileSync(file, "utf8"));
-    // The identity module may name the legal entity once. Visible pages may not.
+    const text = withoutRegistrationLlc(withoutComments(readFileSync(file, "utf8")));
+    // The identity module may name the legal entity once. Registration lines are removed above.
     if (file === "app/publicIdentity.ts") {
       const legalNames = text.match(/P5 Home Co LLC/g) ?? [];
       if (legalNames.length !== 1) nameHits.push(`${file}: schema legalName count ${legalNames.length}`);
-    } else if (/P5 Home Co LLC|P5 Home Co, LLC|P5 Home Co\.\s*LLC|P5 Home Co\.\s+[a-z]/.test(text)) {
-      const match = text.match(/P5 Home Co LLC|P5 Home Co, LLC|P5 Home Co\.\s*LLC|P5 Home Co\.\s+[a-z]/);
-      nameHits.push(`${file}: ${JSON.stringify(match?.[0])}`);
+    } else {
+      const problem = nameProblem(text);
+      if (problem) nameHits.push(`${file}: ${JSON.stringify(problem)}`);
     }
     if (/Wapoot|4031/.test(text)) {
       const hasCitation = text.includes(CITATION_ADDRESS)
@@ -142,7 +161,7 @@ test("visible pages show the phone as (208) 477-1169 and the name as P5 Home Co"
 
   const about = withoutComments(readFileSync("app/about/page.tsx", "utf8") + readFileSync("app/about/AboutClient.tsx", "utf8"));
   assert.equal(about.includes("P5 Home Co."), false);
-  assert.equal(about.includes("P5 Home Co LLC"), false);
+  assert.equal(withoutRegistrationLlc(about).includes("P5 Home Co LLC"), false);
   assert.ok(nameFiles().includes("app/contact/page.tsx"));
   assert.ok(nameFiles().includes("app/site.ts"));
   assert.ok(phoneFiles().includes("app/not-found.tsx"));
@@ -150,6 +169,15 @@ test("visible pages show the phone as (208) 477-1169 and the name as P5 Home Co"
 
 function quoted(json: string, key: string): string[] {
   return [...json.matchAll(new RegExp(`"${key}":"([^"]*)"`, "g"))].map((match) => match[1]);
+}
+
+function withoutRegistrationLlc(text: string): string {
+  return REGISTRATION_LLC.reduce((next, line) => next.split(line).join(""), text);
+}
+
+function nameProblem(text: string): string | null {
+  const match = text.match(/P5 Home Co LLC|P5 Home Co, LLC|P5 Home Co\.\s*LLC|P5 Home Co\.\s+[a-z]/);
+  return match ? match[0] : null;
 }
 
 function withoutComments(source: string): string {
