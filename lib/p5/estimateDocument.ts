@@ -64,7 +64,8 @@ export const PRELIMINARY_NOTICE={lead:'Preliminary estimate, not a contract.',te
 const briefLine=(summary:string)=>clean(summary.split(/\n/).find(line=>line.trim()&&!/^[A-Z][A-Za-z ,()/-]{2,60}: /.test(line))||'',140);
 /** One requested (or added) task with its priced items, for clear, separated rendering. */
 export interface EstimateWorkItem {task:string;where:string;details:{text:string;qty:string}[];added:boolean}
-export interface EstimateCategory {number:string;title:string;amount:string;low:number;high:number;work:string[];items:EstimateWorkItem[];allowances:string[]}
+/** A category of work on the customer document. `amount` is always empty: no category is priced on its own. */
+export interface EstimateCategory {number:string;title:string;amount:string;work:string[];items:EstimateWorkItem[];allowances:string[]}
 export interface EstimateDocument {
   templateVersion:string;brand:EstimateBrand&{endorsed:boolean};reference:string;revision:number;issuedAt:string;issuedLabel:string;
   service:string;title:string;projectName:string;customer:{name:string;email:string;phone:string};location:string[];
@@ -143,12 +144,11 @@ export function buildEstimateDocument(input:{id:string;result:unknown;brand:Esti
   }
   const status:EstimateDocument['status']=unpriced.length?'partial':'complete';
 
-  // Categories in the engine's order, each with its customer amount, the work it covers and the
-  // allowances already inside it.
+  // Categories in the engine's order, each with the work it covers and the allowances inside it.
+  // No category carries an amount: the customer sees one price for the whole project (owner
+  // decision, 16 November 2026). The internal record keeps the breakdown.
   const lines:any[]=result.lineItems||[];const tasks:any[]=result.scopeTasks||[];
-  const names=[...new Set<string>([...(result.categoryRanges||[]).map((c:any)=>c.category),...lines.map(l=>l.category)])];
-  const ranges=names.map(name=>{const r=(result.categoryRanges||[]).find((c:any)=>c.category===name);if(r)return {low:r.low,high:r.high};const own=lines.filter(l=>l.category===name);return {low:own.reduce((t,l)=>t+l.low,0),high:own.reduce((t,l)=>t+l.high,0)};});
-  const split=priceKind==='single'?allocate(range!.low,ranges.map(r=>(r.low+r.high)/2)):[];
+  const names=[...new Set<string>(lines.map(l=>l.category))];
   const categories:EstimateCategory[]=names.map((name,i)=>{
     const own=lines.filter(l=>l.category===name);
     // A priced line's description repeats its task ("Task: book item."). The task is listed once as the
@@ -172,17 +172,13 @@ export function buildEstimateDocument(input:{id:string;result:unknown;brand:Esti
       else if(!items.some(i=>i.task===x.detail))items.push({task:x.detail,where:x.where,details:x.qty?[{text:'',qty:x.qty}]:[],added:false});
     }
     const work=items.map(i=>`${i.task}${i.details.filter(d=>d.text).length?` (${i.details.filter(d=>d.text).map(d=>`${d.text}${d.qty?`, ${d.qty}`:''}`).join('; ')})`:i.details[0]?.qty?`, ${i.details[0].qty}`:''}${i.added?` ${ADDED_MARK}`:''}`);
-    const allowances=allowanceLines.map(l=>{
-      const amount=priceKind==='range'?(l.low===l.high?money(l.low):`${money(l.low)} to ${money(l.high)}`):'';
-      return `${amount?`${amount} for `:''}${item(l).text}${amount?'':' (included in this category amount)'}; selection and final quantity to confirm.`;
-    });
-    const low=priceKind==='single'?split[i]:Math.round(ranges[i].low),high=priceKind==='single'?split[i]:Math.round(ranges[i].high);
+    const allowances=allowanceLines.map(l=>`${item(l).text} (included in the overall price); selection and final quantity to confirm.`);
     // A whole-building assembly spans trades. Give its existing category a
     // meaningful display name without inventing a trade breakdown or changing
     // any saved amounts. Mixed miscellaneous work keeps its original label.
     const assemblyTitles:Record<string,string>={'new-construction':'New Home Construction',adu:'ADU Construction',addition:'Home Addition'};
     const assembly=name==='Other Project Work'&&assemblyTitles[service]&&own.length>0&&own.every(l=>/^PB-90-(?:10|50)-\d+-\d+$/.test(String(l.id)));
-    return {number:String(i+1).padStart(2,'0'),title:assembly?assemblyTitles[service]:clean(name,120),amount:priceKind==='none'?'':priceKind==='single'?money(low):`${money(low)} to ${money(high)}`,low,high,work,items,allowances};
+    return {number:String(i+1).padStart(2,'0'),title:assembly?assemblyTitles[service]:clean(name,120),amount:'',work,items,allowances};
   });
   // Structured allowances carry their own coverage; each sits in the category it best matches.
   for(const a of (result.allowances||[]) as any[]){
@@ -190,13 +186,13 @@ export function buildEstimateDocument(input:{id:string;result:unknown;brand:Esti
     const words=new Set(clean(a.description).toLowerCase().split(/\W+/).filter(w=>w.length>3));
     const target=categories.map(c=>({c,score:c.title.toLowerCase().split(/\W+/).filter(w=>words.has(w)).length})).sort((x,y)=>y.score-x.score)[0].c;
     const covers=[['materials',true],['installation',a.installationIncluded],['tax',a.taxIncluded],['delivery',a.deliveryIncluded||a.freightIncluded]].map(([k,v])=>`${k} ${v?'included':'not included'}`).join(', ');
-    target.allowances.push(`${a.amount!=null?`${money(a.amount)} for `:''}${clean(a.description)}; ${covers}.`);
+    target.allowances.push(`${clean(a.description)} (included in the overall price); ${covers}.`);
   }
 
   const total=range?{label:priceKind==='single'?(repair?'Your price':'Estimated project total'):'Estimated project range',amount:priceKind==='single'?money(range.low):`${money(range.low)} to ${money(range.high)}`,low:range.low,high:range.high}:null;
   const totalNotes=[
-    categories.some(c=>c.allowances.length)?'Includes the allowances listed above. Final selections may change allowance amounts.':'',
-    priceKind==='range'&&categories.length>1?'Category ranges are parts of the overall range, not additional charges.':'',
+    categories.some(c=>c.allowances.length)?'Includes the allowances listed above. Final selections may change the price.':'',
+    categories.length>1&&priceKind!=='none'?`The work is organized by category to show what the estimate covers. The categories are not priced separately; this is one ${priceKind==='range'?'range':'price'} for the whole project.`:'',
     'All prices are in U.S. dollars. Exclusions and items to confirm follow.',
   ].filter(Boolean);
   const partialNote=status==='partial'?`Partial estimate: ${unpriced.length===1?'one requested item is':`${unpriced.length} requested items are`} not priced yet and ${unpriced.length===1?'is':'are'} not in this ${priceKind==='range'?'range':'total'}. See items to confirm.`:'';

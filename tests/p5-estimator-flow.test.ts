@@ -34,12 +34,15 @@ test('review details group by presentation category',()=>{
   assert.equal(fieldCategory('taskList'),'Additional scope details');
 });
 
-test('category breakdown carries subtotals, quantities, unit prices and pricing status',()=>{
+test('category breakdown carries quantities and pricing status to customers, and every price to the admin view',()=>{
   const result={includedCategories:['Plumbing'],range:{low:100,high:200},categoryRanges:[{category:'Plumbing',low:100,high:200}],lineItems:[{id:'p',category:'Plumbing',description:'Fixture installation',quantity:2,unit:'EA',low:100,high:200,unitLow:50,unitHigh:100,pricingStatus:'estimated-allowance',verification:'Confirm selections.'}],scopeTasks:[{description:'Install two fixtures',category:'Plumbing'},{description:'Paint the walls'}]};
-  // Unit prices are asserted explicitly; one brand hides them from customers by default.
+  // Scope and one total: the customer form has no category, line or unit price, whatever is asked.
   const groups=categoryBreakdown(result,true,false);
   assert.deepEqual(groups.map(g=>g.category),['Plumbing','Painting']);
-  assert.equal(groups[0].low,100);assert.equal(groups[0].items[0].unitHigh,100);assert.equal(groups[0].items[0].status,'estimated-allowance');
+  assert.equal(groups[0].low,undefined);assert.equal(groups[0].items[0].low,undefined);assert.equal(groups[0].items[0].unitHigh,undefined);
+  assert.equal(groups[0].items[0].quantity,2);assert.equal(groups[0].items[0].status,'estimated-allowance');
+  const admin=categoryBreakdown(result,false);
+  assert.equal(admin[0].low,100);assert.equal(admin[0].items[0].high,200);assert.equal(admin[0].items[0].unitHigh,100);
   assert.deepEqual(groups[1].tasks,['Paint the walls']);assert.equal(groups[1].items.length,0);
 });
 

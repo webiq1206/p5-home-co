@@ -2,7 +2,6 @@ import {pricingBasisNotes} from './pricingBasis.ts';
 import {SCOPE_FIELDS} from './scope.ts';
 import {splitWhere} from './estimateDocument.ts';
 import {suggestedTrade} from './trades.ts';
-import {ESTIMATOR_BRAND as brand} from './brand.ts';
 import {customerPresentation,publicPricingText,scopeBullets} from './customerProjection.ts';
 // The customer boundary lives in customerProjection.ts; it is re-exported here so every presenter imports one module.
 export {customerPresentation,publicPricingText,projectCustomerEstimate,customerText,customerSafeText,customerSafeValue,scopeBullets} from './customerProjection.ts';
@@ -25,21 +24,17 @@ const overview=new Set(['service','location','address','sqft','garageSqft','cove
 export const FIELD_CATEGORY_TITLES:Record<string,string>={site:'Site & utilities',utilities:'Site & utilities',access:'Site & utilities',demolition:'Demolition',structural:'Structure',mechanical:'Heating & Cooling',plumbing:'Plumbing',electrical:'Electrical',appliances:'Appliances',permits:'Permits & design',engineering:'Permits & design',materials:'Materials & finishes',fixtures:'Fixtures & finishes',allowances:'Allowances & selections',exclusions:'Excluded work',ownerSupplied:'Owner responsibilities',alternates:'Alternates'};
 const FIELD_SECTION_KIND:Record<string,SectionKind>={'Excluded work':'excluded','Allowances & selections':'allowance','Owner responsibilities':'info','Alternates':'info'};
 /** Section titles used by consumers that group by kind; kept in one place. */
-export const SECTION_TITLES={included:'Included work',excluded:'Excluded work',responsibilities:'Responsibilities',buildings:'Buildings and floors',questions:'Scope questions requiring clarification',coverage:'Document review coverage',buildingPrices:'Separate building prices',pricingBasis:'Pricing basis',allowances:'Included preliminary allowances',verify:'Items to verify before a firm proposal',categoriesIntro:'Included scope by category',requestedIntro:'Requested scope by category'} as const;
+export const SECTION_TITLES={included:'Included work',excluded:'Excluded work',responsibilities:'Responsibilities',buildings:'Buildings and floors',questions:'Scope questions requiring clarification',coverage:'Document review coverage',pricingBasis:'Pricing basis',allowances:'Included preliminary allowances',verify:'Items to verify before a firm proposal',categoriesIntro:'Included scope by category',requestedIntro:'Requested scope by category'} as const;
 /**
- * Cabinet customers see quantities and totals only: per-unit selling rates and
- * rate provenance stay in the administrative record. Every other brand shows
- * the unit range beside each priced line. Administrative renderers are never
+ * Every brand's customers see the scope of work and one total (owner decision,
+ * 16 November 2026): no line, unit, category or allowance price. Kept as a
+ * constant for callers that pass it; administrative renderers are never
  * affected.
  */
-export const HIDE_CUSTOMER_UNIT_RATES=(brand.id as string)==='cabinet';
-function itemPriceText(item:any){
- const quantity=`${Number(item.quantity).toLocaleString('en-US')} ${item.unit}${item.quantityRange?` modeled allowance (${item.quantityRange.low.toLocaleString('en-US')} to ${item.quantityRange.high.toLocaleString('en-US')} ${item.unit} to verify)`:''}`;
- const total=`${money(item.low)} to ${money(item.high)} total`;
- // A one-package price is already its unit price. Avoid repeating it.
- if((item.quantity===1&&!item.quantityRange)||!Number.isFinite(Number(item.unitLow))||!Number.isFinite(Number(item.unitHigh))||item.unitLow==null||item.unitHigh==null)return `${quantity} • ${total}`;
- const unit=`${Number(item.unitLow).toLocaleString('en-US',{style:'currency',currency:'USD'})} to ${Number(item.unitHigh).toLocaleString('en-US',{style:'currency',currency:'USD'})} / ${item.unit}${item.quantityRange?' at the modeled quantity':''}`;
- return `${quantity}\n${total}\n${unit}`;
+export const HIDE_CUSTOMER_UNIT_RATES=true;
+/** The quantity a scope line covers. Never a price. */
+function itemQuantityText(item:any){
+ return `${Number(item.quantity).toLocaleString('en-US')} ${item.unit}${item.quantityRange?` modeled allowance (${item.quantityRange.low.toLocaleString('en-US')} to ${item.quantityRange.high.toLocaleString('en-US')} ${item.unit} to verify)`:''}`;
 }
 export function summarySections(summary:string):EstimateSection[]{
  const groups=new Map<string,[string,string][]>(); const original:string[]=[];
@@ -142,30 +137,31 @@ export function estimateSections(result:any,hideUnitRates=HIDE_CUSTOMER_UNIT_RAT
  // by the pricing step, so a place name or two in front of the house word still reads as the one house.
  const oneHouseLabel=(b:string)=>/^(?:the\s+)?(?:[a-z0-9.'-]+\s+){0,3}?(?:main|primary|existing|single[- ]family)?\s*(?:residence|house|home|dwelling|property|building|site|residence site|project site)?$/i.test(b.trim())||/^\d+\s+\S/.test(b.trim());
  const severalBuildings=Boolean(instructions?.separateBuildings)||(instructions?.buildings?.length||0)>1||buildings.length>1&&buildings.some(b=>!oneHouseLabel(b));
- if(buildings.length>1&&severalBuildings)sections.push({title:SECTION_TITLES.buildingPrices,kind:'included',rows:buildings.map(b=>[b,`${money(lines.filter(l=>l.building===b).reduce((n,l)=>n+l.low,0))} to ${money(lines.filter(l=>l.building===b).reduce((n,l)=>n+l.high,0))}`]),text:'Building totals are included in, not added to, the overall estimate.'});
+ // Several buildings are scope, listed with their work below; a price per building is a breakdown
+ // of the total, so the customer copy carries none (owner decision, 16 November 2026).
+ if(buildings.length>1&&severalBuildings&&!instructions?.buildings?.length)sections.push({title:SECTION_TITLES.buildings,kind:'info',bullets:buildings.map(b=>`Building: ${b}`)});
  const estimated=lines.filter(l=>l.pricingStatus==='estimated-allowance');
  const basis=pricingBasisNotes({lineItems:lines});
  if(basis.length)sections.push({title:SECTION_TITLES.pricingBasis,kind:'assumption',text:basis.join(' ')});
  if(estimated.length){
   const notes=[...new Set<string>(estimated.map(l=>l.verification).filter(Boolean))];
-  sections.push({title:SECTION_TITLES.allowances,kind:'allowance',text:`These amounts are included in the range as preliminary allowances. ${notes.length===1?notes[0]:'Confirm quantities, selections and current supplier and trade pricing before a firm proposal.'}`,rows:estimated.map(l=>[lineLabel(l.description,[namedBuilding(l.building),namedFloor(l.floor)]),`${money(l.low)} to ${money(l.high)}${l.rateLocation?` · cost location: ${l.rateLocation}`:''}${l.rateDate?` · researched ${String(l.rateDate).slice(0,10)}`:''}`])});
+  sections.push({title:SECTION_TITLES.allowances,kind:'allowance',text:`These items are included in the overall price as preliminary allowances. ${notes.length===1?notes[0]:'Confirm quantities, selections and current supplier and trade pricing before a firm proposal.'}`,rows:estimated.map(l=>[lineLabel(l.description,[namedBuilding(l.building),namedFloor(l.floor)]),itemQuantityText(l)])});
  }
  if(result.verificationItems?.length)sections.push({title:SECTION_TITLES.verify,kind:'assumption',bullets:[...new Set<string>(result.verificationItems)]});
  const categories=[...new Set<string>([...(result.includedCategories||[]),...lines.map(x=>x.category),...tasks.map(x=>x.category||suggestedTrade(x.description))])];
  const breakdown:EstimateSection[]=categories.map(category=>{
-  const range=result.categoryRanges?.find((x:any)=>x.category===category);
-  return {title:category,kind:'category',text:range?`${money(range.low)} to ${money(range.high)}`:undefined,
+  return {title:category,kind:'category',text:undefined,
    bullets:[...new Set<string>(tasks.filter(x=>(x.category||suggestedTrade(x.description))===category).map(x=>x.description))],
-   rows:lines.filter(x=>x.category===category).map(x=>[lineLabel(x.description,[namedBuilding(x.building),namedFloor(x.floor)]),itemPriceText(x)])};
+   rows:lines.filter(x=>x.category===category).map(x=>[lineLabel(x.description,[namedBuilding(x.building),namedFloor(x.floor)]),itemQuantityText(x)])};
  });
  if(breakdown.length){
   const at=sections.findIndex(s=>s.kind==='glance');
-  sections.splice(at>=0?at+1:0,0,{title:result.range?SECTION_TITLES.categoriesIntro:SECTION_TITLES.requestedIntro,kind:'info',text:result.range?'Category and item ranges are parts of the overall range, not additional charges. Where several tasks share an assembly, its price is shown once.':'Scope details are organized below. Pricing coverage still requires review.'});
+  sections.splice(at>=0?at+1:0,0,{title:result.range?SECTION_TITLES.categoriesIntro:SECTION_TITLES.requestedIntro,kind:'info',text:result.range?'The work below is organized by category so you can see what the estimate covers. The categories are not priced separately; the estimate is one price for the whole project.':'Scope details are organized below. Pricing coverage still requires review.'});
   for(const category of breakdown){const existing=sections.find(s=>s.title===category.title);if(existing){existing.kind='category';existing.text=category.text;existing.rows=[...(existing.rows||[]),...(category.rows||[])];existing.bullets=category.bullets;}else sections.push(category);}
  }
  for(const [title,key,kind] of [['Allowances','allowances','allowance'],['Planning assumptions','assumptions','assumption'],['Exclusions','exclusions','excluded'],['Factors that may change the range','factors','assumption']] as [string,string,SectionKind][]){
   const values=result[key]||[];if(!values.length)continue;
-  sections.push({title,kind,bullets:values.map((x:any)=>typeof x==='string'?x:`${x.description}${x.amount!=null?`: ${money(x.amount)} included`:': selection to confirm'}. Includes ${(x.includes||[]).join(', ')}. ${['tax','freight','delivery','installation','waste'].map(k=>`${k}: ${x[k+'Included']?'included':'excluded'}`).join('; ')}. Selection deadline: ${x.selectionDeadline}. ${x.adjustment}`)});
+  sections.push({title,kind,bullets:values.map((x:any)=>typeof x==='string'?x:`${x.description}: included in the overall price, selection to confirm. Includes ${(x.includes||[]).join(', ')}. ${['tax','freight','delivery','installation','waste'].map(k=>`${k}: ${x[k+'Included']?'included':'excluded'}`).join('; ')}. Selection deadline: ${x.selectionDeadline}. ${x.adjustment}`)});
  }
  return uniqueCustomerSections(sections);
 }
@@ -204,17 +200,19 @@ export const KIND_LABEL:Record<SectionKind,string>={glance:'',brief:'',included:
 export function fieldCategory(field:string):string{
  return overview.has(field)?"Project at a glance":FIELD_CATEGORY_TITLES[field]||"Additional scope details";
 }
-export interface CategoryLine {id:string;label:string;quantity:number;unit:string;quantityRange?:{low:number;high:number};low:number;high:number;unitLow?:number;unitHigh?:number;status:string;verification?:string;rateLocation?:string;rateDate?:string}
+export interface CategoryLine {id:string;label:string;quantity:number;unit:string;quantityRange?:{low:number;high:number};low?:number;high?:number;unitLow?:number;unitHigh?:number;status:string;verification?:string;rateLocation?:string;rateDate?:string}
 export interface CategoryBreakdown {category:string;low?:number;high?:number;tasks:string[];items:CategoryLine[]}
 /** Structured category accordions for the customer result. Same data as estimateSections, without prose. */
-/** customerSafe=false is for authenticated administrative views only: it skips the customer projection and keeps unit rates. */
+/** customerSafe=false is for authenticated administrative views only: it skips the customer projection and keeps every price.
+ * The customer form carries the work and quantities, with no category or line price. */
 export function categoryBreakdown(result:any,customerSafe=true,hideUnitRates=HIDE_CUSTOMER_UNIT_RATES):CategoryBreakdown[]{
   if(customerSafe)result=customerPresentation(result,{hideUnitRates});
  const lines:any[]=result?.lineItems||[],tasks:any[]=result?.scopeTasks||[];
  const categories=[...new Set<string>([...(result?.includedCategories||[]),...lines.map(x=>x.category),...tasks.map(x=>x.category||suggestedTrade(x.description))])];
  return categories.map(category=>{
-  const range=result?.categoryRanges?.find((x:any)=>x.category===category);
-  const items:CategoryLine[]=lines.filter(x=>x.category===category).map(x=>({id:String(x.id),label:lineLabel(x.description,[x.building&&!/^(main|default)$/i.test(x.building)?x.building:"",x.floor||""]),quantity:Number(x.quantity),unit:String(x.unit),...(x.quantityRange?{quantityRange:x.quantityRange}:{}),low:Number(x.low),high:Number(x.high),...(x.unitLow!=null&&x.unitHigh!=null?{unitLow:Number(x.unitLow),unitHigh:Number(x.unitHigh)}:{}),status:String(x.pricingStatus||"verified-cost"),...(x.verification?{verification:x.verification}:{}),...(x.rateLocation?{rateLocation:x.rateLocation}:{}),...(x.rateDate?{rateDate:String(x.rateDate).slice(0,10)}:{})}));
+  const range=customerSafe?undefined:result?.categoryRanges?.find((x:any)=>x.category===category);
+  const priced=(x:any)=>!customerSafe&&Number.isFinite(Number(x.low))&&Number.isFinite(Number(x.high));
+  const items:CategoryLine[]=lines.filter(x=>x.category===category).map(x=>({id:String(x.id),label:lineLabel(x.description,[x.building&&!/^(main|default)$/i.test(x.building)?x.building:"",x.floor||""]),quantity:Number(x.quantity),unit:String(x.unit),...(x.quantityRange?{quantityRange:x.quantityRange}:{}),...(priced(x)?{low:Number(x.low),high:Number(x.high)}:{}),...(!customerSafe&&x.unitLow!=null&&x.unitHigh!=null?{unitLow:Number(x.unitLow),unitHigh:Number(x.unitHigh)}:{}),status:String(x.pricingStatus||"verified-cost"),...(x.verification?{verification:x.verification}:{}),...(!customerSafe&&x.rateLocation?{rateLocation:x.rateLocation}:{}),...(!customerSafe&&x.rateDate?{rateDate:String(x.rateDate).slice(0,10)}:{})}));
   return {category,...(range?{low:range.low,high:range.high}:{}),tasks:[...new Set<string>(tasks.filter(x=>(x.category||suggestedTrade(x.description))===category).map(x=>x.description))],items};
  });
 }

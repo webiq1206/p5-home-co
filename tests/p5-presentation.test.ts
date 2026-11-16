@@ -30,8 +30,9 @@ test('Customer outputs combine repeated exclusions and retain every distinct con
 test('Legacy summaries retain values, use readable quantities and group scope without inventing prices',()=>{
  const sections=summarySections(result.summary);
  assert.deepEqual(sections[0].rows,[['Project type','New construction'],['Project area (SF)','4,500']]);
- const breakdown=estimateSections(result).find(s=>s.title==='Plumbing'&&s.text);
- assert.equal(breakdown?.rows?.length,2);assert.ok(breakdown?.rows?.[1][1].includes('$100 to $200 total'));
+ const breakdown=estimateSections(result).find(s=>s.title==='Plumbing'&&s.kind==='category');
+ assert.equal(breakdown?.rows?.length,2);assert.equal(breakdown?.text,undefined,'no category amount');
+ assert.ok(breakdown?.rows?.every(([,value])=>!/\$/.test(value)),'no line price');
  assert.ok(JSON.stringify(sections).includes('Land and financing.'));
 });
 test('privacy cleanup preserves scope labels so installation cannot become an exclusion',async()=>{
@@ -93,11 +94,13 @@ test('Placeholder building and floor labels neither create a per-building table 
  const line=(id:string,building:string,floor?:string,extra:any={})=>({id,category:'Drywall',description:'Ceiling patch '+id,quantity:1,unit:'EA',low:50,high:100,unitLow:50,unitHigh:100,building,floor,...extra});
  const base={summary:'',includedCategories:['Drywall'],range:{low:100,high:200},scopeTasks:[],assumptions:[],exclusions:[],allowances:[],factors:[],categoryRanges:[{category:'Drywall',low:100,high:200}]};
  const single=estimateSections({...base,lineItems:[line('a','Main residence'),line('b','Unspecified building','Unspecified floor',{pricingStatus:'estimated-allowance',verification:'Regional planning average.'})]});
- assert.ok(!single.some(s=>s.title===SECTION_TITLES.buildingPrices),'one real building: no per-building table');
+ assert.ok(!single.some(s=>s.title===SECTION_TITLES.buildings),'one real building: no building list');
  const allowanceRows=single.find(s=>s.title===SECTION_TITLES.allowances)?.rows||[];
  assert.ok(allowanceRows.length&&allowanceRows.every(r=>!/unspecified/i.test(r[0])),'placeholder labels are not shown on rows');
  const two=estimateSections({...base,lineItems:[line('a','Main'),line('b','ADU')]});
- assert.ok(two.some(s=>s.title===SECTION_TITLES.buildingPrices),'two named buildings keep their totals');
+ const listed=two.find(s=>s.title===SECTION_TITLES.buildings);
+ assert.ok(listed?.bullets?.includes('Building: ADU'),'two named buildings are listed as scope');
+ assert.doesNotMatch(JSON.stringify(two),/\$/,'no building is priced on its own');
 });
 
 // The saved live result is local verification evidence (p5-verification/ is
@@ -153,8 +156,9 @@ test('ordinary overhead-door scope and every priced line survive page, email, an
  for(const output of [page,mail.html,mail.text,pdf]){
   assert.match(output,/Repair the overhead garage door and its opener\./);
   assert.match(output,/Repair overhead garage door/);
-  // The approved estimate shows one amount per category; the page breakdown still shows each line's total.
-  assert.match(output,output===page?/\$1,200 to \$1,400 total/:/\$1,500 to \$1,800/);
+  // Scope and one total: the email and PDF show the project range; no line or category amount anywhere.
+  assert.doesNotMatch(output,/\$1,200|\$1,400|\$300|\$400/);
+  if(output!==page)assert.match(output,/\$1,500 to \$1,800/);
  }
 });
 
@@ -176,7 +180,7 @@ test('a fully private description is replaced safely without dropping its priced
  for(const output of [page,mail.html,mail.text,pdf]){
   assert.match(output,/Priced scope item - Garage Doors/);
   assert.match(output,/100 LF/);
-  assert.match(output,output===page?/\$335 to \$435 total/:/\$335 to \$435/);
+  if(output!==page)assert.match(output,/\$335 to \$435/);else assert.doesNotMatch(output,/\$335|\$435/);
   assert.doesNotMatch(output,/\$2\.00|200\.00 direct cost|direct labor rate/i);
  }
 });
@@ -274,7 +278,7 @@ test('one house named twice by the pricing step is not two buildings (live two-b
  const line=(id:string,building:string)=>({id,category:'Tile',description:'Shower wall tile '+id,quantity:90,unit:'SF',low:500,high:600,unitLow:5,unitHigh:6,building});
  const base={summary:'',includedCategories:['Tile'],range:{low:1000,high:1200},scopeTasks:[],assumptions:[],exclusions:[],allowances:[],factors:[],categoryRanges:[{category:'Tile',low:1000,high:1200}]};
  const sections=estimateSections({...base,lineItems:[line('a','Boise home'),line('b','Main home')]});
- assert.ok(!sections.some(s=>s.title===SECTION_TITLES.buildingPrices),'"Boise home" and "Main home" are the same house');
+ assert.ok(!sections.some(s=>s.title===SECTION_TITLES.buildings),'"Boise home" and "Main home" are the same house');
  const named=estimateSections({...base,lineItems:[line('a','Main house'),line('b','Detached shop')]});
- assert.ok(named.some(s=>s.title===SECTION_TITLES.buildingPrices),'a detached shop is still a second building');
+ assert.ok(named.some(s=>s.title===SECTION_TITLES.buildings),'a detached shop is still a second building');
 });

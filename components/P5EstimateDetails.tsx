@@ -1,12 +1,10 @@
 'use client';
-import {categoryBreakdown,estimateSections,groupSections,money,scopeBullets,type EstimateSection,type SectionKind} from '../lib/p5/presentation';
+import {categoryBreakdown,estimateSections,groupSections,scopeBullets,type EstimateSection,type SectionKind} from '../lib/p5/presentation';
 import styles from './P5Estimator.module.css';
 
 type Kind='included'|'excluded'|'allowance'|'assumption'|'';
 const badgeKind=(kind?:SectionKind):Kind=>kind==='included'||kind==='category'?'included':kind==='excluded'?'excluded':kind==='allowance'?'allowance':kind==='assumption'?'assumption':'';
 const STATUS_LABEL:Record<string,string>={'verified-cost':'Included','owner-planning-rate':'Planning price','estimated-allowance':'Budget allowance'};
-const range=(low?:number,high?:number)=>low!==undefined&&high!==undefined?`${money(low)} to ${money(high)}`:'';
-const unitPrice=(n:number)=>n.toLocaleString('en-US',{style:'currency',currency:'USD',maximumFractionDigits:2});
 
 function Section({section,open}:{section:EstimateSection;open?:boolean}){
  const kind=badgeKind(section.kind);
@@ -23,8 +21,10 @@ function Section({section,open}:{section:EstimateSection;open?:boolean}){
 
 /**
  * Customer-facing estimate detail, in reading order: what the project is,
- * what is included (by category, with subtotals and itemized lines), what is
- * excluded, what is carried as an allowance, and what still needs confirming.
+ * what is included (by category, with every line of work and its quantity),
+ * what is excluded, what is carried as an allowance, and what still needs
+ * confirming. The only price is the project total shown above this component:
+ * no category, line or unit carries one (owner decision, 16 November 2026).
  * Each group has its own labeled heading so excluded work never reads as work
  * covered by the estimate. Detail groups start collapsed so the result stays
  * readable on a phone while every item remains one tap away.
@@ -35,11 +35,9 @@ export default function P5EstimateDetails({result,openFirst=false,showGlance=tru
  const breakdown=categoryBreakdown(result);
  const priced=Boolean(result?.range);
  const hasCategories=breakdown.length>0;
- const costDrivers=priced?[...breakdown].filter(group=>Number.isFinite(group.high)).sort((a,b)=>(b.high||0)-(a.high||0)).slice(0,3):[];
  const checks=[...new Set(grouped.assumptions.flatMap(section=>section.bullets||[]))];
  return <div className={styles.result}>
-  {priced&&(costDrivers.length>0||checks.length>0)&&<section className={styles.card} aria-label="Estimate highlights">
-   {costDrivers.length>0&&<><h3>Largest budget categories</h3><dl className={styles.rows}>{costDrivers.map(group=><div key={group.category}><dt>{group.category}</dt><dd>{range(group.low,group.high)}</dd></div>)}</dl></>}
+  {priced&&checks.length>0&&<section className={styles.card} aria-label="Estimate highlights">
    {checks.length>0&&<><h3>Start by checking these assumptions</h3><ul className={styles.bullets}>{checks.slice(0,3).map(item=><li key={item}>{item}</li>)}</ul>{checks.length>3&&<p className={styles.hint}>{checks.length-3} more assumptions are listed below. Review all of them before planning the work.</p>}</>}
   </section>}
   {showGlance&&grouped.glance&&<Section section={grouped.glance} open={openFirst}/>}
@@ -49,16 +47,14 @@ export default function P5EstimateDetails({result,openFirst=false,showGlance=tru
   {hasCategories&&<>
    {grouped.categoriesIntro?.text&&<p className={styles.hint} style={{marginBottom:10}}>{grouped.categoriesIntro.text}</p>}
    {breakdown.map(group=><details key={group.category} className={styles.accordion} data-kind="included">
-    <summary className={styles.categorySummary}><span className={styles.accordionTitle}>{group.category}</span><span className={styles.badge} data-kind="included">Included</span>{priced&&group.low!==undefined&&<span className={styles.accordionMeta}>{range(group.low,group.high)}</span>}{!priced&&<span className={styles.accordionMeta}>{group.tasks.length} {group.tasks.length===1?'item':'items'}</span>}</summary>
+    <summary className={styles.categorySummary}><span className={styles.accordionTitle}>{group.category}</span><span className={styles.badge} data-kind="included">Included</span><span className={styles.accordionMeta}>{group.tasks.length||group.items.length} {(group.tasks.length||group.items.length)===1?'item':'items'}</span></summary>
     <div className={styles.accordionBody}>
      {group.tasks.length>0&&<ul className={styles.bullets} style={{marginBottom:group.items.length?12:0}}>{group.tasks.map((task,i)=><li key={i}>{task}</li>)}</ul>}
      {group.items.length>0&&<ul className={styles.lineItems}>{group.items.map(item=><li key={item.id} className={styles.lineItem}>
       <strong>{item.label}</strong>
-      <span className={styles.qty}>{item.quantity.toLocaleString('en-US')} {item.unit}{item.quantityRange?` (modeled: ${item.quantityRange.low.toLocaleString('en-US')} to ${item.quantityRange.high.toLocaleString('en-US')} ${item.unit} to verify)`:''}{(item.quantity!==1||item.quantityRange)&&item.unitLow!==undefined&&item.unitHigh!==undefined?` · ${unitPrice(item.unitLow)} to ${unitPrice(item.unitHigh)} per ${item.unit}`:''}</span>
-      <span className={styles.total}>{range(item.low,item.high)}</span>
+      <span className={styles.qty}>{item.quantity.toLocaleString('en-US')} {item.unit}{item.quantityRange?` (modeled: ${item.quantityRange.low.toLocaleString('en-US')} to ${item.quantityRange.high.toLocaleString('en-US')} ${item.unit} to verify)`:''}</span>
       <span className={styles.note}><span className={styles.badge} data-kind={item.status==='estimated-allowance'?'allowance':item.status==='owner-planning-rate'?'assumption':'included'}>{STATUS_LABEL[item.status]||item.status}</span>{item.verification?` ${item.verification}`:''}</span>
      </li>)}</ul>}
-     {priced&&group.low!==undefined&&group.items.length>1&&<div className={styles.subtotal}><span>{group.category} subtotal</span><span>{range(group.low,group.high)}</span></div>}
     </div>
    </details>)}
   </>}

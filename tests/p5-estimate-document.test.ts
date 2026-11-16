@@ -20,7 +20,7 @@ test('whole-building assembly category names explain the scope without changing 
   const result={range:{low:227000,high:257000},categoryRanges:[{category:'Other Project Work',low:227000,high:257000}],lineItems:[{id:`PB-90-${code}-1`,category:'Other Project Work',description:'Complete project',quantity:1,unit:'EA',low:227000,high:257000}]};
   const issue=issueRecord({brandId:'p5',id:ID,revision:1,now:new Date('2026-10-04T00:00:00Z'),contact,scope:{text:'Test scope',answers:{service,location:'Boise'},uploads:[],uncertainFields:[]}});
   const doc=buildEstimateDocument({id:ID,result:{...result,issue},brand:brand('p5')});
-  assert.equal(doc.categories[0].title,title);assert.equal(doc.categories[0].low,227000);assert.equal(doc.categories[0].high,257000);
+  assert.equal(doc.categories[0].title,title);assert.equal(doc.categories[0].amount,'');assert.equal(doc.total?.amount,'$227,000 to $257,000');
   result.lineItems[0].id='miscellaneous';assert.equal(buildEstimateDocument({id:ID,result:{...result,issue},brand:brand('p5')}).categories[0].title,'Other Project Work');
  }
 });
@@ -35,17 +35,21 @@ test('the site that received the submission is the brand; a record stamped for a
  assert.equal(buildEstimateDocument({id:ID,result:{...re10,issue},brand:brand('handyman')}).brand.id,'handyman');
  assert.throws(()=>buildEstimateDocument({id:ID,result:{...re10,issue},brand:brand('remodeling')}),/estimate-brand-mismatch/);
 });
-test('a single price reconciles exactly: category amounts add up to the total the engine priced',()=>{
+test('a single price is the only price: categories carry the work, never an amount',()=>{
  for(const [total,weights] of [[29266,[6500,4150,7550]],[1450,[1050,450]],[100,[1,1,1]],[7,[0,0]]] as [number,number[]][])
   assert.equal(allocate(total,weights).reduce((t,v)=>t+v,0),total);
  const doc=buildEstimateDocument({id:ID,result:re10,brand:brand('handyman'),issue:{service:'re10'}});
  assert.equal(doc.priceKind,'single');assert.equal(doc.total?.amount,'$29,266');
- assert.equal(doc.categories.reduce((t,c)=>t+c.low,0),29266);
+ assert.deepEqual(doc.categories.map(c=>c.title),['Roofing','Plumbing','Crawl space']);
+ assert.ok(doc.categories.every(c=>c.amount===''&&c.work.length>0),'every category lists its work and no amount');
+ assert.doesNotMatch(JSON.stringify(doc.categories),/\$/);
+ assert.equal(JSON.stringify(doc).match(/\$[\d,]+/g)?.every(f=>f==='$29,266'),true,'the total is the only dollar figure');
 });
-test('a range keeps its own basis and says how categories relate to it, never inventing a total',()=>{
+test('a range keeps its own basis and says the categories are not priced separately, never inventing a total',()=>{
  const doc=buildEstimateDocument({id:ID,result:{...re10,range:{low:30000,high:34000}},brand:brand('remodeling'),issue:{service:'kitchen'}});
  assert.equal(doc.total?.amount,'$30,000 to $34,000');assert.equal(doc.subtotal,null);
- assert.ok(doc.totalNotes.some(n=>/parts of the overall range, not additional charges/.test(n)));
+ assert.ok(doc.totalNotes.some(n=>/not priced separately; this is one range for the whole project/.test(n)));
+ assert.ok(doc.categories.every(c=>c.amount===''));
  assert.equal(buildEstimateDocument({id:ID,result:{...re10,range:null},brand:brand('remodeling'),issue:{service:'kitchen'}}).total,null);
 });
 test('requested work that is not priced yet is never an exclusion; the estimate says it is partial',()=>{
@@ -146,7 +150,8 @@ test('a task and the priced line that repeats it read once, with the item and qu
  assert.deepEqual(c.work,[`${task} (Roofer labor, 2 hour)`]);
  // Structured for separated rendering: one item per task, its priced lines under it.
  assert.deepEqual(c.items,[{task,where:'',details:[{text:'Roofer labor',qty:'2 hour'}],added:false}]);
- assert.match(c.allowances[0],/^Plumbing vent pipe boot\., 3 EA \(included in this category amount\)/);
+ assert.match(c.allowances[0],/^Plumbing vent pipe boot\., 3 EA \(included in the overall price\)/);
+ assert.doesNotMatch(c.allowances[0],/\$/);
 });
 test('a location prefix is shown as a tag, and the task still reads once (owner report 2026-09-22)',()=>{
  const task='Tighten the guest toilet and verify stability';

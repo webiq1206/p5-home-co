@@ -42,7 +42,9 @@ test('the brand form sends the customer copy through the one customer projection
  assert.match(customer,/Install 100 LF of trim\./);
  assert.match(customer,/Install overhead cabinets\./);
  assert.deepEqual(payload.estimate.customer.range,{low:350,high:450});
- assert.equal(payload.estimate.customer.lineItems[0].unitLow,3.5);
+ // Scope and one total: the customer copy has the line and its quantity, never its price.
+ for(const key of ['low','high','unitLow','unitHigh'])assert.equal(key in payload.estimate.customer.lineItems[0],false,key);
+ assert.equal(payload.estimate.customer.lineItems[0].quantity,record().customer.lineItems[0].quantity);
  assert.equal(payload.estimate.internal.directCost,200);
  assert.equal(payload.estimate.internal.lines[0].unitCost,2);
  const withheld=buildBrandCrmPayload({...record(),customer:{...record().customer,summary:'Direct cost is $200.00.'}},'key-1').payload;

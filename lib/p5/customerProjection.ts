@@ -127,8 +127,8 @@ const publicPlanningNotes=(value:unknown):string[]=>[...new Set(publicTextList(v
 const finiteRange=(r:any)=>r&&Number.isFinite(r.low)&&Number.isFinite(r.high)?{low:Number(r.low),high:Number(r.high)}:null;
 export interface CustomerProjectionOptions{
  /**
-  * Omit per-unit selling rates and rate provenance from the customer copy.
-  * Totals, quantities and descriptions are unaffected.
+  * Kept for callers written before 16 November 2026. Unit rates are now never
+  * part of the customer copy, whatever this says.
   */
  hideUnitRates?:boolean;
 }
@@ -136,27 +136,34 @@ export interface CustomerProjectionOptions{
  * Allowlisted customer projection used for current and previously persisted
  * results. Unknown/private fields never cross this presentation boundary. The
  * input is never mutated, and projecting a projection is a no-op.
+ *
+ * Scope and one total (owner decision, 16 November 2026). The customer copy
+ * carries the complete scope of work and ONE price: the range (or firm price)
+ * for the whole project. No line, unit, category, building or allowance carries
+ * a price, so the estimate cannot be read as a menu of separately priced tasks.
+ * Saved results are re-projected on every read, so this holds for estimates
+ * issued before the change too. The internal record keeps every price.
  */
 export function customerPresentation(result:any,options:CustomerProjectionOptions={}):any{
+ void options; // Unit rates and every other part price are always withheld; see CustomerProjectionOptions.
  const source=result&&typeof result==='object'?result:{};
  const range=finiteRange(source.range);
- const categoryRanges=Array.isArray(source.categoryRanges)?source.categoryRanges.filter((x:any)=>x&&typeof x.category==='string'&&Number.isFinite(x.low)&&Number.isFinite(x.high)).map((x:any)=>({category:publicPricingText(x.category),low:Number(x.low),high:Number(x.high)})).filter((x:any)=>x.category):[];
+ // Per-category amounts are a breakdown of the price. The category names stay as scope.
+ const categoryRanges:never[]=[];
  const lineItems=Array.isArray(source.lineItems)?source.lineItems.map((x:any,index:number)=>{
   const category=publicPricingText(x?.category)||'Other scope';
   const description=publicPricingText(x?.description)||`Priced scope item${category==='Other scope'?'':` - ${category}`}`;
   const quantityRange=finiteRange(x?.quantityRange);
   return {
    id:String(x?.id||`priced-line-${index+1}`),category,description,
-   quantity:Number(x?.quantity),unit:String(x?.unit||''),low:Number(x?.low),high:Number(x?.high),
-   ...(options.hideUnitRates?{}:{unitLow:Number(x?.unitLow),unitHigh:Number(x?.unitHigh)}),
+   quantity:Number(x?.quantity),unit:String(x?.unit||''),
    ...(x?.building?{building:publicPricingText(x.building)}:{}),...(x?.floor?{floor:publicPricingText(x.floor)}:{}),
    ...(quantityRange?{quantityRange}:{}),
-   ...(x?.pricingStatus?{pricingStatus:String(x.pricingStatus)}:{}),...(publicPricingText(x?.verification)?{verification:publicPricingText(x.verification)}:{}),
-   ...(!options.hideUnitRates&&publicPricingText(x?.rateLocation)?{rateLocation:publicPricingText(x.rateLocation)}:{}),...(!options.hideUnitRates&&x?.rateDate?{rateDate:String(x.rateDate).slice(0,10)}:{})
+   ...(x?.pricingStatus?{pricingStatus:String(x.pricingStatus)}:{}),...(publicPricingText(x?.verification)?{verification:publicPricingText(x.verification)}:{})
   };
- }).filter((x:any)=>Number.isFinite(x.quantity)&&Number.isFinite(x.low)&&Number.isFinite(x.high)):[];
+ }).filter((x:any)=>Number.isFinite(x.quantity)):[];
  const allowances=Array.isArray(source.allowances)?source.allowances.map((x:any)=>typeof x==='string'?publicPricingText(x):{
-  description:publicPricingText(x?.description),...(x?.amount!=null&&Number.isFinite(Number(x.amount))?{amount:Number(x.amount)}:{}),includes:publicTextList(x?.includes),
+  description:publicPricingText(x?.description),includes:publicTextList(x?.includes),
   taxIncluded:Boolean(x?.taxIncluded),freightIncluded:Boolean(x?.freightIncluded),deliveryIncluded:Boolean(x?.deliveryIncluded),installationIncluded:Boolean(x?.installationIncluded),wasteIncluded:Boolean(x?.wasteIncluded),
   selectionDeadline:String(x?.selectionDeadline||''),adjustment:publicPricingText(x?.adjustment)
  }).filter((x:any)=>typeof x==='string'?Boolean(x):Boolean(x.description)):[];
