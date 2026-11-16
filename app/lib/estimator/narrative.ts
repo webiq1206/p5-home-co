@@ -29,7 +29,14 @@ import type { RiskFactor } from "../../../lib/p5/pricing.ts";
 import { divisionName } from "../scopes/divisions.ts";
 import type { EstimateLine, ScopeTask } from "../scopes/types.ts";
 import type { BrandConfig } from "./brands.ts";
-import type { Answers, CustomerDivision, EstimateClass, EstimateGuide, PropertyFacts } from "./types.ts";
+import { WHOLE_PROJECT_NOTE, type Answers, type CustomerDivision, type EstimateClass, type EstimateGuide, type PropertyFacts } from "./types.ts";
+
+/**
+ * A division with its share of the range. Internal only: the team report and
+ * the range arithmetic use it. The customer gets CustomerDivision, which has
+ * no price (owner decision, 16 November 2026).
+ */
+export type PricedDivision = CustomerDivision & { low: number; high: number };
 
 export type NarrativeInput = {
   brand: Pick<BrandConfig, "name" | "phoneDisplay">;
@@ -74,7 +81,8 @@ const up = (n: number) => Math.ceil(n / 10) * 10;
 /**
  * Division ranges, and a total that is exactly their sum. Each division's
  * priced lines are widened by the same band and rounded outward to $10, so
- * the breakdown always reconciles with the headline range.
+ * the internal breakdown always reconciles with the headline range. Only the
+ * headline range reaches the customer.
  */
 export type DivisionSplit = (line: EstimateLine) => { division: string; texts: string[]; price: number }[] | null;
 
@@ -83,7 +91,7 @@ export type DivisionSplit = (line: EstimateLine) => { division: string; texts: s
  * (shares.ts). The pieces add up to the line's price, so the total does not
  * move. `shares` lists the wording that came from a split, not from a line.
  */
-export function divisionRanges(lines: EstimateLine[], width: number, split?: DivisionSplit): { divisions: CustomerDivision[]; low: number; high: number; shares: string[] } {
+export function divisionRanges(lines: EstimateLine[], width: number, split?: DivisionSplit): { divisions: PricedDivision[]; low: number; high: number; shares: string[] } {
   const allowanceTasks = new Set(lines.filter((l) => l.allowance).map((l) => l.taskId));
   const byDivision = new Map<string, { cents: number; items: CustomerDivision["items"] }>();
   const shares: string[] = [];
@@ -122,9 +130,8 @@ export function divisionRanges(lines: EstimateLine[], width: number, split?: Div
   return { divisions, low: divisions.reduce((s, d) => s + d.low, 0), high: divisions.reduce((s, d) => s + d.high, 0), shares };
 }
 
-/** Shown with a breakdown built from shares, so nobody reads a share as a quote for that trade. */
-export const SHARE_NOTE =
-  "This project is priced as a whole from our cost book. The division amounts show how a budget of this kind is typically spread across the work. They are indicative shares, not separate quotes, and they are replaced by a detailed breakdown once drawings and selections are defined.";
+/** Shown when the divisions come from a whole-project price. Names no amount for any part of the work. */
+export const SHARE_NOTE = WHOLE_PROJECT_NOTE;
 
 const money = (n: number) => `$${n.toLocaleString("en-US")}`;
 const lower = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
@@ -302,7 +309,7 @@ export const BANNED_WORDING = /\b(down there|up there|over here|over there|that 
  * Check the customer's words against the priced scope before they are shown.
  * Returns every problem found; an empty list means the estimate is coherent.
  */
-export function narrativeProblems(guide: EstimateGuide, divisions: CustomerDivision[], range: { low: number; high: number } | null, lines: EstimateLine[], shares: string[] = []): string[] {
+export function narrativeProblems(guide: EstimateGuide, divisions: PricedDivision[], range: { low: number; high: number } | null, lines: EstimateLine[], shares: string[] = []): string[] {
   const problems: string[] = [];
   const priced = new Set([...lines.map((l) => l.description), ...shares]);
   for (const group of guide.included) for (const item of group.items) if (!priced.has(item)) problems.push(`"${item}" is described as included but has no priced line.`);

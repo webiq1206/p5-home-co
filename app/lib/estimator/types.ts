@@ -129,6 +129,13 @@ export type Submission = {
 // ---------------------------------------------------------------------------
 // What the customer is allowed to see. Built on the server from the priced
 // estimate; it has no field that can carry a cost, a margin or a cost code.
+//
+// Scope and one total (owner decision, 16 November 2026). The customer sees
+// the full scope of work organized by division and ONE price range for the
+// whole project. No line, unit or division carries a price: the estimate is a
+// complete scope of work, not a menu of separately priced tasks. The team's
+// itemized pricing lives in the internal report, the team email, the scope
+// platform and QuickBooks.
 // ---------------------------------------------------------------------------
 
 export type CustomerItem = { text: string; quantity: number; unit: string; allowance: boolean };
@@ -137,8 +144,6 @@ export type CustomerDivision = {
   /** Two-digit division number from the cost book, which follows CSI MasterFormat numbering. */
   code: string;
   name: string;
-  low: number;
-  high: number;
   items: CustomerItem[];
 };
 
@@ -170,10 +175,11 @@ export type CustomerEstimate = {
   estimateClass: EstimateClass;
   classLabel: string;
   classStatement: string;
-  /** Null while the estimate is with the team for review. */
+  /** The only price the customer sees: one range for the whole project. Null while the estimate is with the team for review. */
   range: { low: number; high: number } | null;
+  /** The scope of work by division. No prices. */
   divisions: CustomerDivision[];
-  /** Set when the divisions are indicative shares of a whole-project price. Absent on older estimates. */
+  /** Set when the project is priced as a whole rather than line by line. Absent on older estimates. */
   divisionNote?: string | null;
   guide: EstimateGuide;
   /** Kept at the top level for the team report. Same lists as in the guide. */
@@ -183,6 +189,33 @@ export type CustomerEstimate = {
   officialCopy: "sending" | "after-review";
   createdAt: string;
 };
+
+/** Said under the divisions when a project is priced as a whole. It names no amount for any part of the work. */
+export const WHOLE_PROJECT_NOTE =
+  "This project is priced as a whole from our cost book. The work below is organized by construction division so you can see what the price covers. The divisions are not priced separately.";
+
+/**
+ * The customer view as it may leave the server, for new and saved estimates
+ * alike. Saved estimates from before 16 November 2026 carry a price on every
+ * division; this rebuilds the view from named fields so those prices never
+ * reach a page, a link or an email again. The stored row is not changed.
+ */
+export function publicEstimate(view: CustomerEstimate): CustomerEstimate {
+  const divisions = Array.isArray(view.divisions)
+    ? view.divisions.map((d) => ({
+        code: String(d.code),
+        name: String(d.name),
+        items: (Array.isArray(d.items) ? d.items : []).map((i) => ({ text: String(i.text), quantity: Number(i.quantity), unit: String(i.unit), allowance: Boolean(i.allowance) })),
+      }))
+    : [];
+  // The note on older estimates described "division amounts", which are no longer shown.
+  const divisionNote = view.divisionNote ? WHOLE_PROJECT_NOTE : null;
+  const guide = view.guide
+    ? { ...view.guide, overview: view.guide.overview.map((s) => (/division amounts/i.test(s) ? WHOLE_PROJECT_NOTE : s)) }
+    : view.guide;
+  const range = view.range ? { low: Number(view.range.low), high: Number(view.range.high) } : null;
+  return { ...view, range, divisions, divisionNote, guide };
+}
 
 export function conditionHolds(cond: Cond, answers: Answers): boolean {
   const value = String(answers[cond.q] ?? "");

@@ -53,7 +53,8 @@ async function verifiedSavedEstimate(name:unknown,requestedRevision:unknown,read
   if(!Array.isArray(delivery)||!delivery.length||delivery.some(receipt=>!record(receipt)||receipt.revision!==revision
     ||receipt.status!=='suppressed'||receipt.suppressed!==true||receipt.untouched!==true||receipt.matchesSaved!==true))throw new DraftError('A matching suppressed delivery receipt is required.',409);
   const result=customerPresentation(saved,{hideUnitRates:HIDE_CUSTOMER_UNIT_RATES});
-  if(result.lineItems.length!==saved.lineItems.length||result.categoryRanges.length!==saved.categoryRanges.length)throw new DraftError('The saved customer result contains invalid pricing.',409);
+  // Category amounts never reach the customer copy (scope and one total, 16 November 2026); every scope line must.
+  if(result.lineItems.length!==saved.lineItems.length)throw new DraftError('The saved customer result contains invalid pricing.',409);
   const submittedAt=new Date(row.draft.submittedAt).toISOString();
   const document=buildEstimateDocument({id:identity.id,result:saved,brand:ESTIMATOR_BRAND,submittedAt,legalLine:legalIdentityLine()});
   const view:QaSavedEstimateView={case:'case-1',label:identity.label,id:identity.id,revision,result,document,delivery:delivery.map(()=>({channel:'suppressed',status:'suppressed'}))};

@@ -10,12 +10,12 @@
  *                 review workflow: the team opens it in /scopes.
  *   2. lead       The lead goes through the family lead intake, which
  *                 deduplicates the contact, syncs HubSpot and alerts the team.
- *   3. QuickBooks Customer matched or created, estimate created from the same
- *                 lines the customer saw, and sent, according to
+ *   3. QuickBooks Customer matched or created, and the full itemized estimate
+ *                 created from the priced lines, UNSENT, according to
  *                 ESTIMATOR_QBO (below) and only when the estimate qualified.
  *   4. team email The full internal report.
- *   5. customer   A short confirmation, only when QuickBooks is not sending
- *                 the official estimate right now.
+ *   5. customer   A short confirmation with the link to the estimate they saw:
+ *                 the scope of work and one total range.
  *
  * ESTIMATOR_QBO controls how far step 3 goes without a person:
  *   create  (default, owner decision 13 November 2026) every estimate a
@@ -23,24 +23,27 @@
  *           estimate in QuickBooks, budgetary ones included. The team
  *           revises it there, sends it, and converts it to an invoice and
  *           project once the customer approves.
- *   send    a line-by-line estimate that needs no review is also emailed to
- *           the customer by QuickBooks. A budgetary estimate is never sent
- *           without a person, whatever this says.
+ *   send    retired 16 November 2026 and treated as create. A QuickBooks
+ *           estimate prints every line with its amount, and customers see the
+ *           scope of work and one total range only (owner decision), so the
+ *           estimator never emails a QuickBooks document to a customer. The
+ *           team shares an estimate through its estimator link, or sends from
+ *           QuickBooks with an estimate form style that hides line amounts.
  *   off     nothing is written to QuickBooks.
  * Only an estimate is ever created here: never an invoice, payment or
- * project. QuickBooks holds one figure per line, so it gets the base price;
+ * project. QuickBooks keeps the complete itemized pricing for the team. It
+ * holds one figure per line, so it gets the base price;
  * the range the customer saw is written on the estimate's message and in its
  * private note. An estimate whose price was withheld is not written at all.
  */
 
 import { handleIntake } from "../../api/leads/intake/handler.ts";
 import { queryOne } from "../db.ts";
-import { qboRequest } from "../finance/qbo/client.ts";
 import { isQboConnected } from "../finance/qbo/oauth.ts";
 import { syncDealToHubSpot } from "../integrations/hubspot.ts";
 import { activeTransport } from "../notifications/transport.ts";
 import { ESTIMATE_STATUS_LABEL, estimateStatus, qboWebUrl } from "../scopes/estimate.ts";
-import { buildPayloadFor, createOrReviseEstimate, ensureCustomer, findCustomerCandidates, isSandbox, refreshEstimate } from "../scopes/qbo.ts";
+import { buildPayloadFor, createOrReviseEstimate, ensureCustomer, findCustomerCandidates, isSandbox } from "../scopes/qbo.ts";
 import { getProject, latestEstimate, loadScopeSettings, logEvent, saveVersion, syncProjectTitle } from "../scopes/store.ts";
 import type { PricingResult, ScopeDoc } from "../scopes/types.ts";
 import { brandConfig } from "./brands.ts";
@@ -173,14 +176,16 @@ export function rangeNote(row: Pick<GuidedRow, "customer_view" | "total">): stri
 /**
  * May this estimate be written to QuickBooks without a person? Yes when the
  * customer was shown a price and nothing is wrong with it. "Budgetary" is not
- * something wrong: it only means a person sends it.
+ * something wrong: it only means a person sends it. It is only ever created,
+ * never sent: the QuickBooks document is itemized, and the customer sees the
+ * scope and one total (owner decision, 16 November 2026).
  */
-export function qboAction(row: Pick<GuidedRow, "review" | "price_withheld">, mode: QboMode): QboMode {
+export function qboAction(row: Pick<GuidedRow, "review" | "price_withheld">, mode: QboMode): Exclude<QboMode, "send"> {
   if (mode === "off" || row.price_withheld || row.review.some((r) => r.code !== "budgetary")) return "off";
-  return mode === "send" && row.review.length === 0 ? "send" : "create";
+  return "create";
 }
 
-async function qboEstimate(row: GuidedRow, projectId: number, mode: QboMode): Promise<Delivery> {
+async function qboEstimate(row: GuidedRow, projectId: number): Promise<Delivery> {
   const patch: Delivery = {};
   const customerId = await ensureQboCustomer(projectId);
   patch.qboCustomer = step(true, customerId);
@@ -211,14 +216,6 @@ async function qboEstimate(row: GuidedRow, projectId: number, mode: QboMode): Pr
   patch.qboEstimate = step(true, result.qboId);
   patch.qboEstimateId = result.qboId;
   patch.qboDocNumber = estimate?.doc_number ?? null;
-  if (mode === "send") {
-    await qboRequest(`/estimate/${encodeURIComponent(result.qboId)}/send?sendTo=${encodeURIComponent(row.email)}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/octet-stream" },
-    });
-    patch.qboSend = step(true, row.email);
-    if (estimate) await refreshEstimate(estimate).catch(() => undefined);
-  }
   return patch;
 }
 
@@ -271,12 +268,12 @@ export async function deliverEstimate(input: DeliverInput): Promise<Delivery> {
     }
   }
 
-  // 3. QuickBooks: an unsent estimate for every price the customer was shown.
+  // 3. QuickBooks: an unsent, itemized estimate for every price the customer was shown.
   const mode = qboAction(row, qboMode());
-  if (scope && mode !== "off" && !done(row.delivery, "qboSend") && !(mode === "create" && done(row.delivery, "qboEstimate"))) {
+  if (scope && mode !== "off" && !done(row.delivery, "qboSend") && !done(row.delivery, "qboEstimate")) {
     try {
       if (!(await isQboConnected())) throw new Error("QuickBooks is not connected.");
-      await recordDelivery(row.id, await qboEstimate(row, scope.projectId, mode));
+      await recordDelivery(row.id, await qboEstimate(row, scope.projectId));
     } catch (error) {
       await recordDelivery(row.id, { qboEstimate: step(false, (error as Error).message) });
     }
@@ -299,8 +296,9 @@ export async function deliverEstimate(input: DeliverInput): Promise<Delivery> {
     await recordDelivery(row.id, { teamEmail: step(sent.ok, sent.ok ? TEAM_INBOX : sent.error) });
   }
 
-  // 5. The customer hears from QuickBooks when the official estimate was
-  //    sent. Otherwise one short confirmation, with no figures in it.
+  // 5. One short confirmation with the link to the scope and total range.
+  //    Estimates sent from QuickBooks before 16 November 2026 already told
+  //    the customer, so they are not confirmed a second time.
   if (!done(row.delivery, "qboSend") && !done(row.delivery, "customerEmail")) {
     const sent = await transport.send(row.email, customerConfirmation(row, viewUrl));
     await recordDelivery(row.id, { customerEmail: step(sent.ok, sent.ok ? brand?.name ?? null : sent.error) });

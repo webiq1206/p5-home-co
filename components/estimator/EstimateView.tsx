@@ -1,11 +1,13 @@
 "use client";
 
 /**
- * The customer's estimate: the range first, then how it breaks down, then
- * what it means.
+ * The customer's estimate: the range first, then the scope of work by
+ * division, then what it means.
  *
  * Renders CustomerEstimate and nothing else. That type has no field for a
- * cost, a margin or a cost code, so none can appear here.
+ * cost, a margin or a cost code, so none can appear here. Its only price is
+ * the range for the whole project: divisions and items carry the work, never
+ * an amount (owner decision, 16 November 2026).
  */
 
 import type { CustomerEstimate } from "@/app/lib/estimator/types";
@@ -124,8 +126,8 @@ export default function EstimateView({
       </section>
 
       {!held && estimate.divisions.length ? (
-        <section className={styles.block} aria-label="Construction division breakdown">
-          <h3 className={styles.blockTitle}>Construction division breakdown</h3>
+        <section className={styles.block} aria-label="Scope of work by division">
+          <h3 className={styles.blockTitle}>Scope of work by division</h3>
           {estimate.divisionNote ? <p className={styles.para}>{estimate.divisionNote}</p> : null}
           {estimate.divisions.map((division) => (
             <details key={division.code} className={styles.division}>
@@ -133,9 +135,6 @@ export default function EstimateView({
                 <span>
                   <span className={styles.divisionCode}>Division {division.code}</span>
                   <span className={styles.divisionName}>{division.name}</span>
-                </span>
-                <span>
-                  {money(division.low)} to {money(division.high)}
                 </span>
               </summary>
               <ul className={styles.items}>
@@ -152,7 +151,7 @@ export default function EstimateView({
             </details>
           ))}
           <div className={styles.grand}>
-            <span>Preliminary range</span>
+            <span>Preliminary range for the whole project</span>
             <span>
               {money(estimate.range!.low)} to {money(estimate.range!.high)}
             </span>

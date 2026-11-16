@@ -781,7 +781,8 @@
   line-height: 1.4;
   color: var(--ge-ink);
 }
-.items li span:last-child {
+/* Only a second span (a figure) stays on one line; the work itself wraps on a phone. */
+.items li span:last-child:not(:first-child) {
   white-space: nowrap;
 }
 .qty {
@@ -872,7 +873,8 @@
 .divisionName {
   grid-column: 2;
 }
-.division summary > span:last-child {
+/* A second span in a summary is a figure; divisions now carry the work only. */
+.division summary > span:last-child:not(:first-child) {
   white-space: nowrap;
   font-weight: 700;
 }

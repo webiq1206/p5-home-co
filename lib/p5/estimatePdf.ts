@@ -94,7 +94,7 @@ export async function renderEstimatePdf(doc:EstimateDocument):Promise<Buffer>{
    para(doc.finish.name,11.5,{font:bold,x:L+pad+4,width:inner});para(doc.finish.detail,10,{x:L+pad+4,width:inner,color:muted});para(doc.finish.basis,9,{x:L+pad+4,width:inner,color:soft});
    y-=pad-2;}
 
-  heading('Scope & pricing',14,12);
+  heading('Scope of work',14,12);
   for(const c of doc.categories){
     const head=()=>{text(`${c.number}  ${c.title}`,L,y-11,11,bold);if(c.amount)right(c.amount,R,y-11,11,bold);y-=17;page.drawLine({start:{x:L,y},end:{x:R,y},thickness:.7,color:accent});y-=9;};
     const first=c.work[0]||c.allowances[0]||'';

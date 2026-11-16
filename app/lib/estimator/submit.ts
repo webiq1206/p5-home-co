@@ -14,11 +14,10 @@ import { collectAttribution } from "../leads/attribution.ts";
 import { savedFinance } from "../scopes/engine.ts";
 import { globalAcknowledgements, loadScopeSettings } from "../scopes/store.ts";
 import { brandConfig } from "./brands.ts";
-import { qboMode } from "./deliver.ts";
 import { flowById } from "./flows.ts";
 import { customerEstimate, internalReport, priceEstimate, priceWithheld, type PriceContext, type PricedEstimate } from "./price.ts";
 import { insertGuided, newToken, type GuidedRow } from "./store.ts";
-import type { Answers, BrandId, Contact, PropertyFacts, Submission, Tier } from "./types.ts";
+import { publicEstimate, type Answers, type BrandId, type Contact, type PropertyFacts, type Submission, type Tier } from "./types.ts";
 
 const MAX_BODY_BYTES = 24 * 1024;
 const TIERS: Tier[] = ["builder", "mid", "high", "luxury"];
@@ -145,8 +144,9 @@ export async function handleSubmit(request: Request, deps: SubmitDeps = {}): Pro
     const estimate = priceEstimate(submission, context);
     if (!estimate.doc.tasks.length) return Response.json({ ok: false, error: "Choose at least one item." }, { status: 422 });
     const withheld = priceWithheld(estimate);
-    // The official copy leaves QuickBooks only for an estimate that qualified.
-    const officialCopy = estimate.review.length === 0 && qboMode() === "send" ? "sending" : "after-review";
+    // QuickBooks keeps the itemized estimate for the team and never emails it
+    // to the customer (owner decision, 16 November 2026).
+    const officialCopy = "after-review";
     const view = customerEstimate(estimate, { token: newToken(), address, createdAt: new Date(), officialCopy });
     const { row, created } = await (deps.store ?? insertGuided)({
       submission: { ...submission, tier: estimate.tier, answers: estimate.answers },
@@ -157,7 +157,8 @@ export async function handleSubmit(request: Request, deps: SubmitDeps = {}): Pro
     });
     if (created) deps.deliver?.(row, estimate);
     // A repeat returns the estimate stored the first time, never a second one.
-    return Response.json({ ok: true, estimate: row.customer_view }, { status: created ? 201 : 200 });
+    // publicEstimate also strips division prices from an estimate stored before 16 November 2026.
+    return Response.json({ ok: true, estimate: publicEstimate(row.customer_view) }, { status: created ? 201 : 200 });
   } catch (error) {
     console.error("[estimator] submit failed:", (error as Error).message);
     return Response.json({ ok: false, error: `We could not prepare your estimate just now. Please call ${brand.phoneDisplay}.` }, { status: 500 });

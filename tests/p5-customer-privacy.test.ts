@@ -46,7 +46,7 @@ test('spelled-out bare unit rates and extended cost arithmetic stay private',()=
  }
  const projected=projectCustomerEstimate({...oldResult,assumptions:[arithmetic,'Allowance: 5 per gallon; not a supplier quote.']});
  assert.equal(projected.lineItems[0].quantity,100);
- assert.equal(projected.lineItems[0].unitLow,3.5);
+ assert.equal('unitLow' in projected.lineItems[0],false,'no unit price reaches the customer copy');
  assert.deepEqual(projected.range,oldResult.range);
  assert.doesNotMatch(JSON.stringify(projected.assumptions),/x 2|=200|5 per gallon/);
  assert.match(projected.assumptions.join(' '),/not a supplier quote/);
@@ -86,7 +86,9 @@ test('historical projection hides costs without changing selling arithmetic, sco
  assert.doesNotMatch(text,/\$2\.00|\$200\.00|unitCost|private catalog|rateSources|directCost|costBookSnapshot/);
  assert.deepEqual(result.range,oldResult.range);
  assert.equal(result.lineItems[0].quantity,100);
- assert.equal(result.lineItems[0].unitLow,3.5);
+ // Scope and one total (16 November 2026): a saved estimate re-projects without any part price.
+ for(const key of ['low','high','unitLow','unitHigh'])assert.equal(key in result.lineItems[0],false,key);
+ assert.deepEqual(result.categoryRanges,[]);
  assert.match(text,/Preliminary allowance, not a supplier quote/);
  assert.match(text,/final selection to be confirmed/i);
  assert.match(text,/Painting excluded/);
@@ -102,7 +104,9 @@ test('saved-result customer sections, page breakdown and email reapply the bound
  assert.doesNotMatch(sections,/\$2\.00|\$200\.00/);
  assert.match(sections,/Confirm local pricing/);
  assert.deepEqual(customerEstimateSections(oldResult),estimateSections(oldResult));
- assert.equal(categoryBreakdown(oldResult,true,false)[0].items[0].unitLow,3.5);
+ assert.equal(categoryBreakdown(oldResult,true,false)[0].items[0].unitLow,undefined);
+ assert.equal(categoryBreakdown(oldResult,true,false)[0].items[0].low,undefined);
+ assert.equal(categoryBreakdown(oldResult,false)[0].items[0].unitLow,3.5,'the administrative breakdown keeps unit prices');
  const email=estimateEmail('offline-test',{customer:oldResult,internal:{directCost:200}},false);
  assert.doesNotMatch(email.html+email.text,/\$2\.00|\$200\.00|private catalog/);
  assert.match(email.text,/100 LF/);
@@ -120,22 +124,22 @@ test('private text in the message, next step and disclaimer never reaches the cu
   assert.match(output,/Preliminary estimate, not a contract\./);
  }
 });
-test('unit rates can be withheld from the customer copy while the administrative breakdown retains them',async()=>{
+test('unit rates and line prices never reach the customer copy while the administrative breakdown retains them',async()=>{
  const leaked='$2.00/LF ($200.00 direct cost)';
  const r={...oldResult,lineItems:[{...oldResult.lineItems[0],description:'20 LF cabinet run',quantity:20,unit:'LF',low:100,high:200,unitLow:10,unitHigh:15,rateLocation:leaked,rateDate:'2026-09-19',verification:`${leaked}; confirm selections before a firm proposal.`}]};
  const hidden=customerPresentation(r,{hideUnitRates:true});
  for(const key of ['unitLow','unitHigh','rateLocation','rateDate'])assert.equal(key in hidden.lineItems[0],false,key);
  assert.equal(hidden.lineItems[0].verification,'confirm selections before a firm proposal.');
  const sections=JSON.stringify(estimateSections(r,true));
- assert.match(sections,/\$100 to \$200/);
+ assert.doesNotMatch(sections,/\$100|\$200/,'a line price reached the customer sections');
  assert.match(sections,/20 LF/);
  assert.doesNotMatch(sections,/direct cost|unit cost|markup|profit|\$2\.00\/LF|\$10\.00|\$15\.00|cost location/i);
  assert.equal(categoryBreakdown(r,true,true)[0].items[0].unitHigh,undefined);
  assert.equal(categoryBreakdown(r,false)[0].items[0].unitHigh,15);
- // Brands that show unit rates still show the selling unit range, never the cost rate.
+ // Every brand: no unit range, whatever a caller asks for.
  const shown=JSON.stringify(estimateSections(r,false));
- assert.match(shown,/\$10\.00 to \$15\.00 \/ LF/);
- assert.doesNotMatch(shown,/\$2\.00\/LF|direct cost/i);
+ assert.doesNotMatch(shown,/\$10\.00|\$15\.00|\$2\.00\/LF|direct cost/i);
+ assert.equal(categoryBreakdown(r,false)[0].items[0].low,100);
 });
 test('historical customer PDF hides prose rates while keeping selling totals and caveats',async()=>{
  const text=(await pdfTextLayers(await customerPdf('offline-privacy',oldResult))).join(' ');

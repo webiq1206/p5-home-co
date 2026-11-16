@@ -27,7 +27,7 @@ import { buildRecipe, recipeProjects } from "../app/lib/estimator/recipes.ts";
 import { shareProfileCodes, splitByDivision } from "../app/lib/estimator/shares.ts";
 import type { GuidedRow } from "../app/lib/estimator/store.ts";
 import { handleSubmit } from "../app/lib/estimator/submit.ts";
-import { resolveAnswers, type Answers, type BrandId, type Tier } from "../app/lib/estimator/types.ts";
+import { WHOLE_PROJECT_NOTE, publicEstimate, resolveAnswers, type Answers, type BrandId, type CustomerEstimate, type Tier } from "../app/lib/estimator/types.ts";
 import { costBookEntry } from "../app/lib/scopes/costbook.ts";
 import { buildEstimatePayload } from "../app/lib/scopes/estimate.ts";
 import { P5_ITEMS } from "../app/lib/scopes/qbo.ts";
@@ -108,13 +108,14 @@ test("no work is charged twice in one estimate", () => {
   }
 });
 
-test("division ranges reconcile with the total range and with the priced lines", () => {
+test("internal division ranges reconcile with the total range and with the priced lines", () => {
   for (const { project, estimate } of ALL) {
     if (priceWithheld(estimate)) continue;
     const view = customerEstimate(estimate, { token: "t".repeat(40), address: null, createdAt: NOW, officialCopy: "after-review" });
     assert.ok(view.range && view.range.low > 0 && view.range.high > view.range.low, `${project}: not a range`);
-    assert.equal(view.divisions.reduce((s, d) => s + d.low, 0), view.range.low, `${project}: division lows do not add up`);
-    assert.equal(view.divisions.reduce((s, d) => s + d.high, 0), view.range.high, `${project}: division highs do not add up`);
+    // The division arithmetic is internal; the customer gets its total only.
+    assert.equal(estimate.divisions.reduce((s, d) => s + d.low, 0), view.range.low, `${project}: division lows do not add up`);
+    assert.equal(estimate.divisions.reduce((s, d) => s + d.high, 0), view.range.high, `${project}: division highs do not add up`);
     // The base price the team sees always sits inside the customer's range.
     const base = estimate.pricing.totals.basePrice;
     assert.ok(view.range.low <= base && base <= view.range.high, `${project}: base ${base} outside ${view.range.low} to ${view.range.high}`);
@@ -126,7 +127,7 @@ test("division ranges reconcile with the total range and with the priced lines",
       // A whole-project price is spread across divisions; the priced lines are still named to the customer.
       const named = new Set(view.guide.included.flatMap((g) => g.items));
       for (const l of estimate.pricing.lines) if (!l.optional && l.basis !== "trip-charge") assert.ok(named.has(l.description), `${project}: "${l.description}" is priced but not named`);
-      assert.ok(view.divisionNote, `${project}: shares shown without saying they are shares`);
+      assert.ok(view.divisionNote, `${project}: a whole-project price shown by division without saying so`);
     }
     for (const d of view.divisions) assert.match(d.code, /^\d{2}$/);
     const report = internalReport(estimate);
@@ -233,6 +234,59 @@ test("the customer's view cannot carry a cost, a margin or a cost code", () => {
   }
 });
 
+test("the customer sees the full scope and one price: the range for the whole project", () => {
+  for (const { project, estimate } of ALL) {
+    if (priceWithheld(estimate)) continue;
+    const view = customerEstimate(estimate, { token: "t".repeat(40), address: "100 Example Ave", createdAt: NOW, officialCopy: "after-review" });
+    // The scope is all there, organized by division.
+    assert.ok(view.divisions.length > 0, `${project}: no scope of work`);
+    assert.equal(view.divisions.map((d) => d.code).join(), estimate.divisions.map((d) => d.code).join(), `${project}: a division of work is missing`);
+    for (const [i, d] of view.divisions.entries()) assert.equal(d.items.length, estimate.divisions[i].items.length, `${project}: work missing from division ${d.code}`);
+    // No division, line or unit carries a price. "low"/"high" appear exactly once, on the range.
+    for (const d of view.divisions) assert.deepEqual(Object.keys(d).sort(), ["code", "items", "name"], `${project}: division ${d.code} carries more than its work`);
+    for (const item of view.divisions.flatMap((d) => d.items)) assert.deepEqual(Object.keys(item).sort(), ["allowance", "quantity", "text", "unit"]);
+    const json = JSON.stringify(view);
+    assert.equal(json.match(/"low":/g)?.length, 1, `${project}: a price other than the total range`);
+    assert.equal(json.match(/"high":/g)?.length, 1, `${project}: a price other than the total range`);
+    // The only dollar figures in the words are the two ends of that range.
+    const figures = new Set(json.match(/\$[\d,]+/g) ?? []);
+    for (const f of figures) assert.ok([`$${view.range!.low.toLocaleString("en-US")}`, `$${view.range!.high.toLocaleString("en-US")}`].includes(f), `${project}: "${f}" is a price for part of the work`);
+    assert.doesNotMatch(json, /division amounts|indicative shares/i, `${project}: wording about amounts that are no longer shown`);
+  }
+});
+
+test("estimates saved before scope-and-total lose their division prices on every read", () => {
+  const estimate = price("kitchen-remodel", { size: "medium", scope: "replace" });
+  const current = customerEstimate(estimate, { token: "t".repeat(40), address: null, createdAt: NOW, officialCopy: "after-review" });
+  // What a row stored before 16 November 2026 looks like: every division priced.
+  const legacy = {
+    ...current,
+    divisions: estimate.divisions.map((d) => ({ code: d.code, name: d.name, low: d.low, high: d.high, items: d.items })),
+    divisionNote: "The division amounts show how a budget of this kind is typically spread across the work.",
+  } as unknown as CustomerEstimate;
+  const shown = publicEstimate(legacy);
+  assert.equal(JSON.stringify(shown).match(/"low":/g)?.length, 1);
+  assert.deepEqual(shown.range, current.range);
+  assert.equal(shown.divisions.flatMap((d) => d.items).length, current.divisions.flatMap((d) => d.items).length);
+  assert.equal(shown.divisionNote, WHOLE_PROJECT_NOTE);
+  // Every customer surface reads the stored view through publicEstimate.
+  const page = readFileSync(new URL("../app/estimator/e/[token]/page.tsx", import.meta.url), "utf8");
+  assert.match(page, /publicEstimate\(row\.customer_view\)/);
+  const submit = readFileSync(new URL("../app/lib/estimator/submit.ts", import.meta.url), "utf8");
+  assert.match(submit, /publicEstimate\(row\.customer_view\)/);
+  const view = readFileSync(new URL("../components/estimator/EstimateView.tsx", import.meta.url), "utf8");
+  assert.doesNotMatch(view, /division\.(low|high)|item\.(low|high|price)/);
+});
+
+test("the team keeps every price: line items, divisions and totals", () => {
+  const estimate = price("kitchen-remodel", { size: "medium", scope: "replace" });
+  const report = internalReport(estimate);
+  assert.ok(report.lines.length > 0 && report.lines.every((l) => Number.isFinite(l.price) && Number.isFinite(l.unitPrice)));
+  assert.ok(report.groups.length > 0 && report.groups.every((g) => Number.isFinite(g.price)));
+  assert.ok(report.totalPrice > 0 && report.range.low > 0);
+  assert.ok(estimate.divisions.every((d) => d.low > 0 && d.high >= d.low));
+});
+
 test("a withheld estimate shows the customer no figure at all", () => {
   const withheld = ALL.filter((x) => priceWithheld(x.estimate));
   assert.ok(withheld.length > 0, "the matrix should include estimates the cross-check holds back");
@@ -273,7 +327,7 @@ test("budgetary projects never qualify as an official estimate without a person"
     assert.ok(estimate.review.some((r) => r.code === "budgetary"), `${project} would be sent automatically`);
     // The customer still sees the budget; it is the official copy that waits.
     assert.equal(priceWithheld(estimate), false);
-    // QuickBooks gets an unsent draft, and is never told to email it.
+    // QuickBooks gets an unsent, itemized draft, and is never told to email it.
     const row = { review: estimate.review, price_withheld: false };
     assert.equal(qboAction(row, "create"), "create");
     assert.equal(qboAction(row, "send"), "create", `${project} would be emailed from QuickBooks without a person`);
@@ -286,7 +340,8 @@ test("every submitted estimate becomes an unsent QuickBooks estimate by default,
   assert.equal(qboMode({ ESTIMATOR_QBO: "send" }), "send");
   assert.equal(qboMode({ ESTIMATOR_QBO: "anything else" }), "create");
   assert.equal(qboAction({ review: [], price_withheld: false }, "create"), "create");
-  assert.equal(qboAction({ review: [], price_withheld: false }, "send"), "send");
+  // QuickBooks prints every line amount, so the estimator never emails its document to a customer.
+  assert.equal(qboAction({ review: [], price_withheld: false }, "send"), "create");
   // A price the customer was not shown is never written to the books.
   assert.equal(qboAction({ review: [{ code: "margin-floor", message: "" }], price_withheld: true }, "send"), "off");
   assert.equal(qboAction({ review: [{ code: "budgetary", message: "" }, { code: "cross-check", message: "" }], price_withheld: true }, "create"), "off");
@@ -297,6 +352,7 @@ test("every submitted estimate becomes an unsent QuickBooks estimate by default,
   // Only the estimate endpoint is written. No invoice, payment or project is created from a web form.
   const source = readFileSync(new URL("../app/lib/estimator/deliver.ts", import.meta.url), "utf8");
   assert.doesNotMatch(source, /["'`/]invoice|\/payment|salesreceipt/i);
+  assert.doesNotMatch(source, /\/send\?sendTo/, "the estimator emails a QuickBooks document to the customer");
 });
 
 test("a whole-project price is spread across divisions without changing it", () => {

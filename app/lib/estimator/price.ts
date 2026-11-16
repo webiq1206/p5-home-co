@@ -25,7 +25,7 @@ import { priceScope } from "../scopes/pricing.ts";
 import { DEFAULT_SCOPE_SETTINGS, emptyScope, type EstimateLine, type PricingResult, type ScopeDoc, type ScopeSettings, type ScopeTask } from "../scopes/types.ts";
 import { brandConfig } from "./brands.ts";
 import { flowById } from "./flows.ts";
-import { SHARE_NOTE, buildGuide, divisionRanges, narrativeProblems, projectRisks, rangeWidth } from "./narrative.ts";
+import { SHARE_NOTE, buildGuide, divisionRanges, narrativeProblems, projectRisks, rangeWidth, type PricedDivision } from "./narrative.ts";
 import { splitByDivision } from "./shares.ts";
 import { HANDYMAN_MINIMUM_CODE, buildRecipe, type CrossCheck, type Recipe } from "./recipes.ts";
 import {
@@ -35,7 +35,7 @@ import {
   resolveAnswers,
   type Answers,
   type BrandId,
-  type CustomerDivision,
+  publicEstimate,
   type CustomerEstimate,
   type EstimateGuide,
   type EstimateClass,
@@ -98,9 +98,10 @@ export type PricedEstimate = {
   /** The risks this project carries, which set the width of the range. */
   risks: RiskFactor[];
   rangeWidth: number;
-  /** The customer's range, its division breakdown and the words that explain it. */
+  /** The customer's range, the internal division breakdown behind it and the words that explain it. */
   range: { low: number; high: number };
-  divisions: CustomerDivision[];
+  /** Internal: each division carries its share of the range. The customer gets the scope only. */
+  divisions: PricedDivision[];
   /** Wording in the divisions that came from spreading a whole-project line, not from a line of its own. */
   divisionShares: string[];
   guide: EstimateGuide;
@@ -361,6 +362,9 @@ const baseLines = (pricing: PricingResult) => pricing.lines.filter((l) => !l.opt
 // The customer's view. Built field by field from named values so that a cost,
 // a margin or a cost code cannot ride along: there is no spread of a priced
 // line anywhere in this function.
+//
+// Scope and one total (owner decision, 16 November 2026): the divisions carry
+// the work and no price. The only figure is the range for the whole project.
 // ---------------------------------------------------------------------------
 
 export function customerEstimate(
@@ -370,13 +374,11 @@ export function customerEstimate(
   const brand = brandConfig(estimate.brand)!;
   const withheld = priceWithheld(estimate);
   const klass = CLASS_LABELS[estimate.estimateClass];
-  const divisions: CustomerDivision[] = withheld
+  const divisions = withheld
     ? []
     : estimate.divisions.map((d) => ({
         code: d.code,
         name: d.name,
-        low: d.low,
-        high: d.high,
         items: d.items.map((i) => ({ text: i.text, quantity: i.quantity, unit: i.unit, allowance: i.allowance })),
       }));
   const g = estimate.guide;
@@ -408,7 +410,7 @@ export function customerEstimate(
           "You receive a detailed written proposal with a final price before any work starts.",
           `Questions? Call or text ${brand.phoneDisplay}.`,
         ];
-  return {
+  return publicEstimate({
     token: meta.token,
     estimateNumber: `P5-${meta.token.slice(0, 8).toUpperCase()}`,
     brandName: brand.name,
@@ -427,7 +429,7 @@ export function customerEstimate(
     nextSteps,
     officialCopy: meta.officialCopy,
     createdAt: meta.createdAt.toISOString(),
-  };
+  });
 }
 
 function emptyGuide(): EstimateGuide {
