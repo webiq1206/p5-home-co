@@ -33,3 +33,12 @@ export function assertSmtpAccepted(result: { accepted?: unknown[]; rejected?: un
     throw new Error("Email was not accepted for all recipients");
   }
 }
+
+/**
+ * The document estimator's send path (lib/p5/deliveryAdapter.ts) adds the
+ * after-estimate wording to its customer email with this. It is passed on from
+ * here because the shared transport test (tests/p5-intake-reply-to.test.ts,
+ * synced to every brand site) lets that adapter load only a fixed list of
+ * modules, and this is the one that belongs to outbound mail.
+ */
+export { decoratePreliminaryEstimateEmail } from "../leads/scheduleEmail.ts";
