@@ -1,7 +1,7 @@
 import {collectAttribution,sourceFromAttribution} from "./leadAttribution.ts";
 import {safeEmailReplyTo} from './emailReplyTo.ts';
 import {createTransport} from "nodemailer";
-import {getSmtpConfig, assertSmtpAccepted} from "../../app/lib/notifications/smtp-config.ts";
+import {getSmtpConfig, assertSmtpAccepted, decoratePreliminaryEstimateEmail} from "../../app/lib/notifications/smtp-config.ts";
 import {peopleWithRole} from "../../app/lib/notifications/dispatch.ts";
 import {ingestLead} from "../../app/lib/leads/intake.ts";
 import {estimatorDeliveryMode} from "../../app/lib/leads/synthetic-qa.ts";
@@ -15,7 +15,13 @@ export const deliveryBrand=(record:any)=>typeof record?.brand==="string"&&record
 export async function sendEmail(input:{to:string;replyTo?:string;subject:string;text:string;html?:string;attachments:{filename:string;content:Buffer;contentType?:string}[];key:string}){
   const config=getSmtpConfig();
   const transport=createTransport(config.options);
-  const result=await transport.sendMail({from:config.from,to:input.to,replyTo:safeEmailReplyTo(input.replyTo,config.replyTo),subject:input.subject,text:input.text,html:input.html,attachments:input.attachments,messageId:`<${input.key}@${brand.domain}>`});
+  // The customer's preliminary estimate email gains the after-estimate wording here
+  // (owner request, 16 November 2026): the Schedule now button, the adjust note and
+  // the family question. Every other subject (team record, delivery alert, project
+  // request, review request) is returned unchanged. The shared transport test runs
+  // this file against a stub with no decorator; those messages keep their bytes.
+  const message=typeof decoratePreliminaryEstimateEmail==="function"?decoratePreliminaryEstimateEmail(input):input;
+  const result=await transport.sendMail({from:config.from,to:input.to,replyTo:safeEmailReplyTo(input.replyTo,config.replyTo),subject:message.subject,text:message.text,html:message.html,attachments:input.attachments,messageId:`<${input.key}@${brand.domain}>`});
   assertSmtpAccepted(result);
   return String(result.messageId);
 }
