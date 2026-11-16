@@ -27,10 +27,10 @@ test("the estimator confirmation uses the approved copy and a primary schedule b
   assert.equal(message.subject, "Your kitchen remodel estimate from P5 Home Co");
   assert.match(message.text, /^Hey Jared,/);
   assert.match(message.text, /Thanks for giving us the chance to look at your kitchen remodel\. Your estimate is saved, and you can pull it up any time\./);
-  // The same invitation and question the results screen shows (owner request, 17 November 2026).
+  // The same invitation and question the results screen shows (owner request, 16 November 2026).
   assert.ok(message.text.includes(ADJUST_NOTE));
-  assert.match(message.text, /P\.S\. Is this the whole project, or one piece of something bigger\? P5 Home Co is the company behind Boise Construction Co, Boise Remodeling Co, Boise Cabinet Co and Boise Handyman Co\./);
-  assert.ok(message.text.trimEnd().endsWith("tell us and we'll plan it together."), "the question closes the email");
+  assert.match(message.text, /P\.S\. Anything else on your list\? P5 Home Co is the company behind Boise Construction Co, Boise Remodeling Co, Boise Cabinet Co and Boise Handyman Co\./);
+  assert.ok(message.text.trimEnd().endsWith("tell us and we'll plan it alongside this project."), "the question closes the email");
   assert.ok(visible(message.html).includes(BIGGER_PLAN_QUESTION));
   assert.match(message.text, /The next step is a home walkthrough, so we can see the property and turn this estimate into a true bid\. On the scheduling page, choose the 1 hour option\./);
   assert.match(message.text, /We work hard to make that estimate as realistic as we can, but we can't give you a true bid until we walk the property\./);
@@ -114,7 +114,7 @@ test("the family note names the brand the customer used and the rest of the fami
   assert.deepEqual([...FAMILY_BRANDS].sort(), [...live].sort());
   assert.equal(
     familyNote("Boise Cabinet Co"),
-    "Boise Cabinet Co is part of P5 Home Co, the company behind Boise Construction Co, Boise Remodeling Co and Boise Handyman Co. If a full kitchen or bath remodel, an addition, a new home or a repair list is on your mind too, tell us and we'll plan it together.",
+    "Boise Cabinet Co is part of P5 Home Co, the company behind Boise Construction Co, Boise Remodeling Co and Boise Handyman Co. So whether it's a few repairs, new cabinets, a full kitchen or bath remodel, an addition or a new home, tell us and we'll plan it alongside this project.",
   );
   assert.match(familyNote("P5 Home Co"), /^P5 Home Co is the company behind Boise Construction Co, Boise Remodeling Co, Boise Cabinet Co and Boise Handyman Co\./);
   for (const brand of Object.values(BRAND_CONFIGS)) {

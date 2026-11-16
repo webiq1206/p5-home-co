@@ -2,7 +2,7 @@
  * What a customer reads after their estimate: an invitation to adjust it, and
  * one question about whether the project is part of something bigger. The
  * same words are used on the results screen, the saved estimate link and the
- * confirmation email (owner request, 17 November 2026).
+ * confirmation email (owner request, 16 November 2026).
  *
  * Browser-safe: no server imports. No prices, no promises about reply times.
  */
@@ -20,12 +20,13 @@ function list(names: string[]): string {
 export const ADJUST_NOTE =
   "If something is missing, or you'd like to change the scope, the finishes or the timing, tell us. It's easy to adjust, and we'd rather get it right than have you guessing.";
 
-export const BIGGER_PLAN_QUESTION = "Is this the whole project, or one piece of something bigger?";
+/** Works for every estimate, from a repair list to a new home: it asks about anything else, and assumes nothing about this project. */
+export const BIGGER_PLAN_QUESTION = "Anything else on your list?";
 
 /** Who is behind the brand the customer used, and what else the family builds. */
 export function familyNote(brandName: string): string {
   const name = brandName.trim() || PARENT;
   const others = FAMILY_BRANDS.filter((b) => b !== name);
   const behind = name === PARENT ? `${PARENT} is the company behind ${list(others)}.` : `${name} is part of ${PARENT}, the company behind ${list(others)}.`;
-  return `${behind} If a full kitchen or bath remodel, an addition, a new home or a repair list is on your mind too, tell us and we'll plan it together.`;
+  return `${behind} So whether it's a few repairs, new cabinets, a full kitchen or bath remodel, an addition or a new home, tell us and we'll plan it alongside this project.`;
 }
