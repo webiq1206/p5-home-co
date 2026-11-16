@@ -10,6 +10,8 @@
  * an amount (owner decision, 16 November 2026).
  */
 
+import { ADJUST_NOTE, BIGGER_PLAN_QUESTION, familyNote } from "@/app/lib/estimator/family";
+import { SCHEDULE_URL } from "@/app/lib/leads/scheduleLink";
 import type { CustomerEstimate } from "@/app/lib/estimator/types";
 import styles from "./GuidedEstimator.module.css";
 
@@ -50,7 +52,7 @@ export default function EstimateView({
   phoneTel: string;
   /** True right after submitting, false when opened from the saved link. */
   fresh?: boolean;
-  /** Called when the customer taps the call button, so the request to talk is counted. */
+  /** Called when the customer taps Schedule now or the call button, so the request to talk is counted. */
   onCall?: () => void;
 }) {
   const date = new Date(estimate.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric", timeZone: "America/Boise" });
@@ -224,6 +226,15 @@ export default function EstimateView({
         </Fold>
       </section>
 
+      {/* Not part of "Understanding your estimate": fixed wording, the same on every estimate. */}
+      <section className={styles.block} aria-label="Changing or adding to your estimate">
+        <h3 className={styles.blockTitle}>Anything to change or add?</h3>
+        <p className={styles.para}>{ADJUST_NOTE}</p>
+        <p className={styles.para}>
+          {BIGGER_PLAN_QUESTION} {familyNote(estimate.brandName)}
+        </p>
+      </section>
+
       <section className={styles.block} aria-label="Next steps">
         <h3 className={styles.blockTitle}>Next steps</h3>
         <ol className={styles.steps}>
@@ -231,7 +242,12 @@ export default function EstimateView({
             <li key={s}>{s}</li>
           ))}
         </ol>
-        <a className={styles.primary} href={phoneTel} onClick={onCall}>
+        <p className={styles.para}>Pick a time for your home walkthrough. On the scheduling page, choose the 1 hour option.</p>
+        {/* A new tab: on a brand site this page sits in a frame, and the calendar must not load inside it. */}
+        <a className={styles.primary} href={SCHEDULE_URL} target="_blank" rel="noopener noreferrer" onClick={onCall}>
+          Schedule now
+        </a>
+        <a className={styles.secondary} href={phoneTel} onClick={onCall} style={{ marginTop: 10 }}>
           Call {phoneDisplay}
         </a>
         {fresh ? <p className={styles.fine}>We also emailed you a link to this estimate.</p> : null}

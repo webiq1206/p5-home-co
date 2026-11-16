@@ -8,6 +8,7 @@
  * LinkedTxn (an Invoice created from the estimate). Nothing else is claimed.
  */
 
+import { SCHEDULE_MEMO } from "../leads/scheduleLink.ts";
 import { divisionLabel, phaseName, groupByPhaseDivision } from "./divisions.ts";
 import type { EstimateLine, ItemKey, PricingResult } from "./types.ts";
 
@@ -68,7 +69,8 @@ export function buildEstimatePayload(input: {
       for (const l of div.items) Line.push(salesLine(l, input.itemIds, input.taxable));
     }
   }
-  const memo: string[] = [];
+  // Every estimate carries the booking link, so the customer can pick a time from the document itself.
+  const memo: string[] = [SCHEDULE_MEMO];
   if (optional.length) {
     memo.push("Optional upgrades, not included in the total:");
     for (const l of optional) memo.push(`- ${l.title || l.description}: ${money(l.price)}`);
