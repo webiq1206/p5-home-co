@@ -10,9 +10,12 @@
  */
 
 import type { Message } from "../notifications/render.ts";
+import { ADJUST_NOTE, BIGGER_PLAN_QUESTION, familyNote } from "../estimator/family.ts";
 
-/** HubSpot meetings page. Durations on the page are 15, 30, 60 and 120 minutes. */
-export const SCHEDULE_URL = "https://meetings-na2.hubspot.com/client3";
+import { SCHEDULE_URL } from "./scheduleLink.ts";
+
+/** HubSpot meetings page, kept in scheduleLink.ts so the estimate page can use it too. */
+export { SCHEDULE_URL };
 
 export const LEAD_PHONE_DISPLAY = "(208) 477-1169";
 
@@ -147,11 +150,12 @@ export function estimatorConfirmation(input: EstimatorConfirmationInput): Messag
   const phone = contactLine(input.phone);
   const viewUrl = safeHref(input.viewUrl);
   const subject = `Your ${project} estimate from ${brandName}`;
-  const thanks = `Thanks for thinking of ${brandName} for your ${project}. Your estimate is saved, and you can pull it up any time.`;
+  const thanks = `Thanks for giving us the chance to look at your ${project}. Your estimate is saved, and you can pull it up any time.`;
+  const postscript = `P.S. ${BIGGER_PLAN_QUESTION} ${familyNote(brandName)}`;
   const next = "The next step is a home walkthrough, so we can see the property and turn this estimate into a true bid. On the scheduling page, choose the 1 hour option.";
   const signoff = `The ${brandName} team`;
   const text = [
-    `Hi ${first},`,
+    `Hey ${first},`,
     "",
     thanks,
     "",
@@ -161,23 +165,29 @@ export function estimatorConfirmation(input: EstimatorConfirmationInput): Messag
     "",
     `View your estimate: ${viewUrl}`,
     "",
+    ADJUST_NOTE,
+    "",
     ESTIMATE_DISCLAIMER,
     "",
     phone,
     "",
     signoff,
+    "",
+    postscript,
   ].join("\n");
   const html = wrapHtml(
     [
-      paragraph(`Hi ${first},`),
+      paragraph(`Hey ${first},`),
       paragraph(thanks),
       paragraph(next),
       bulletproofButton({ href: SCHEDULE_URL, label: "Schedule now", variant: "primary", accent: input.accent }),
       `<div style="height:12px;line-height:12px;font-size:0;">&nbsp;</div>`,
       bulletproofButton({ href: viewUrl, label: "View your estimate", variant: "secondary" }),
+      paragraph(ADJUST_NOTE),
       paragraph(ESTIMATE_DISCLAIMER),
       paragraph(phone),
       paragraph(signoff),
+      paragraph(postscript),
     ].join(""),
   );
   return { subject, text, html };

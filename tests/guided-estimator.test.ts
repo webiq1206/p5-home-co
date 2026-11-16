@@ -216,6 +216,8 @@ test("the QuickBooks estimate carries the same lines and descriptions the custom
       assert.ok(shown.has(line.Description), `${project}: QuickBooks line "${line.Description}" was not shown to the customer`);
       assert.ok(line.SalesItemLineDetail!.ItemRef.value, `${project}: a line has no QuickBooks item`);
     }
+    // The document itself carries the booking link.
+    assert.ok(payload.CustomerMemo?.value.includes("https://meetings-na2.hubspot.com/client3"), `${project}: no booking link on the QuickBooks estimate`);
     // The QuickBooks total is the base price, which sits inside the customer's range.
     const total = payload.Line.reduce((s, l) => s + (l.Amount ?? 0), 0);
     assert.ok(view.range!.low <= total + 0.01 && total - 0.01 <= view.range!.high, `${project}: QuickBooks total outside the range shown`);
