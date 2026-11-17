@@ -635,21 +635,36 @@ test("an estimate sends the team ONE email: the lead alert and the full report t
     attribution: [{ label: "Source", value: "Website" }, { label: "Campaign", value: "remodel-instant-estimate" }],
   };
   const links = { scopeUrl: "https://p5homeco.com/scopes/7", qboUrl: "https://qbo.intuit.com/app/estimate?txnId=90", estimateNumber: "1019", status: "In QuickBooks, not sent", customerViewUrl: "https://p5homeco.com/estimator/e/x" };
-  const message = teamReport(rowFor(estimate), { ...links, lead });
+  const qboCustomer = { url: "https://qbo.intuit.com/app/customerdetail?nameId=41", name: "Sample Customer", how: "created" as const };
+  const message = teamReport(rowFor(estimate), { ...links, lead, qboCustomer });
 
   // Everything the "New lead" alert carried: contact buttons, the map, HubSpot, the admin page, the source.
-  for (const href of ["tel:+12085550100", "sms:+12085550100", "mailto:sample@example.com", "https://www.google.com/maps/search/?api=1&amp;query=", lead.hubspotDealUrl, lead.hubspotContactUrl, lead.adminUrl, links.qboUrl, links.scopeUrl, links.customerViewUrl]) {
+  // And both QuickBooks records: the estimate and the customer it sits on (owner request, 17 November 2026).
+  for (const href of ["tel:+12085550100", "sms:+12085550100", "mailto:sample@example.com", "https://www.google.com/maps/search/?api=1&amp;query=", lead.hubspotDealUrl, lead.hubspotContactUrl, lead.adminUrl, links.qboUrl, qboCustomer.url, links.scopeUrl, links.customerViewUrl]) {
     assert.ok(message.html.includes(`href="${href}`), `button or link to ${href}`);
   }
-  for (const label of ["Call (208) 555-0100", "Text (208) 555-0100", "Email sample@example.com", "Open the HubSpot deal", "HubSpot contact", "QuickBooks estimate", "Scope platform", "What the customer sees", "P5 admin lead", "remodel-instant-estimate"]) {
+  for (const label of ["Call (208) 555-0100", ">Text<", ">Email<", ">Deal<", ">Contact<", ">Estimate 1019<", ">Customer<", ">Scope<", ">Lead<", "See what the customer sees", "remodel-instant-estimate"]) {
     assert.ok(message.html.includes(label), label);
   }
-  for (const line of [`HubSpot deal: ${lead.hubspotDealUrl}`, `HubSpot contact: ${lead.hubspotContactUrl}`, `P5 admin lead: ${lead.adminUrl}`, "Call: tel:+12085550100", "Text: sms:+12085550100", "  Campaign: remodel-instant-estimate", "Deal id: 412"]) {
+  for (const line of [`HubSpot deal: ${lead.hubspotDealUrl}`, `HubSpot contact: ${lead.hubspotContactUrl}`, `QuickBooks estimate: ${links.qboUrl}`, `QuickBooks customer: ${qboCustomer.url}`, `P5 admin lead: ${lead.adminUrl}`, "Call: tel:+12085550100", "Text: sms:+12085550100", "  Campaign: remodel-instant-estimate", "Deal id: 412"]) {
     assert.ok(message.text.split("\n").includes(line), line);
   }
-  // The contact buttons come first, then the HubSpot deal, then the detail.
-  assert.ok(message.html.indexOf("Call (208) 555-0100") < message.html.indexOf("Open the HubSpot deal"));
-  assert.ok(message.html.indexOf("Open the HubSpot deal") < message.html.indexOf("Line items"));
+  // The contact buttons come first, then the records grouped by system, then the detail.
+  const at = (needle: string) => message.html.indexOf(needle);
+  assert.ok(at("Call (208) 555-0100") < at(">HubSpot<") && at(">HubSpot<") < at(">QuickBooks<") && at(">QuickBooks<") < at(">P5<") && at(">P5<") < at("Line items"));
+  // One filled button only (the call). Every record is a quiet tile under its system, never a stack of look-alike buttons.
+  assert.equal((message.html.match(/background:#383837;color:#fbfaf6/g) ?? []).length, 1);
+  // QuickBooks says what it holds: unsent, and whether this estimate created the customer.
+  assert.match(message.html, /In QuickBooks, not sent\. The customer has only seen the range\.<br>New customer record: Sample Customer\./);
+  assert.match(message.text, /^QuickBooks status: Estimate 1019: In QuickBooks, not sent\. New customer record: Sample Customer\.$/m);
+  const matched = teamReport(rowFor(estimate), { ...links, lead, qboCustomer: { ...qboCustomer, how: "matched" } });
+  assert.match(matched.html, /Existing customer: Sample Customer \(matched on email or phone\)\./);
+  // No QuickBooks estimate (held for review): the tile says so, the reason is shown, and nothing links to QuickBooks.
+  const held = teamReport(rowFor(estimate), { ...links, qboUrl: null, estimateNumber: null, status: "Waiting for team review", lead });
+  assert.match(held.html, /Estimate: not created/);
+  assert.match(held.html, /Waiting for team review\./);
+  assert.doesNotMatch(held.html, /qbo\.intuit\.com/);
+  assert.doesNotMatch(held.html, /only seen the range/);
 
   // And everything the internal report carried: every line with its cost and price.
   const dollars = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -678,12 +693,14 @@ test("an estimate sends the team ONE email: the lead alert and the full report t
 
   // HubSpot not finished yet, or no lead at all: the email says so and still has every other button.
   const syncing = teamReport(rowFor(estimate), { ...links, lead: { ...lead, hubspotDealUrl: null, hubspotContactUrl: null } });
-  assert.match(syncing.html, /HubSpot deal: still syncing/);
+  assert.match(syncing.html, /Deal: syncing/);
+  assert.match(syncing.html, /Still syncing to HubSpot\. The P5 lead links to the deal once the sync finishes\./);
+  assert.match(syncing.text, /^HubSpot deal: still syncing; open the P5 admin lead$/m);
   assert.ok(syncing.html.includes(`href="${lead.adminUrl}"`) && syncing.html.includes("Call (208) 555-0100"));
   const failed = teamReport(rowFor(estimate), { ...links, lead: { dealId: null, adminUrl: null, hubspotDealUrl: null, hubspotContactUrl: null, attribution: [], problem: "intake returned 503" } });
   assert.match(failed.html, /no lead was created \(intake returned 503\)/);
   assert.match(failed.text, /HubSpot deal: no lead was created \(intake returned 503\)/);
-  assert.doesNotMatch(failed.html, /P5 admin lead/);
+  assert.ok(!failed.html.includes(">Lead<") && !failed.html.includes(">Deal<"), "no lead, so no lead or deal tile");
 
   // The second email is gone at the source: only the estimator switches the intake's alert off.
   const handler = readFileSync(new URL("../app/api/leads/intake/handler.ts", import.meta.url), "utf8");

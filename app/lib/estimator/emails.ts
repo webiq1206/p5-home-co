@@ -73,7 +73,12 @@ export type TeamReportLinks = {
   customerViewUrl: string;
   /** Absent only when the report is built without a delivery behind it. */
   lead?: TeamReportLead | null;
+  /** The QuickBooks customer the estimate sits on, when there is one. */
+  qboCustomer?: TeamReportQboCustomer | null;
 };
+
+/** The QuickBooks customer record: where it is, its name, and whether this estimate created it. */
+export type TeamReportQboCustomer = { url: string; name: string | null; how: "created" | "matched" | null };
 
 export function teamReport(row: GuidedRow, links: TeamReportLinks): Message {
   const brand = brandConfig(row.brand as BrandId);
@@ -93,6 +98,22 @@ export function teamReport(row: GuidedRow, links: TeamReportLinks): Message {
   const address = oneLine(row.address);
   const maps = address ? mapsUrl(address) : "";
   const attribution = lead?.attribution ?? [];
+  const customer = links.qboCustomer ?? null;
+  const customerName = customer?.name ? oneLine(customer.name) : "";
+  const customerHow =
+    customer?.how === "created"
+      ? `New customer record${customerName ? `: ${customerName}` : " created"}.`
+      : customer?.how === "matched"
+        ? `Existing customer${customerName ? `: ${customerName}` : ""} (matched on email or phone).`
+        : customerName
+          ? `Customer: ${customerName}.`
+          : "";
+  // What QuickBooks holds, in a sentence. "Not sent" matters: the document is
+  // itemized, and the customer has only ever seen the range.
+  const unsent = /not sent/i.test(links.status);
+  const qboLine = links.qboUrl
+    ? `Estimate ${links.estimateNumber ?? ""}: ${links.status}.`.replace("Estimate :", "Estimate:")
+    : `${links.status.replace(/\.$/, "")}.`;
   const rangeLine = r.range
     ? `${money(r.range.low)} to ${money(r.range.high)} (${(r.range.width * 100).toFixed(1)}% each way; risks: ${r.range.risks.join(", ") || "none"})`
     : "";
@@ -126,13 +147,15 @@ export function teamReport(row: GuidedRow, links: TeamReportLinks): Message {
     sms ? `Text: ${sms}` : "",
     maps ? `Map: ${maps}` : "",
     "",
-    "OPEN",
+    "RECORDS",
     lead?.hubspotDealUrl ? `HubSpot deal: ${lead.hubspotDealUrl}` : lead?.problem ? `HubSpot deal: no lead was created (${lead.problem})` : "HubSpot deal: still syncing; open the P5 admin lead",
     lead?.hubspotContactUrl ? `HubSpot contact: ${lead.hubspotContactUrl}` : "",
-    links.qboUrl ? `QuickBooks: ${links.qboUrl}` : "QuickBooks: not created",
+    links.qboUrl ? `QuickBooks estimate: ${links.qboUrl}` : "QuickBooks estimate: not created",
+    customer ? `QuickBooks customer: ${customer.url}` : "",
+    `QuickBooks status: ${[qboLine, customerHow].filter(Boolean).join(" ")}`,
     links.scopeUrl ? `Scope platform: ${links.scopeUrl}` : "",
-    `Customer's view: ${links.customerViewUrl}`,
     lead?.adminUrl ? `P5 admin lead: ${lead.adminUrl}` : "",
+    `Customer's view: ${links.customerViewUrl}`,
     "",
     "PROJECT",
     `Type: ${view.projectName}`,
@@ -197,16 +220,61 @@ export function teamReport(row: GuidedRow, links: TeamReportLinks): Message {
   const cell = (body: string, right = false, strong = false) =>
     `<td style="padding:8px 0 8px ${right ? 10 : 0}px;border-bottom:1px solid ${LINE};font-size:14px;color:${INK};vertical-align:top;${right ? "text-align:right;white-space:nowrap;" : ""}${strong ? "font-weight:700;" : ""}">${body}</td>`;
 
-  const open = [
+  // Records, grouped by the system they live in, so the links read as three
+  // short rows rather than a stack of look-alike buttons.
+  const EDGE = "rgba(32,35,31,.35)";
+  const tile = (href: string, label: string) =>
+    `<a href="${esc(href)}" style="display:block;padding:13px 6px;text-align:center;font-size:15px;font-weight:700;line-height:1.2;text-decoration:none;background:#fbfaf6;color:${INK};border:1px solid ${EDGE}">${esc(label)}</a>`;
+  /** A contact action: heavier than a record tile, lighter than the Call button. */
+  const action = (href: string, label: string) =>
+    `<a href="${esc(href)}" style="display:block;padding:14px 6px;text-align:center;font-size:17px;font-weight:700;line-height:1.2;text-decoration:none;background:#fbfaf6;color:${INK};border:2px solid #383837">${esc(label)}</a>`;
+  const waiting = (label: string) =>
+    `<span style="display:block;padding:13px 6px;text-align:center;font-size:14px;line-height:1.2;color:${MUTED};border:1px dashed ${EDGE}">${esc(label)}</span>`;
+  /** Up to three equal cells side by side. */
+  const side = (cells: string[]) =>
+    cells.length
+      ? `<table role="presentation" style="width:100%;border-collapse:collapse;table-layout:fixed;margin:0 0 8px"><tr>${cells
+          .map((c, i) => `<td style="padding:0 ${i < cells.length - 1 ? 4 : 0}px 0 ${i > 0 ? 4 : 0}px;vertical-align:top">${c}</td>`)
+          .join("")}</tr></table>`
+      : "";
+  const group = (system: string, about: string, tiles: string[], note: string) =>
+    `<div style="margin:0 0 16px"><p style="margin:0 0 7px;font-size:13px;color:${MUTED}"><strong style="font-size:15px;color:${INK}">${esc(system)}</strong> &middot; ${esc(about)}</p>${side(tiles)}${note ? `<p style="margin:0;font-size:13px;line-height:1.5;color:${MUTED}">${note}</p>` : ""}</div>`;
+
+  const hubspot = group(
+    "HubSpot",
+    "follow-up and pipeline",
+    [
+      lead?.hubspotDealUrl ? tile(lead.hubspotDealUrl, "Deal") : lead?.problem ? "" : waiting("Deal: syncing"),
+      lead?.hubspotContactUrl ? tile(lead.hubspotContactUrl, "Contact") : "",
+    ].filter(Boolean),
     lead?.hubspotDealUrl
-      ? button(lead.hubspotDealUrl, "Open the HubSpot deal", true)
-      : `<p style="margin:0 0 10px;font-size:14px;color:${INK}">${lead?.problem ? `HubSpot deal: no lead was created (${esc(lead.problem)}).` : "HubSpot deal: still syncing. Open the P5 admin lead, which links to it once the sync finishes."}</p>`,
-    lead?.hubspotContactUrl ? button(lead.hubspotContactUrl, "HubSpot contact") : "",
-    links.qboUrl ? button(links.qboUrl, "QuickBooks estimate") : "",
-    links.scopeUrl ? button(links.scopeUrl, "Scope platform") : "",
-    button(links.customerViewUrl, "What the customer sees"),
-    lead?.adminUrl ? button(lead.adminUrl, "P5 admin lead") : "",
-  ].join("");
+      ? ""
+      : lead?.problem
+        ? `HubSpot deal: no lead was created (${esc(lead.problem)}).`
+        : "Still syncing to HubSpot. The P5 lead links to the deal once the sync finishes.",
+  );
+  const quickbooks = group(
+    "QuickBooks",
+    "estimate and customer",
+    [
+      links.qboUrl ? tile(links.qboUrl, links.estimateNumber ? `Estimate ${links.estimateNumber}` : "Estimate") : waiting("Estimate: not created"),
+      customer ? tile(customer.url, "Customer") : "",
+    ].filter(Boolean),
+    [
+      // The tile already carries the estimate number, so the line is the status alone.
+      `${esc(links.status.replace(/\.$/, ""))}.${links.qboUrl && unsent ? " The customer has only seen the range." : ""}`,
+      esc(customerHow),
+    ]
+      .filter(Boolean)
+      .join("<br>"),
+  );
+  const p5 = group(
+    "P5",
+    "scope and lead",
+    [links.scopeUrl ? tile(links.scopeUrl, "Scope") : "", lead?.adminUrl ? tile(lead.adminUrl, "Lead") : ""].filter(Boolean),
+    `<a href="${esc(links.customerViewUrl)}" style="color:${INK};font-weight:700">See what the customer sees</a>: their saved estimate page, scope and one range.`,
+  );
+  const open = `${hubspot}${quickbooks}${p5}`;
 
   const html = `<!doctype html><html><body style="margin:0;padding:16px;background:#f1ede4;font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:${INK}">
 <div style="max-width:600px;margin:0 auto;background:#fbfaf6;padding:20px;border:1px solid ${LINE}">
@@ -218,10 +286,10 @@ export function teamReport(row: GuidedRow, links: TeamReportLinks): Message {
 <table role="presentation" style="width:100%;border-collapse:collapse;margin:0 0 16px"><tr>${stat("Internal cost", money(r.totalCost))}${stat("Gross profit", money(r.grossProfit))}${stat("Gross margin", pct(r.grossMargin))}</tr></table>
 ${needsReview ? `<div style="background:#fbf1e3;border-left:4px solid #c48d3f;padding:12px 14px;margin:0 0 16px;font-size:14px;color:${INK}"><strong>Needs review.</strong> ${row.price_withheld ? "The customer was not shown a price." : "The customer was shown this price."}<ul style="margin:6px 0 0;padding-left:18px">${review.map((x) => `<li>${esc(x.message)}</li>`).join("")}</ul></div>` : ""}
 ${tel ? button(tel, `Call ${phone}`, true) : ""}
-${sms ? button(sms, `Text ${phone}`) : ""}
-${email ? button(`mailto:${email}`, `Email ${email}`) : ""}
-${address ? `<p style="margin:6px 0 0;font-size:15px"><a href="${esc(maps)}" style="color:${INK}">${esc(address)}</a> (open in maps)</p>` : `<p style="margin:6px 0 0;font-size:14px;color:${MUTED}">No property address given.</p>`}
-${section("Open", open)}
+${side([sms ? action(sms, "Text") : "", email ? action(`mailto:${email}`, "Email") : ""].filter(Boolean))}
+${email ? `<p style="margin:6px 0 0;font-size:15px"><a href="mailto:${esc(email)}" style="color:${INK}">${esc(email)}</a></p>` : ""}
+${address ? `<p style="margin:4px 0 0;font-size:15px"><a href="${esc(maps)}" style="color:${INK}">${esc(address)}</a> (open in maps)</p>` : `<p style="margin:4px 0 0;font-size:14px;color:${MUTED}">No property address given.</p>`}
+${section("Records", open)}
 ${section("Estimate", facts([
     fact("Estimate number", links.estimateNumber ?? "not created yet"),
     fact("Status", links.status),
