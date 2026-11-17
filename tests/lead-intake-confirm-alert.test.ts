@@ -158,6 +158,29 @@ test("team notes are printed in the email only: not stored on the lead, not amon
   }
 });
 
+test("a team note that names a cost or a margin never reaches the email, which HubSpot copies", async () => {
+  const notes = [
+    "Planning range: $18,000 to $24,000",
+    "Our cost: $11,200",
+    "Gross margin: 38%",
+    "Contingency: $900",
+    "Markup 1.6x",
+    "Kitchen: $14,500 to $19,000",
+  ];
+  assert.deepEqual(readTeamNotes(notes), [
+    "Planning range: $18,000 to $24,000",
+    "Kitchen: $14,500 to $19,000",
+    "Withheld: 4 internal lines (not emailed; see the site's own record)",
+  ]);
+  const { json } = await post(request("8", { team_alert: "confirm", team_notes: notes }));
+  assert.equal(json.alert, "sent");
+  const [mail] = sent;
+  for (const secret of ["11,200", "38%", "$900", "1.6x"]) {
+    assert.ok(!mail.text.includes(secret) && !mail.html.includes(secret), secret);
+  }
+  assert.match(mail.text, /Withheld: 4 internal lines/);
+});
+
 test("team notes are plain single lines, capped in number and length", () => {
   assert.deepEqual(readTeamNotes("not a list"), []);
   assert.deepEqual(readTeamNotes(["  a  b ", 7, "", "line\nbreak\tand tab", null]), ["a b", "line break and tab"]);

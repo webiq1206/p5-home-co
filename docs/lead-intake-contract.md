@@ -223,7 +223,7 @@ site make this one the only one, and keep its own as the fallback.
 | Field | Meaning |
 | --- | --- |
 | `team_alert: "confirm"` | The team email is sent before the answer, and the answer says whether it went. |
-| `team_notes: string[]` | Lines for the team only (the site's planning range, the parcel it looked up, its dashboard link). At most 40 lines of 300 characters. Printed in the team email under "From the website". Never stored on the lead, never sent to HubSpot, never listed under "Everything submitted". |
+| `team_notes: string[]` | Lines for the team only (the site's planning range, the parcel it looked up, its dashboard link). At most 40 lines of 300 characters. Printed in the team email under "From the website". Not stored on the lead and not listed under "Everything submitted". The email itself is copied into HubSpot by the inbox sync, so never send a cost, margin, markup, profit, contingency or overhead figure: a line that names one is withheld and counted. |
 
 With `team_alert: "confirm"` the JSON answer gains `alert`:
 

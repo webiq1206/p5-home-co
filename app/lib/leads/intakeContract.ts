@@ -36,7 +36,9 @@ export type IntakeExtras = {
   /**
    * Lines a brand site wants in the team email only (its own planning range,
    * the parcel it looked up, a link to its dashboard). Printed in the email
-   * under "From the website"; never stored on the lead or sent to HubSpot.
+   * under "From the website" and not stored on the lead. The email itself is
+   * copied into HubSpot by the inbox sync, so a line that names a cost or a
+   * margin is withheld (`readTeamNotes`): those stay out of HubSpot.
    */
   teamNotes: string[];
   /**
@@ -50,16 +52,30 @@ export type IntakeExtras = {
 export const MAX_TEAM_NOTES = 40;
 export const MAX_TEAM_NOTE_LENGTH = 300;
 
-/** Plain single lines, capped. Anything that is not a non-empty string is dropped. */
+/**
+ * Internal figures that must not reach HubSpot. The "New lead" email is
+ * copied there with its whole body (inbox-policy.ts), so a team note that
+ * names one of these is withheld here, whatever site sent it.
+ */
+const INTERNAL_FIGURE = /\b(?:costs?|margins?|mark-?ups?|profits?|contingenc(?:y|ies)|overheads?)\b/i;
+
+/**
+ * Plain single lines, capped. Anything that is not a non-empty string is
+ * dropped. A line naming a cost or a margin is withheld and counted, so the
+ * team can see something was left out and look on the site's own dashboard.
+ */
 export function readTeamNotes(raw: unknown): string[] {
   if (!Array.isArray(raw)) return [];
   const notes: string[] = [];
+  let withheld = 0;
   for (const item of raw) {
     if (typeof item !== "string") continue;
     const line = item.replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/\s+/g, " ").trim().slice(0, MAX_TEAM_NOTE_LENGTH);
-    if (line) notes.push(line);
-    if (notes.length >= MAX_TEAM_NOTES) break;
+    if (!line) continue;
+    if (INTERNAL_FIGURE.test(line)) { withheld++; continue; }
+    if (notes.length < MAX_TEAM_NOTES) notes.push(line);
   }
+  if (withheld) notes.push(`Withheld: ${withheld} internal ${withheld === 1 ? "line" : "lines"} (not emailed; see the site's own record)`);
   return notes;
 }
 
