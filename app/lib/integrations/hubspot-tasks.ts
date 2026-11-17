@@ -1,6 +1,7 @@
-import { archiveTarget, archiveReviewHeld, confirmArchiveReview, releaseRestoredArchive, openArchiveReviewCount } from "./hubspot-archive-review.ts";
+import { archiveTarget } from "./hubspot-archive-review.ts";
+import { HubSpotRemovedError, dismissRemovedTask, mirrorRemovedDeal, settleOpenArchiveReviews } from "./hubspot-removed.ts";
 /** Durable HubSpot action tasks. Never retry an ambiguous task creation. */
-import { query, transaction, isMissingRelation } from "../db.ts";
+import { query, transaction } from "../db.ts";
 import { loadSettings } from "../leads/settings.ts";
 import { actionResolvesIncident, type RemoteDeal } from "../notifications/incidents.ts";
 import { ensureP5HubSpotPortal } from "./hubspot-portal.ts";
@@ -18,9 +19,6 @@ class TaskApiError extends HubSpotDiagnosticError {
 export async function requestHubSpotTaskApi<T>(path: string, init: RequestInit = {}): Promise<T> {
   const operation = hubSpotRequestOperation(path, init.method ?? "GET");
   const target = archiveTarget(path, init.method ?? "GET");
-  if (target && await archiveReviewHeld(target)) {
-    throw new HubSpotDiagnosticError(`${operation}:archived_record_review_required`);
-  }
   // Never read or write any portal but P5's (hubspot-portal.ts).
   try {
     await ensureP5HubSpotPortal(process.env.HUBSPOT_TOKEN ?? "");
@@ -38,49 +36,31 @@ export async function requestHubSpotTaskApi<T>(path: string, init: RequestInit =
     throw new TaskApiError(0, operation);
   }
   if (!response.ok) {
-    // A missing linked object may be deliberately archived. Only an exact-ID,
-    // read-only archived lookup can establish that; never infer a lifecycle
-    // outcome, clear references, restore it or create a replacement.
+    // A deal or task the team deleted in HubSpot answers 404. The exact-ID
+    // archived lookup confirms it. That is the team removing junk, not a
+    // failure: the caller mirrors it (hubspot-removed.ts) and moves on.
     const archivedLookup = /(?:[?&])archived=true(?:&|$)/.test(path);
-    if (response.status === 404 && !archivedLookup &&
+    if (response.status === 404 && !archivedLookup && target &&
         (operation === "task_read" || operation === "deal_read")) {
-      const archived = await requestHubSpotTaskApi<{ archived?: boolean }>(
-        `${path}${path.includes("?") ? "&" : "?"}archived=true`,
-      );
-      if (archived.archived === true && target) {
-        await confirmArchiveReview(target);
-        throw new HubSpotDiagnosticError(`${operation}:archived_record_review_required`);
+      let removed = false;
+      try {
+        const archived = await requestHubSpotTaskApi<{ archived?: boolean }>(
+          `${path}${path.includes("?") ? "&" : "?"}archived=true`,
+        );
+        removed = archived.archived === true;
+      } catch (error) {
+        // Not in the archive either: HubSpot has purged it. Gone all the same.
+        if (error instanceof TaskApiError && error.status === 404) removed = true;
+        else throw error;
       }
+      if (removed) throw new HubSpotRemovedError(target.type, target.id);
     }
     throw new TaskApiError(response.status, operation);
   }
   let body: T;
   try { body = await response.json() as T; }
   catch { throw new HubSpotDiagnosticError(`${operation}:invalid_response`); }
-  if (target && body && typeof body === "object" && "archived" in body && body.archived === false) {
-    await releaseRestoredArchive(target);
-  }
   return body;
-}
-
-/** Fair, bounded read-only recovery checks, even if the original lead left the active queue. */
-async function recheckArchivedReferences(): Promise<void> {
-  let due: { object_type: string; remote_id: string }[];
-  try {
-    due = await query(`SELECT object_type,remote_id FROM hubspot_archive_review
-      WHERE restored_at IS NULL AND next_check_at<=now() ORDER BY next_check_at,object_type,remote_id LIMIT 5`);
-  } catch (error) { if (isMissingRelation(error)) return; throw error; }
-  for (const row of due) {
-    try {
-      await requestHubSpotTaskApi(`/crm/v3/objects/${row.object_type}/${encodeURIComponent(row.remote_id)}?properties=hs_object_id`);
-    } catch {
-      // Unknown missing, denied or unavailable is not evidence of restoration.
-      // Retain the explicit review hold and bound further attempts.
-    } finally {
-      await query(`UPDATE hubspot_archive_review SET last_checked_at=now(),next_check_at=now()+interval '24 hours'
-        WHERE object_type=$1 AND remote_id=$2 AND restored_at IS NULL`, [row.object_type,row.remote_id]);
-    }
-  }
 }
 
 const request = requestHubSpotTaskApi;
@@ -143,7 +123,8 @@ export async function syncHubSpotAlertTasks(now = new Date(), limit = 25): Promi
   if (!settings.featureFlags.hubspotIntegrationEnabled || !process.env.HUBSPOT_TOKEN) {
     return { ...summary, skipped: 1 };
   }
-  await recheckArchivedReferences();
+  // Reviews the earlier rule left open are settled as deletions (see hubspot-removed.ts).
+  await settleOpenArchiveReviews();
   const rows = await query<Incident>(
     `SELECT i.*, d.hubspot_deal_id, d.brand, d.name, c.hubspot_contact_id
      FROM lead_alert_incident i JOIN deal d ON d.id=i.deal_id
@@ -198,11 +179,6 @@ export async function syncHubSpotAlertTasks(now = new Date(), limit = 25): Promi
       await query("UPDATE lead_alert_incident SET last_checked_at=$2 WHERE id=$1", [row.id, now]);
       if (!row.hubspot_deal_id || !row.hubspot_contact_id) {
         throw new HubSpotDiagnosticError("waiting_for_lead_sync");
-      }
-      // A confirmed held deal cannot be acted on. Avoid task reads/searches
-      // until the independent read-only rechecker verifies restoration.
-      if (await archiveReviewHeld({ type: "deals", id: row.hubspot_deal_id })) {
-        throw new HubSpotDiagnosticError("deal_read:archived_record_review_required");
       }
       // The subject is immutable and stored before any create attempt. The
       // incident ID is a recovery key when a response is lost after creation.
@@ -290,19 +266,38 @@ export async function syncHubSpotAlertTasks(now = new Date(), limit = 25): Promi
         throw error;
       }
     } catch (error) {
+      // The deal or the task was deleted in HubSpot: the team removed it.
+      // Settle it here (the lead is closed, or the task dismissed) and move on.
+      if (error instanceof HubSpotRemovedError) {
+        try {
+          if (error.objectType === "deals") await mirrorRemovedDeal(error.remoteId);
+          else await dismissRemovedTask(error.remoteId);
+          // An incident that never stored the deleted task's id is settled by row.
+          await query(
+            `UPDATE lead_alert_incident SET acknowledged_at=COALESCE(acknowledged_at,now()),
+               acknowledgement_source=COALESCE(acknowledgement_source,$2),
+               task_completed_at=COALESCE(task_completed_at,now()), last_error=NULL WHERE id=$1`,
+            [row.id, error.objectType === "deals" ? "hubspot_deal_removed" : "hubspot_task_removed"],
+          );
+          summary.completed++;
+        } catch (settleError) {
+          summary.failed++;
+          await query("UPDATE lead_alert_incident SET last_error=$2 WHERE id=$1", [row.id, countHubSpotFailure(failures, settleError)]);
+        }
+        continue;
+      }
       summary.failed++;
       await query("UPDATE lead_alert_incident SET last_error=$2 WHERE id=$1", [row.id, countHubSpotFailure(failures, error)]);
     }
   }
-  const archiveReviews = await openArchiveReviewCount();
   await query(
     `INSERT INTO integration_health (name,state,last_attempt_at,last_success_at,last_error,records_processed)
      VALUES ('hubspot_tasks',$1,$2,$3,$4,$5)
      ON CONFLICT (name) DO UPDATE SET state=EXCLUDED.state,last_attempt_at=EXCLUDED.last_attempt_at,
        last_success_at=COALESCE(EXCLUDED.last_success_at,integration_health.last_success_at),
        last_error=EXCLUDED.last_error,records_processed=EXCLUDED.records_processed,updated_at=now()`,
-    [summary.failed || archiveReviews !== 0 ? "failed" : "connected", now, summary.failed || archiveReviews !== 0 ? null : now,
-      summary.failed ? `${summary.failed} lead task(s) could not sync. ${hubSpotFailureSummary(failures)}. Review the listed categories before further task creation.` : archiveReviews === null ? "Archive review unavailable: apply migration 030; coverage unverified." : archiveReviews ? `${archiveReviews} archived HubSpot reference(s) need review. No automatic restoration or replacement.` : null, summary.considered],
+    [summary.failed ? "failed" : "connected", now, summary.failed ? null : now,
+      summary.failed ? `${summary.failed} lead task(s) could not sync. ${hubSpotFailureSummary(failures)}. Review the listed categories before further task creation.` : null, summary.considered],
   );
   return summary;
 }
