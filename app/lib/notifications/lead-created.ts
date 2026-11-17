@@ -55,6 +55,12 @@ export type LeadCreatedNotifyInput = {
    * parcel it looked up, its dashboard link). Shown under "From the website".
    */
   teamNotes?: readonly string[];
+  /**
+   * The brand site's internal lines: cost, margin, pricing checks. When any
+   * are present the subject is "Lead and pricing: ..." instead of "New lead:
+   * ...", so the inbox sync does not copy this email into HubSpot.
+   */
+  internalNotes?: readonly string[];
   /** Every field the submission carried, in the order sent. */
   submittedFields?: readonly Field[];
   /** Source, campaign, click ids, landing page, Meta form and ad ids. */
@@ -100,11 +106,21 @@ export function mapsUrl(address: string): string {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
 }
 
+/**
+ * The subject's first words decide whether the inbox sync copies the email
+ * into HubSpot: "New lead" is copied, anything else from our own address to
+ * our own inbox is ignored (inbox-policy.ts). An email that carries internal
+ * pricing must not be copied, so it does not start with "New lead".
+ */
+export const LEAD_SUBJECT = "New lead";
+export const LEAD_WITH_PRICING_SUBJECT = "Lead and pricing";
+
 /** "New lead: Boise ADU Co | Detached ADU | Ada Lovelace | Boise". Blank parts are left out. */
 export function leadAlertSubject(input: LeadCreatedNotifyInput): string {
   const name = oneLine([input.firstName, input.lastName].filter(Boolean).join(" ")) || "Unnamed contact";
   const parts = [oneLine(input.brand) || "P5 Home Co", oneLine(input.projectType ?? ""), name, oneLine(input.propertyCity ?? "")];
-  return `${input.testLead ? "TEST LEAD — " : ""}New lead: ${parts.filter(Boolean).join(" | ")}`.slice(0, 250);
+  const lead = input.internalNotes?.length ? LEAD_WITH_PRICING_SUBJECT : LEAD_SUBJECT;
+  return `${input.testLead ? "TEST LEAD — " : ""}${lead}: ${parts.filter(Boolean).join(" | ")}`.slice(0, 250);
 }
 
 export type LeadAlertMessage = { subject: string; text: string; html: string };
@@ -152,6 +168,9 @@ export function renderLeadAlert(input: LeadCreatedNotifyInput): LeadAlertMessage
     "",
     input.teamNotes?.length ? "From the website:" : "",
     ...(input.teamNotes ?? []).map((line) => `  ${oneLine(line)}`),
+    "",
+    input.internalNotes?.length ? "Internal pricing (this email is not copied into HubSpot):" : "",
+    ...(input.internalNotes ?? []).map((line) => `  ${oneLine(line)}`),
     "",
     fields.length ? "Everything submitted:" : "",
     ...fields.map((field) => `  ${oneLine(field.label)}: ${oneLine(field.value)}`),
@@ -213,7 +232,7 @@ export function renderLeadAlert(input: LeadCreatedNotifyInput): LeadAlertMessage
 
   const html = `<!doctype html><html><body style="margin:0;padding:16px;background:#f1ede4;font-family:-apple-system,Segoe UI,Roboto,sans-serif;color:#20231f">
 <div style="max-width:600px;margin:0 auto;background:#fbfaf6;padding:20px;border:1px solid rgba(32,35,31,.15)">
-<p style="margin:0 0 4px;font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#4a4f49">New lead: ${escapeHtml(brand)}</p>
+<p style="margin:0 0 4px;font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#4a4f49">${input.internalNotes?.length ? LEAD_WITH_PRICING_SUBJECT : LEAD_SUBJECT}: ${escapeHtml(brand)}</p>
 <h1 style="margin:0 0 4px;font-size:24px;font-weight:700">${escapeHtml(name)}</h1>
 <p style="margin:0 0 16px;font-size:15px">${escapeHtml(input.projectType ?? "Project not specified")}${input.propertyCity ? ` in ${escapeHtml(input.propertyCity)}` : ""}</p>
 ${tel ? button(tel, `Call ${phone}`, true) : ""}
@@ -223,6 +242,7 @@ ${address ? `<p style="margin:4px 0 0;font-size:15px"><a href="${escapeHtml(maps
 ${section("Records", records)}
 ${input.summary ? section("Message", `<p style="margin:0;font-size:15px;line-height:1.5">${escapeHtml(input.summary).replace(/\n/g, "<br>")}</p>`) : ""}
 ${input.teamNotes?.length ? section("From the website", table(input.teamNotes.map(labelled))) : ""}
+${input.internalNotes?.length ? section("Internal pricing", `<p style="margin:0 0 8px;font-size:13px;line-height:1.5;color:#4a4f49">For the team only. This email is not copied into HubSpot.</p>${table(input.internalNotes.map(labelled))}`) : ""}
 ${section("Lead", table([
   { label: "Brand", value: input.brand },
   { label: "Project", value: input.projectType ?? "(not specified)" },
