@@ -26,6 +26,7 @@ import { DEAL_STAGES, OUTCOMES, isClosed, type DealStage, type Outcome } from ".
 import { pushActivityToHubSpot } from "../lib/integrations/hubspot-activities.ts";
 import { syncDealToHubSpot } from "../lib/integrations/hubspot.ts";
 import { within } from "../lib/leads/leadPipeline.ts";
+import { onLeadStageChanged } from "../lib/leads/stage-alignment.ts";
 
 /**
  * Send a logged call, text or note to HubSpot now, bounded so the form never
@@ -123,7 +124,7 @@ export async function logOutcomeAction(
   const effect = effectOf(outcome);
   const closing = isClosed(stage);
 
-  const activityId = await transaction(async (client) => {
+  const { activityId, previousStage } = await transaction(async (client) => {
     const before = await client.query(
       "SELECT stage, first_attempt_at, first_two_way_at FROM deal WHERE id = $1",
       [dealId],
@@ -191,10 +192,14 @@ export async function logOutcomeAction(
         JSON.stringify({ outcome, stage, nextAction: submission.nextAction, isTwoWay: effect.isTwoWay }),
       ],
     );
-    return Number((inserted.rows[0] as { id: string } | undefined)?.id ?? 0) || null;
+    return { activityId: Number((inserted.rows[0] as { id: string } | undefined)?.id ?? 0) || null, previousStage: prev.stage };
   });
 
   await pushOutcomeNow(dealId, activityId);
+  // Closing a lead carries to its QuickBooks estimates (stage-alignment.ts).
+  // After the transaction, bounded so the form never hangs on QuickBooks, and
+  // never an error here: what does not finish is retried by the watchdog.
+  await onLeadStageChanged(dealId, previousStage, stage, { waitMs: 6_000 });
 
   revalidatePath("/admin");
   revalidatePath("/admin/lead-manager");

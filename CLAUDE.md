@@ -85,6 +85,35 @@ Owner decision, 17 November 2026: junk deleted in one system is removed from the
 * QuickBooks unavailable: the cleanup is remembered on the lead's audit trail (`quickbooks_cleanup_pending`) and `settleRemovedLeads()` retries it from the watchdog, six hours apart, for a fortnight.
 * Guard: `tests/removed-everywhere.integration.test.ts` (needs `TEST_DATABASE_URL`). Its fake QuickBooks refuses a filter on a field the real one does not index (`ParentRef` on a customer, found live on 17 November 2026); keep it that strict, and check a new QuickBooks query against the real API before trusting it.
 
+## Stage alignment across QuickBooks, the lead and HubSpot (`app/lib/leads/stage-alignment.ts`)
+
+Owner decision, 17 November 2026: the QuickBooks estimate, the P5 lead and the HubSpot deal move together, in both directions. The lead is the hinge: an estimate's status moves the lead and the existing HubSpot sync carries it on; a lead closed in HubSpot or in the P5 admin sets its estimate in QuickBooks. `STAGE_ALIGNMENT=off` turns all of it off; `STAGE_ALIGNMENT_QUICKBOOKS_WRITE=off` turns off only the writes to QuickBooks. Only estimates from the websites are linked to a lead (`guided_estimate.lead_deal_id`); anything else is left alone. QuickBooks is the accounting record, so the rules are narrow; do not widen them without the owner.
+
+QuickBooks to the lead (`onEstimateStatusApplied()`, called at the end of `applyEstimateStatus()` in `scopes/store.ts`, the one place every estimate status passes through):
+
+| Estimate status | Lead stage |
+|---|---|
+| created_unsent | Estimate in Progress, only once a person has worked the estimate |
+| sent | Estimate Sent |
+| accepted, converted, paid | Closed Won |
+| declined | Closed Lost, reason "Estimate declined in QuickBooks", only when the lead has no other live website estimate that is unsent, sent, accepted, converted or paid |
+| closed, deleted, not_created, unavailable | no change |
+
+* The estimate the website creates by itself moves nothing. It is made the moment a visitor finishes, before anyone has contacted them, and the lead must stay "New Lead": that is the column the team works from in HubSpot, and the "untouched" test in `removed-everywhere.ts` (a deleted spam estimate still removes its HubSpot deal) depends on it. Do not change that test. An unsent estimate counts as worked (`estimateWorked()`) when a staff member created it from the scope platform (`scope_estimate.created_by`) or when QuickBooks has saved it again since it was created: its SyncToken is above "0", which a staff revision here and an edit in QuickBooks both cause.
+* Open stages only move forward (by position in `DEAL_STAGES`). A lead at Closed Won is never moved. A lead at Closed Lost is won by an acceptance and by nothing else, and not when it was closed as removed or merged (`REMOVED_IN_HUBSPOT`, `MERGED_IN_HUBSPOT`, `REMOVED_IN_QUICKBOOKS`): those stay closed.
+* The stage is written in one UPDATE with an audit row `stage_aligned_with_quickbooks`, and the lead goes `pending` so the HubSpot sync sends it. Nothing is written, and nothing audited, when the stage would not change.
+* Paid in full (`onQuickBooksTxn()`, called from `upsertTxn()` for invoices and payments, because a payment does not touch the estimate): the lead is Closed Won and the HubSpot deal moves to the pipeline stage labelled "Job Complete", looked up by label. P5 has no such stage and must not gain one; the read-back leaves it alone and a push never drags the deal back. It is done once (`hubspot_deal_job_complete`), not at all when the pipeline has no such stage or the team has put the deal in another stage of their own, and it waits while another accepted estimate on the lead is unpaid.
+
+The lead to QuickBooks (`onLeadStageChanged()`, called by `pullHubSpotLeadActions()` and by `logOutcomeAction()` after their transactions, only when a lead moves INTO a closed stage):
+
+* Closed Won: exactly one live estimate that is unsent or sent is set to Accepted, and `settleAccepted()` creates its QuickBooks project as it does for an acceptance made in QuickBooks. More than one open estimate writes nothing and asks a person to choose (`quickbooks_estimate_choice_needed`, and an event on each project). An estimate already accepted or invoiced means nothing is written.
+* Closed Lost: every live estimate that is unsent or sent is set to Rejected. Not when the lead was closed as removed or merged (the deletion rules own those) or as "Estimate declined in QuickBooks" (it came from QuickBooks). An accepted, invoiced, paid or closed estimate is never touched.
+* A lead that is reopened never changes QuickBooks.
+* Every estimate is read live from QuickBooks before anything is decided, and written with the SyncToken of that reading. A stale token means someone saved it in between: it is read once more and written only if it is still open. Each write is audited (`quickbooks_estimate_status_set`) and stored through `applyEstimateStatus()`.
+* QuickBooks unavailable, or HubSpot not taking "Job Complete": remembered on the lead's audit trail (`quickbooks_stage_pending`, `hubspot_job_complete_pending`) and `settleStageAlignment()` retries from the watchdog, six hours apart, for a fortnight.
+* It does not loop: a stage set from QuickBooks is `pending` until pushed, and the read-back only reads `synced` leads; a status this platform wrote comes back through rule A as a no-op; a lead lost by a QuickBooks decline or won by a QuickBooks acceptance finds nothing open to write.
+* Guards: `tests/stage-alignment.integration.test.ts` (needs `TEST_DATABASE_URL`) and `tests/stage-alignment.test.ts` (the rules as pure functions, and the hooks). The fake QuickBooks refuses an update with a stale SyncToken and a query on a field the real one does not index; keep it that strict. The sparse status update (`Id`, `SyncToken`, `sparse`, `TxnStatus`, `CustomerRef`) and the stale-token answer have not been run against the real QuickBooks yet: `tests/qbo-sandbox.integration.test.ts` has the check (it needs sandbox credentials), so run it before trusting them.
+
 ## Publishing to Replit: never approve a DROP
 
 Replit's Republish compares the development database with production and
