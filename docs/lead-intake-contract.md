@@ -368,7 +368,6 @@ its description; `low` and `high` are the whole project's range:
     "low": 16500,
     "high": 21500,
     "label": "Cabinets for 2 rooms, painted shaker",
-    "verified": true,
     "lines": [
       { "title": "Kitchen", "description": "Planning range $13,000 to $17,000. 24 linear feet, painted shaker", "amount": 15000 },
       { "title": "Primary bath", "description": "Planning range $3,500 to $4,500. 6 linear feet, painted shaker", "amount": 4000 }
