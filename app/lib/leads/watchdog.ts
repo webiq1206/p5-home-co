@@ -319,6 +319,14 @@ export async function runWatchdog(now: Date = new Date()): Promise<WatchdogSumma
     } catch (error) {
       console.error("[watchdog] stage alignment retry failed", error instanceof Error ? error.message : error);
     }
+    // Site estimates that could not reach QuickBooks (disconnected or busy):
+    // the customer and the unsent estimate are made now. Never stops the watchdog.
+    try {
+      const { settleSiteEstimates } = await import("./site-estimate.ts");
+      await settleSiteEstimates();
+    } catch (error) {
+      console.error("[watchdog] site estimate retry failed", error instanceof Error ? error.message : error);
+    }
 
     // Tell people. Last, because raising the alert correctly matters more
     // than delivering it quickly, and a mail outage must not stop the rules

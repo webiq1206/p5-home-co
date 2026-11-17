@@ -105,6 +105,172 @@ export function readTeamInternalNotes(raw: unknown): string[] {
   return notes;
 }
 
+// ---------------------------------------------------------------------------
+// `estimate`: a price a website gave the visitor (site estimates into QuickBooks)
+// ---------------------------------------------------------------------------
+
+export const SITE_ESTIMATE_KINDS = ["planning-range", "document"] as const;
+/** Which tool gave the price: a request form's planning range, or the document estimator. */
+export type SiteEstimateKind = (typeof SITE_ESTIMATE_KINDS)[number];
+
+export type SiteEstimateLine = {
+  title: string;
+  description: string | null;
+  quantity: number | null;
+  unit: string | null;
+  /** What the customer pays for this line, to the cent. Never a cost. */
+  amount: number;
+  /** A trade, a room or a two-digit division code, as the site names it. */
+  division: string | null;
+};
+
+/**
+ * One price a website showed a visitor, as QuickBooks will hold it: the range
+ * they saw and ONE figure (`base`) for the estimate's total. Customer amounts
+ * only: nothing here is a cost or a margin, and it must stay that way.
+ */
+export type SiteEstimate = {
+  kind: SiteEstimateKind;
+  low: number;
+  high: number;
+  base: number;
+  label: string | null;
+  lines: SiteEstimateLine[];
+  /** True only when the site recomputed the figures on its own server. */
+  verified: boolean;
+  /** What was adjusted while reading it (for the audit trail). */
+  notes: string[];
+};
+
+export const MAX_SITE_ESTIMATE_LINES = 60;
+/** No estimate above this is written to the books from a web form, whoever sent it. */
+export const SITE_ESTIMATE_CEILING = 5_000_000;
+/** Figures that came from the visitor's browser, not the site's server, stop here. */
+export const SITE_ESTIMATE_UNVERIFIED_CEILING = 500_000;
+
+const toCents = (value: number) => Math.round(value * 100) / 100;
+const wholeDollars = (value: number) => `$${Math.round(value).toLocaleString("en-US")}`;
+
+/** A finite number above zero, from a number or a plain numeric string. Null otherwise. */
+function positiveNumber(value: unknown): number | null {
+  const n = typeof value === "number" ? value : typeof value === "string" && /^\s*\d+(?:\.\d+)?\s*$/.test(value) ? Number(value) : NaN;
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+/** One trimmed line of text without control characters, capped. Null when empty or not a string. */
+function plainText(value: unknown, max: number): string | null {
+  if (typeof value !== "string") return null;
+  const cleaned = [...value].map((char) => (char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127 ? " " : char)).join("").replace(/\s+/g, " ").trim();
+  return cleaned ? cleaned.slice(0, max) : null;
+}
+
+function siteEstimateKind(value: unknown): SiteEstimateKind | null {
+  const raw = plainText(value, 40)?.toLowerCase().replace(/[_\s]+/g, "-");
+  if (raw === "planning-range" || raw === "range") return "planning-range";
+  if (raw === "document" || raw === "document-estimate") return "document";
+  return null;
+}
+
+/**
+ * Read the `estimate` a submission carries. Forgiving in what it accepts and
+ * strict in what it passes on: anything malformed means "no estimate", never
+ * a refused lead. `problem` says why an estimate that was sent is not used
+ * (null when none was sent), so the reason can go on the lead's audit trail.
+ *
+ * The total is the lines' total whenever lines are sent. A `base` that
+ * disagrees with them by more than a cent is replaced by their sum and noted.
+ */
+export function readSiteEstimate(raw: unknown): { estimate: SiteEstimate | null; problem: string | null } {
+  if (raw === undefined || raw === null || raw === "") return { estimate: null, problem: null };
+  const refuse = (problem: string) => ({ estimate: null, problem });
+  let value: unknown = raw;
+  if (typeof value === "string") {
+    try {
+      value = JSON.parse(value);
+    } catch {
+      return refuse("The estimate could not be read.");
+    }
+  }
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return refuse("The estimate could not be read.");
+  const body = value as Record<string, unknown>;
+
+  const kind = siteEstimateKind(body.kind);
+  if (!kind) return refuse("The estimate does not say which tool it came from.");
+  const low = positiveNumber(body.low);
+  const high = positiveNumber(body.high);
+  if (low === null || high === null) return refuse("The estimate has no usable range.");
+  if (low > high) return refuse("The estimate's range is reversed.");
+
+  const notes: string[] = [];
+  const lines: SiteEstimateLine[] = [];
+  if (body.lines !== undefined && body.lines !== null) {
+    if (!Array.isArray(body.lines)) return refuse("The estimate's lines could not be read.");
+    if (body.lines.length > MAX_SITE_ESTIMATE_LINES) return refuse(`The estimate has more than ${MAX_SITE_ESTIMATE_LINES} lines.`);
+    let empty = 0;
+    for (const entry of body.lines) {
+      if (typeof entry !== "object" || entry === null || Array.isArray(entry)) return refuse("An estimate line could not be read.");
+      const item = entry as Record<string, unknown>;
+      // A line priced at nothing adds nothing to the total: it is left out, not fatal.
+      if (item.amount === 0 || item.amount === "0") {
+        empty++;
+        continue;
+      }
+      const amount = positiveNumber(item.amount);
+      if (amount === null) return refuse("An estimate line has no usable amount.");
+      const description = plainText(item.description, 1000);
+      const title = plainText(item.title, 200) ?? description?.slice(0, 200) ?? null;
+      if (!title) return refuse("An estimate line has no title.");
+      const rounded = toCents(amount);
+      if (rounded <= 0) {
+        empty++;
+        continue;
+      }
+      lines.push({
+        title,
+        description: description && description !== title ? description : null,
+        quantity: positiveNumber(item.quantity),
+        unit: plainText(item.unit, 20),
+        amount: rounded,
+        division: plainText(item.division, 80),
+      });
+    }
+    if (empty) notes.push(`${empty} ${empty === 1 ? "line" : "lines"} with no amount left out`);
+  }
+
+  const baseSent = body.base !== undefined && body.base !== null && body.base !== "";
+  const stated = baseSent ? positiveNumber(body.base) : null;
+  if (baseSent && stated === null) return refuse("The estimate's total could not be read.");
+  let base: number;
+  if (lines.length) {
+    base = toCents(lines.reduce((sum, line) => sum + line.amount, 0));
+    if (stated !== null && Math.abs(toCents(stated) - base) > 0.01) {
+      notes.push(`The total sent (${wholeDollars(stated)}) did not equal the lines (${wholeDollars(base)}); the lines were kept`);
+    }
+  } else {
+    base = toCents(stated ?? (low + high) / 2);
+  }
+  if (!(base > 0)) return refuse("The estimate has no usable total.");
+
+  const verified = body.verified === true;
+  if (base > SITE_ESTIMATE_CEILING) {
+    return refuse(`The estimate's total (${wholeDollars(base)}) is above the ${wholeDollars(SITE_ESTIMATE_CEILING)} ceiling for an estimate from a web form.`);
+  }
+  if (!verified && base > SITE_ESTIMATE_UNVERIFIED_CEILING) {
+    return refuse(
+      `The estimate's total (${wholeDollars(base)}) was not verified by the site's server and is above the ${wholeDollars(SITE_ESTIMATE_UNVERIFIED_CEILING)} ceiling for unverified figures.`,
+    );
+  }
+  // A total nowhere near the range the customer was shown is not that estimate.
+  if (base < low / 2 || base > high * 2) {
+    return refuse(`The estimate's total (${wholeDollars(base)}) does not belong to its range (${wholeDollars(low)} to ${wholeDollars(high)}).`);
+  }
+
+  return {
+    estimate: { kind, low: toCents(low), high: toCents(high), base, label: plainText(body.label, 200), lines, verified, notes },
+    problem: null,
+  };
+}
+
 /** What a Step 2 ("add details") post may add to an existing lead. */
 export type LeadDetails = {
   projectType: string | null;

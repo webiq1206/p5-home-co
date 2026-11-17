@@ -122,6 +122,16 @@ function salesLine(l: EstimateLine, itemIds: Record<ItemKey, string>, taxable: I
   };
 }
 
+/**
+ * The range a customer was shown online, as words. QuickBooks totals one
+ * figure, so the range travels on the estimate's message and private note.
+ * One wording for every estimate a website makes.
+ */
+export function rangeWords(range: { low: number; high: number }, total: number): string {
+  const whole = (n: number) => `$${Math.round(n).toLocaleString("en-US")}`;
+  return `Preliminary range given online: ${whole(range.low)} to ${whole(range.high)}. The total on this estimate (${whole(total)}) is the base figure that range is built on.`;
+}
+
 // ---------------------------------------------------------------------------
 // Status
 // ---------------------------------------------------------------------------

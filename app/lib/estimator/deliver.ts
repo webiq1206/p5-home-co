@@ -48,8 +48,8 @@ import { syncDealToHubSpot } from "../integrations/hubspot.ts";
 import { loadLeadAlert, within } from "../leads/leadPipeline.ts";
 import { hubspotContactUrl, hubspotDealUrl } from "../notifications/lead-created.ts";
 import { activeTransport } from "../notifications/transport.ts";
-import { ESTIMATE_STATUS_LABEL, estimateStatus, qboWebUrl } from "../scopes/estimate.ts";
-import { buildPayloadFor, createOrReviseEstimate, ensureCustomer, findCustomerCandidates, isSandbox } from "../scopes/qbo.ts";
+import { ESTIMATE_STATUS_LABEL, estimateStatus, qboWebUrl, rangeWords } from "../scopes/estimate.ts";
+import { buildPayloadFor, createOrReviseEstimate, isSandbox, linkOrCreateCustomer } from "../scopes/qbo.ts";
 import { getProject, latestEstimate, loadScopeSettings, logEvent, saveVersion, syncProjectTitle } from "../scopes/store.ts";
 import type { PricingResult, ScopeDoc } from "../scopes/types.ts";
 import { brandConfig } from "./brands.ts";
@@ -196,27 +196,11 @@ export async function leadForReport(row: GuidedRow, origin: string): Promise<Tea
   };
 }
 
-/**
- * Find the QuickBooks customer for this person, or create one. Only a match
- * on email or phone links automatically: a shared name or street is not
- * enough to put one family's estimate on another family's account.
- */
-async function ensureQboCustomer(projectId: number): Promise<{ qboId: string; name: string | null; how: "created" | "matched" | null }> {
-  const project = (await getProject(projectId))!;
-  // Already linked by an earlier pass: how it was linked is not known here.
-  if (project.qbo_customer_id) return { qboId: project.qbo_customer_id, name: null, how: null };
-  const candidates = await findCustomerCandidates(project);
-  const match = candidates.find((c) => c.reasons.includes("same email")) ?? candidates.find((c) => c.reasons.includes("same phone"));
-  const linked = await ensureCustomer(project, match ? { qboId: match.qboId } : { create: true }, NO_EMPLOYEE);
-  return { qboId: linked.qboId, name: linked.name || null, how: match ? "matched" : "created" };
-}
-
-/** The range the customer saw. QuickBooks totals one figure, so the range travels as words. */
+/** The range the customer saw. QuickBooks totals one figure, so the range travels as words (shared with site estimates). */
 export function rangeNote(row: Pick<GuidedRow, "customer_view" | "total">): string {
   const range = row.customer_view.range;
   if (!range) return "";
-  const money = (n: number) => `$${Math.round(n).toLocaleString("en-US")}`;
-  return `Preliminary range given online: ${money(range.low)} to ${money(range.high)}. The total on this estimate (${money(Number(row.total))}) is the base figure that range is built on.`;
+  return rangeWords(range, Number(row.total));
 }
 
 /**
@@ -233,7 +217,8 @@ export function qboAction(row: Pick<GuidedRow, "review" | "price_withheld">, mod
 
 async function qboEstimate(row: GuidedRow, projectId: number): Promise<Delivery> {
   const patch: Delivery = {};
-  const customer = await ensureQboCustomer(projectId);
+  // One rule for every estimate a website makes: link on the same email or phone, else create.
+  const customer = await linkOrCreateCustomer(projectId);
   patch.qboCustomer = step(true, customer.qboId);
   if (customer.name) patch.qboCustomerName = customer.name;
   if (customer.how) patch.qboCustomerHow = customer.how;

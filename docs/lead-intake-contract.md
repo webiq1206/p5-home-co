@@ -240,3 +240,145 @@ seconds (the HubSpot links are waited for, then the mail server), so the site
 must wait for it off the visitor's path.
 
 Guard: `tests/lead-intake-confirm-alert.test.ts`.
+
+## The price the website gave: `estimate` (site estimates into QuickBooks, 17 November 2026)
+
+Owner decision: every estimate a website gives a visitor becomes a customer and
+an UNSENT estimate in QuickBooks. A request that carries a planning range
+sends it as `estimate`, and P5 creates the QuickBooks customer and estimate
+for the lead after the answer. Optional: a post without it is handled exactly
+as before. Source: `readSiteEstimate()` in `app/lib/leads/intakeContract.ts`,
+`app/lib/leads/site-estimate.ts`.
+
+```
+estimate: {
+  kind: "planning-range" | "document",
+  low: number,       // the range the customer was shown
+  high: number,      // equal to low for one firm price
+  base?: number,     // the ONE figure QuickBooks will total. Default: the sum
+                     // of the line amounts, else the midpoint of low and high
+  label?: string,    // what it is for: "Kitchen remodel, mid-range, 180 sq ft"
+  lines?: [{ title: string, description?: string, quantity?: number,
+             unit?: string, amount: number, division?: string }],
+  verified?: boolean // true only when the site recomputed the figures on its
+                     // own server; absent or false when they came from the browser
+}
+```
+
+Customer prices only. Never send a cost, margin, markup, profit, contingency
+or overhead figure in any field of it: QuickBooks holds the customer's
+estimate, and those stay on the site (they travel in `team_internal_notes`).
+
+How it is read:
+
+- Forgiving, never fatal. Anything malformed means "no estimate": the lead is
+  saved and answered as usual, and the reason is on the lead's audit trail
+  (`site_estimate_skipped`). Never a 4xx for an estimate.
+- Numbers must be finite and above zero (a plain numeric string is accepted),
+  `low <= high`, at most 60 lines, strings trimmed to one line and capped
+  (`label` and `title` 200, `description` 1,000, `division` 80, `unit` 20
+  characters), amounts rounded to the cent. A line with amount 0 is left out.
+- With lines, the total IS the sum of the lines. A `base` that differs from it
+  by more than a cent is replaced by the sum, and that is noted.
+- Ceilings: an estimate whose total is above $5,000,000 is ignored, and so is
+  one above $500,000 unless `verified` is the boolean `true`. A total that
+  does not belong to its range (under half of `low`, or over twice `high`) is
+  ignored too.
+- `division` is the trade, room or two-digit division code as the site names
+  it. It chooses the heading the line is listed under and, when it is named
+  exactly "Permits", "Design", "Plans & Engineering", "Freight" and the like,
+  the QuickBooks item (`SITE_ESTIMATE_ITEMS`). Otherwise the line books to its
+  brand's item.
+- `quantity` and `unit` are kept when the quantity divides the amount to the
+  cent (QuickBooks requires amount = quantity x rate). Otherwise the line is
+  one lump sum and the quantity is said in its description.
+- It is not a submitted field: not stored on the lead, not in the deal
+  summary, not sent to HubSpot, not printed in the team email. Send the
+  planning range for the email in `team_notes` as before.
+
+What P5 does with it, after the answer and never on the visitor's path:
+
+- One scope project per lead and `kind`, one QuickBooks customer (an existing
+  customer with the same email or phone is linked; otherwise one is created)
+  and one estimate, created unsent, whose total is `base` to the cent. The
+  range travels as words on the estimate's message and private note, with the
+  tool it came from and whether the site verified it.
+- Send it with Step 1, and repeat it unchanged in any later post for the same
+  `external_id` if that is simpler: a repeat changes nothing. If the visitor
+  changes their selections, send the new `estimate` (Step 1 again, or Step 2):
+  the same QuickBooks estimate is revised, never a second one, as long as
+  nobody has worked, sent or answered it. Once a person has, the new figures
+  are only noted on the lead.
+- The answer to the post does not change and does not wait for QuickBooks.
+  If QuickBooks is unavailable P5 retries by itself for a fortnight.
+
+A request with a planning range split by trade (Boise Remodeling Co):
+
+```json
+{
+  "brand": "Boise Remodeling Co",
+  "name": "Pat Example",
+  "email": "pat@example.com",
+  "phone": "(208) 555-0142",
+  "projectType": "Kitchen remodel",
+  "address": "123 N Main St",
+  "city": "Boise",
+  "zip": "83702",
+  "form": "Consultation request",
+  "external_id": "4316f6cea2de",
+  "request_kind": "quote",
+  "team_alert": "confirm",
+  "team_notes": ["Planning range shown to the visitor: $32,000 to $41,000 (mid-range)"],
+  "estimate": {
+    "kind": "planning-range",
+    "low": 32000,
+    "high": 41000,
+    "label": "Kitchen remodel, mid-range, 180 sq ft",
+    "verified": true,
+    "lines": [
+      { "title": "Flooring", "division": "FLOORING", "amount": 8200, "quantity": 410, "unit": "SF" },
+      { "title": "Cabinets and countertops", "division": "COUNTERTOPS + CABINETRY", "description": "Shaker cabinets, quartz tops", "amount": 21450.10 },
+      { "title": "Permits", "division": "Permits", "amount": 349.90 },
+      { "title": "Plumbing", "division": "PLUMBING", "amount": 6000 }
+    ]
+  }
+}
+```
+
+The lines add up to 36,000, so that is the estimate's total; `base` is not
+needed. Each `amount` is the customer's price for that trade (the email's
+"Customer" column), never our cost.
+
+A request whose wizard prices each room as a range (Boise Cabinet Co). A line
+has one amount, so send the middle of each room's range and say the range in
+its description; `low` and `high` are the whole project's range:
+
+```json
+{
+  "brand": "Boise Cabinet Co",
+  "name": "Pat Example",
+  "email": "pat@example.com",
+  "phone": "(208) 555-0142",
+  "projectType": "Kitchen cabinets",
+  "form": "Cabinet consultation",
+  "external_id": "9f2c1d7a",
+  "team_alert": "confirm",
+  "estimate": {
+    "kind": "planning-range",
+    "low": 16500,
+    "high": 21500,
+    "label": "Cabinets for 2 rooms, painted shaker",
+    "verified": true,
+    "lines": [
+      { "title": "Kitchen", "description": "Planning range $13,000 to $17,000. 24 linear feet, painted shaker", "amount": 15000 },
+      { "title": "Primary bath", "description": "Planning range $3,500 to $4,500. 6 linear feet, painted shaker", "amount": 4000 }
+    ]
+  }
+}
+```
+
+A planning range with no split is the same without `lines`; send `base` when
+the range is built on a figure other than its midpoint.
+
+Guards: `tests/site-estimate-contract.test.ts` (the reading, no database) and
+`tests/site-estimate.integration.test.ts` (needs `TEST_DATABASE_URL`).

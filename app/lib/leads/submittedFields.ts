@@ -16,6 +16,12 @@ export type SubmittedField = { label: string; value: string };
 // Honeypots, and the two instructions a brand site sends about the team email
 // (not something the visitor submitted, and not stored on the lead).
 const SKIPPED_KEYS = new Set(["website_url", "company_website", "team_notes", "teamNotes", "team_internal_notes", "teamInternalNotes", "team_alert", "teamAlert"]);
+// The price a brand site gave the visitor, for QuickBooks (`estimate`, read by
+// readSiteEstimate in intakeContract.ts). Not something the visitor typed:
+// never stored on the lead and never sent to HubSpot. Skipped at the top of
+// the body only, so a custom question that happens to be named "estimate"
+// inside `answers` is still kept.
+const SKIPPED_BODY_KEYS = new Set(["estimate", "site_estimate", "siteEstimate"]);
 const MAX_FIELDS = 200;
 const MAX_VALUE = 4000;
 
@@ -165,7 +171,7 @@ function flatten(label: string, value: unknown, out: SubmittedField[], depth: nu
 export function submittedFieldsFromBody(body: Record<string, unknown>): SubmittedField[] {
   const out: SubmittedField[] = [];
   for (const [key, value] of Object.entries(body)) {
-    if (SKIPPED_KEYS.has(key)) continue;
+    if (SKIPPED_KEYS.has(key) || SKIPPED_BODY_KEYS.has(key)) continue;
     let parsed = value;
     // `files` may arrive as a JSON string; the rest of the intake accepts it.
     if (typeof value === "string" && /^(files|filelinks|file_links)$/i.test(key)) {

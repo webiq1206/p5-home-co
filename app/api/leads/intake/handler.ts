@@ -28,6 +28,7 @@ import {
   intakeNoticeLines,
   readIntakeExtras,
   readLeadDetails,
+  readSiteEstimate,
 } from "../../../lib/leads/intakeContract.ts";
 import { loadSettings } from "../../../lib/leads/settings.ts";
 import { BRANDS, LEAD_SOURCES, type Brand, type LeadSource } from "../../../lib/leads/types.ts";
@@ -84,7 +85,50 @@ type TeamAlerts = {
   /** Team-only lines from the brand site, printed in whatever email is sent. */
   teamNotes: string[];
   sends: Array<() => Promise<boolean>>;
+  /** The QuickBooks estimate for a price the website gave. Started last, after the response (queueSiteEstimate). */
+  siteEstimate?: () => Promise<void>;
 };
+
+/**
+ * A submission that carries the price a website gave the visitor (`estimate`)
+ * becomes a QuickBooks customer and an UNSENT estimate linked to the lead
+ * (owner decision, 13 and 17 November 2026; lib/leads/site-estimate.ts). It is
+ * only queued here. handleIntake starts it last, after the response and after
+ * the team email is on its way, so it never delays the visitor or the email.
+ * The guided estimator posts here too and writes its own QuickBooks estimate
+ * (estimator/deliver.ts): it never queues one, whatever its body carries.
+ */
+function queueSiteEstimate(
+  alerts: TeamAlerts,
+  deps: IntakeDeps,
+  dealId: number,
+  site: ReturnType<typeof readSiteEstimate>,
+  lead: { brand: Brand; firstName: string | null; lastName: string | null; email: string | null; phone: string | null; address: string | null; source: string | null },
+): void {
+  if (deps.skipLeadAlert || alerts.siteEstimate || !(dealId > 0)) return;
+  const { estimate, problem } = site;
+  if (!estimate && !problem) return;
+  alerts.siteEstimate = async () => {
+    try {
+      // Loaded on demand: a submission with no estimate never loads the QuickBooks code.
+      const siteEstimates = await import("../../../lib/leads/site-estimate.ts");
+      if (estimate) {
+        await siteEstimates.createSiteEstimate({
+          dealId,
+          brand: lead.brand,
+          contact: { firstName: lead.firstName, lastName: lead.lastName, email: lead.email, phone: lead.phone },
+          address: lead.address,
+          estimate,
+          source: lead.source,
+        });
+      } else if (problem) {
+        await siteEstimates.noteSiteEstimateRefused(dealId, problem);
+      }
+    } catch (error) {
+      console.error("[intake] the site estimate was not carried to QuickBooks:", (error as Error).message);
+    }
+  };
+}
 
 function teamEmail(alerts: TeamAlerts, after: AfterResponse, send: () => Promise<boolean>): void {
   if (alerts.confirm) alerts.sends.push(send);
@@ -182,6 +226,7 @@ export async function handleIntake(request: Request, after: AfterResponse, deps:
   if (!alerts.confirm || !response.ok) {
     // A refused request that had already queued an email still sends it.
     for (const send of alerts.sends) after(async () => { await send(); });
+    if (alerts.siteEstimate) after(alerts.siteEstimate);
     return response;
   }
   // The caller is waiting to hear whether the team email went. "none" means
@@ -202,6 +247,8 @@ export async function handleIntake(request: Request, after: AfterResponse, deps:
       alert = results.every(Boolean) ? "sent" : "failed";
     }
   }
+  // The team email has been sent (or is finishing above); QuickBooks comes after the answer.
+  if (alerts.siteEstimate) after(alerts.siteEstimate);
   const data = (await response.json()) as Record<string, unknown>;
   return Response.json({ ...data, alert }, { status: response.status });
 }
@@ -253,6 +300,9 @@ async function runIntake(request: Request, after: AfterResponse, deps: IntakeDep
   const details = extras.submissionKind === "details";
   alerts.confirm = extras.confirmAlert;
   alerts.teamNotes = extras.teamNotes;
+  // The price the website gave the visitor, if it sent one. Never a reason to refuse the lead.
+  const siteEstimate = readSiteEstimate(body.estimate ?? body.site_estimate ?? body.siteEstimate);
+  const estimateSource = [str(body.form ?? body.originalForm), extras.externalId ? `request ${extras.externalId}` : null].filter(Boolean).join(", ").slice(0, 300) || null;
 
   const brand = pickBrand(body.brand ?? body.company);
   if (!brand) {
@@ -279,6 +329,18 @@ async function runIntake(request: Request, after: AfterResponse, deps: IntakeDep
     try {
       const merged = await mergeLeadDetails({ brand, externalId: extras.externalId }, readLeadDetails(body, extras));
       followUp(alerts, after, merged);
+      if (merged.status === "merged" || merged.status === "duplicate") {
+        // Step 2 may repeat the estimate, or carry a changed one: the same lead, the same QuickBooks estimate.
+        queueSiteEstimate(alerts, deps, merged.dealId, siteEstimate, {
+          brand,
+          firstName: str(body.firstName ?? body.first_name),
+          lastName: str(body.lastName ?? body.last_name),
+          email: str(body.email),
+          phone: str(body.phone ?? body.telephone),
+          address: composeAddress(body.address ?? body.propertyAddress ?? body.street_address, body.zip ?? body.postal_code ?? body.postalCode),
+          source: estimateSource,
+        });
+      }
       if (merged.status !== "not_found") {
         return Response.json({
           ok: true,
@@ -422,6 +484,18 @@ async function runIntake(request: Request, after: AfterResponse, deps: IntakeDep
         console.error("[intake] pending details not applied:", (error as Error).message);
       }
     }
+
+    // A price the website gave becomes a QuickBooks customer and an unsent
+    // estimate for this lead, created or matched. After the response, last.
+    queueSiteEstimate(alerts, deps, result.dealId, siteEstimate, {
+      brand,
+      firstName,
+      lastName,
+      email: str(body.email),
+      phone: str(body.phone ?? body.telephone),
+      address: propertyAddress,
+      source: estimateSource,
+    });
 
     // HubSpot right away, bounded so the visitor never waits on HubSpot. A
     // created lead, or a repeat that brought new fields, is pushed now; on a
