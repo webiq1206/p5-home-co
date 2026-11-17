@@ -135,6 +135,12 @@ export type IntakeDeps = {
   syncHubSpot?: HubSpotSync;
   /** Upper bound on how long the response waits for that sync. */
   inlineSyncTimeoutMs?: number;
+  /**
+   * The caller mails the team itself, in a message that carries everything the
+   * "New lead" alert does. The guided estimator sets this so an estimate
+   * produces ONE team email, not two (owner request, 16 November 2026).
+   */
+  skipLeadAlert?: boolean;
 };
 
 /**
@@ -389,9 +395,11 @@ export async function handleIntake(request: Request, after: AfterResponse, deps:
           return loadLeadAlert(result.dealId, { ...notice, prepare: undefined });
         },
       };
-      after(async () => {
-        await notifyLeadCreated(notice);
-      });
+      if (!deps.skipLeadAlert) {
+        after(async () => {
+          await notifyLeadCreated(notice);
+        });
+      }
       // Quote landing is the P5 form that posts here and does not already
       // email the lead. The guided estimator and the brand sites send their
       // own customer mail, so they are not confirmed a second time.
