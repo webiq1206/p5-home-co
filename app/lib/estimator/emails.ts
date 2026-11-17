@@ -4,16 +4,28 @@
  *
  * Two messages and they must never be confused:
  *
- *  teamReport           internal, to the team inbox. Carries every cost,
- *                       price and margin.
+ *  teamReport           internal, to the team inbox. ONE email per estimate
+ *                       (owner request, 16 November 2026): the lead alert and
+ *                       the internal report in a single message. It carries
+ *                       the tap-to-call, text and email buttons, the HubSpot
+ *                       deal and contact, QuickBooks, the scope platform, and
+ *                       every cost, price and margin. The estimator's lead
+ *                       goes through the intake with its own "New lead"
+ *                       alert switched off (deliver.ts), so the team is not
+ *                       mailed twice.
  *  customerConfirmation to the customer, only when the official QuickBooks
  *                       estimate is not being sent right away. It is built
  *                       from the customer view alone and carries no figure
  *                       at all: the official number reaches a customer from
  *                       QuickBooks, never from a second document that could
  *                       disagree with it.
+ *
+ * The team report's subject must not start with "New lead": the inbox sync
+ * mirrors "New lead" mail into HubSpot (inbox-policy.ts), and internal costs
+ * and margins stay out of HubSpot.
  */
 
+import { phoneHref } from "../../../lib/p5/phoneHref.ts";
 import { estimatorConfirmation } from "../leads/scheduleEmail.ts";
 import type { Message } from "../notifications/render.ts";
 import { brandConfig } from "./brands.ts";
@@ -35,7 +47,22 @@ const money = (n: number | null | undefined) =>
 
 const pct = (n: number | null | undefined) => (n === null || n === undefined ? "unknown" : `${(Number(n) * 100).toFixed(1)}%`);
 
-const digits = (phone: string) => phone.replace(/\D/g, "");
+const oneLine = (value: unknown) => String(value ?? "").replace(/[\r\n]+/g, " ").trim();
+
+const mapsUrl = (address: string) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+
+/** What the lead intake stored for this estimate: where to open it and where it came from. */
+export type TeamReportLead = {
+  dealId: number | null;
+  /** The lead in the P5 admin. */
+  adminUrl: string | null;
+  hubspotDealUrl: string | null;
+  hubspotContactUrl: string | null;
+  /** Source, campaign, click ids and landing page, as the lead alert lists them. */
+  attribution: readonly { label: string; value: string }[];
+  /** Why there is no lead, when the intake step failed. */
+  problem?: string | null;
+};
 
 export type TeamReportLinks = {
   scopeUrl: string | null;
@@ -44,16 +71,31 @@ export type TeamReportLinks = {
   /** Plain words: "Sent to customer", "Created, not sent", "Waiting for review"... */
   status: string;
   customerViewUrl: string;
+  /** Absent only when the report is built without a delivery behind it. */
+  lead?: TeamReportLead | null;
 };
 
 export function teamReport(row: GuidedRow, links: TeamReportLinks): Message {
   const brand = brandConfig(row.brand as BrandId);
+  const brandName = brand?.name ?? row.brand;
   const r = row.internal_report;
   const view = row.customer_view;
   const name = `${row.first_name} ${row.last_name}`.trim();
   const review = row.review ?? [];
   const needsReview = review.length > 0;
-  const subject = `${needsReview ? "Review" : "New"} online estimate: ${name}, ${view.projectName}, ${money(Number(row.total))} (${brand?.name ?? row.brand})`;
+  const lead = links.lead ?? null;
+  const subject = `${needsReview ? "Review" : "New"} online estimate: ${name}, ${view.projectName}, ${money(Number(row.total))} (${brandName})`;
+
+  const phone = oneLine(row.phone);
+  const email = oneLine(row.email);
+  const tel = phone ? phoneHref(phone, "tel") : "";
+  const sms = phone ? phoneHref(phone, "sms") : "";
+  const address = oneLine(row.address);
+  const maps = address ? mapsUrl(address) : "";
+  const attribution = lead?.attribution ?? [];
+  const rangeLine = r.range
+    ? `${money(r.range.low)} to ${money(r.range.high)} (${(r.range.width * 100).toFixed(1)}% each way; risks: ${r.range.risks.join(", ") || "none"})`
+    : "";
 
   const property = row.property as Record<string, unknown> | null;
   const propertyLines = property
@@ -75,11 +117,22 @@ export function teamReport(row: GuidedRow, links: TeamReportLinks): Message {
     "",
     "CUSTOMER",
     `Name: ${name}`,
-    `Email: ${row.email}`,
-    `Phone: ${row.phone}`,
-    `Property: ${row.address ?? "not given"}`,
-    `Website: ${brand?.name ?? row.brand}`,
+    `Email: ${email}`,
+    `Phone: ${phone}`,
+    `Property: ${address || "not given"}`,
+    `Website: ${brandName}`,
     `Marketing consent: ${row.marketing_consent ? "yes" : "no"}`,
+    tel ? `Call: ${tel}` : "",
+    sms ? `Text: ${sms}` : "",
+    maps ? `Map: ${maps}` : "",
+    "",
+    "OPEN",
+    lead?.hubspotDealUrl ? `HubSpot deal: ${lead.hubspotDealUrl}` : lead?.problem ? `HubSpot deal: no lead was created (${lead.problem})` : "HubSpot deal: still syncing; open the P5 admin lead",
+    lead?.hubspotContactUrl ? `HubSpot contact: ${lead.hubspotContactUrl}` : "",
+    links.qboUrl ? `QuickBooks: ${links.qboUrl}` : "QuickBooks: not created",
+    links.scopeUrl ? `Scope platform: ${links.scopeUrl}` : "",
+    `Customer's view: ${links.customerViewUrl}`,
+    lead?.adminUrl ? `P5 admin lead: ${lead.adminUrl}` : "",
     "",
     "PROJECT",
     `Type: ${view.projectName}`,
@@ -87,9 +140,7 @@ export function teamReport(row: GuidedRow, links: TeamReportLinks): Message {
     `Estimate type: ${view.classLabel}`,
     `Estimate number: ${links.estimateNumber ?? "not created yet"}`,
     `Status: ${links.status}`,
-    links.qboUrl ? `QuickBooks: ${links.qboUrl}` : "QuickBooks: not created",
-    links.scopeUrl ? `Scope platform: ${links.scopeUrl}` : "",
-    `Customer's view: ${links.customerViewUrl}`,
+    lead?.dealId ? `Deal id: ${lead.dealId}` : "",
     "",
     "PROPERTY INFORMATION USED",
     ...propertyLines.map(String),
@@ -100,7 +151,7 @@ export function teamReport(row: GuidedRow, links: TeamReportLinks): Message {
   }
   text.push(
     "FINANCIAL SUMMARY",
-    r.range ? `Range shown to the customer: ${money(r.range.low)} to ${money(r.range.high)} (${(r.range.width * 100).toFixed(1)}% each way; risks: ${r.range.risks.join(", ") || "none"})` : "",
+    r.range ? `Range shown to the customer: ${rangeLine}` : "",
     `Base price the range is built on: ${money(r.totalPrice)}`,
     `Internal cost: ${money(r.totalCost)}`,
     `Gross profit: ${money(r.grossProfit)}`,
@@ -123,47 +174,77 @@ export function teamReport(row: GuidedRow, links: TeamReportLinks): Message {
     "NOT INCLUDED",
     ...view.exclusions.map((x) => `- ${x}`),
     "",
-    "Confidential. Internal costs and margins are in this message only. Do not forward it to a customer.",
   );
+  if (attribution.length) text.push("SOURCE AND ATTRIBUTION", ...attribution.map((f) => `  ${oneLine(f.label)}: ${oneLine(f.value)}`), "");
+  text.push("Confidential. Internal costs and margins are in this message only. Do not forward it to a customer.");
 
-  const th = 'style="text-align:left;padding:6px 8px;border-bottom:2px solid #383837;font-size:12px"';
-  const td = 'style="padding:6px 8px;border-bottom:1px solid #e6e1d6;font-size:13px;vertical-align:top"';
-  const tdr = 'style="padding:6px 8px;border-bottom:1px solid #e6e1d6;font-size:13px;text-align:right;white-space:nowrap;vertical-align:top"';
-  const h2 = 'style="font-size:13px;letter-spacing:.06em;text-transform:uppercase;margin:26px 0 8px;color:#705a45"';
-  const html = `<div style="font-family:Arial,Helvetica,sans-serif;color:#383837;max-width:760px">
-<p style="font-size:18px;margin:0 0 4px"><strong>${esc(name)}</strong> &middot; ${esc(view.projectName)}</p>
-<p style="font-size:26px;margin:0 0 6px"><strong>${esc(money(Number(row.total)))}</strong> <span style="font-size:13px;color:#6b6b69">${esc(view.classLabel)} &middot; ${esc(brand?.name ?? row.brand)}</span></p>
-${r.range ? `<p style="font-size:14px;margin:0 0 4px">Customer was shown <strong>${esc(money(r.range.low))} to ${esc(money(r.range.high))}</strong> (${esc((r.range.width * 100).toFixed(1))}% each way; risks: ${esc(r.range.risks.join(", ") || "none")}). The figure above is the base price.</p>` : ""}
-<p style="font-size:14px;margin:0 0 4px">Internal cost ${esc(money(r.totalCost))} &middot; Gross profit <strong>${esc(money(r.grossProfit))}</strong> &middot; Gross margin <strong>${esc(pct(r.grossMargin))}</strong></p>
-${needsReview ? `<div style="background:#fbf1e3;border-left:4px solid #c48d3f;padding:10px 12px;margin:14px 0"><strong>Needs review.</strong> ${row.price_withheld ? "The customer was not shown a price." : "The customer was shown this price."}<ul style="margin:6px 0 0;padding-left:18px">${review.map((x) => `<li>${esc(x.message)}</li>`).join("")}</ul></div>` : ""}
-<p ${h2}>Customer</p>
-<p style="font-size:14px;line-height:1.7;margin:0">
-<a href="mailto:${esc(row.email)}">${esc(row.email)}</a><br>
-<a href="tel:+1${esc(digits(row.phone).slice(-10))}">${esc(row.phone)}</a><br>
-${esc(row.address ?? "No property address given")}<br>
-From ${esc(brand?.name ?? row.brand)} &middot; Marketing consent: ${row.marketing_consent ? "yes" : "no"}</p>
-<p ${h2}>Project</p>
-<p style="font-size:14px;line-height:1.7;margin:0">${esc(view.summary.join(" · "))}<br>
-Estimate number: ${esc(links.estimateNumber ?? "not created yet")} &middot; Status: <strong>${esc(links.status)}</strong><br>
-${links.qboUrl ? `<a href="${esc(links.qboUrl)}">Open in QuickBooks</a>` : "Not in QuickBooks yet"}${links.scopeUrl ? ` &middot; <a href="${esc(links.scopeUrl)}">Open in the scope platform</a>` : ""} &middot; <a href="${esc(links.customerViewUrl)}">What the customer sees</a></p>
-<p ${h2}>Property information used</p>
-<p style="font-size:14px;line-height:1.7;margin:0">${propertyLines.map(esc).join("<br>")}</p>
-<p ${h2}>By phase and division</p>
-<table style="border-collapse:collapse;width:100%"><tr><th ${th}>Phase / division</th><th ${th} align="right">Cost</th><th ${th} align="right">Price</th></tr>
-${r.phases.map((p) => `<tr><td ${td}><strong>${esc(p.phase)}</strong></td><td ${tdr}><strong>${esc(money(p.cost))}</strong></td><td ${tdr}><strong>${esc(money(p.price))}</strong></td></tr>${r.groups.filter((g) => g.phase === p.phase).map((g) => `<tr><td ${td}>&nbsp;&nbsp;${esc(g.division)}</td><td ${tdr}>${esc(money(g.cost))}</td><td ${tdr}>${esc(money(g.price))}</td></tr>`).join("")}`).join("")}
-<tr><td ${td}><strong>Total</strong></td><td ${tdr}><strong>${esc(money(r.totalCost))}</strong></td><td ${tdr}><strong>${esc(money(r.totalPrice))}</strong></td></tr></table>
-<p ${h2}>Line items</p>
-<table style="border-collapse:collapse;width:100%"><tr><th ${th}>Code</th><th ${th}>Work</th><th ${th} align="right">Qty</th><th ${th} align="right">Unit cost</th><th ${th} align="right">Cost</th><th ${th} align="right">Price</th></tr>
-${r.lines.map((l) => `<tr><td ${td}>${esc(l.code ?? "")}</td><td ${td}>${esc(l.description)}${l.allowance ? " <em>(allowance)</em>" : ""}</td><td ${tdr}>${esc(l.quantity)} ${esc(l.unit)}</td><td ${tdr}>${esc(money(l.unitCost))}</td><td ${tdr}>${esc(money(l.cost))}</td><td ${tdr}>${esc(money(l.price))}</td></tr>`).join("")}</table>
-<p ${h2}>Pricing adjustments</p>
-<ul style="font-size:13px;line-height:1.6;margin:0;padding-left:18px">${r.adjustments.map((x) => `<li>${esc(x)}</li>`).join("")}<li>Cost book version ${esc(row.cost_book_version)}, estimator rules ${esc(row.rules_version)}</li></ul>
-<p ${h2}>Assumptions</p>
-<ul style="font-size:13px;line-height:1.6;margin:0;padding-left:18px">${view.assumptions.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>
-<p ${h2}>Not included</p>
-<ul style="font-size:13px;line-height:1.6;margin:0;padding-left:18px">${view.exclusions.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>
-<p style="font-size:12px;color:#6b6b69;margin-top:26px">Confidential. Internal costs and margins are in this message only. Do not forward it to a customer.</p>
-</div>`;
-  return { subject, text: text.filter((line) => line !== undefined).join("\n"), html };
+  // HTML: one column, built to be acted on from a phone. Tables carry three
+  // columns at most so nothing is cut off on a narrow screen.
+  const INK = "#20231f";
+  const MUTED = "#4a4f49";
+  const LINE = "rgba(32,35,31,.15)";
+  const button = (href: string, label: string, primary = false) =>
+    `<a href="${esc(href)}" style="display:block;margin:0 0 10px;padding:${primary ? 16 : 14}px 18px;text-align:center;font-size:${primary ? 20 : 16}px;font-weight:700;text-decoration:none;${primary ? "background:#383837;color:#fbfaf6;border-bottom:4px solid #b08a5a" : `background:#fbfaf6;color:${INK};border:1px solid rgba(32,35,31,.3)`}">${esc(label)}</a>`;
+  const section = (title: string, body: string) =>
+    `<h2 style="margin:26px 0 10px;padding-top:16px;border-top:1px solid ${LINE};font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:${MUTED}">${esc(title)}</h2>${body}`;
+  const fact = (label: string, value: string, href?: string) =>
+    `<tr><td style="padding:6px 12px 6px 0;vertical-align:top;color:${MUTED};font-size:13px;white-space:nowrap">${esc(label)}</td><td style="padding:6px 0;font-size:14px;color:${INK}">${href ? `<a href="${esc(href)}" style="color:${INK}">${esc(value)}</a>` : esc(value)}</td></tr>`;
+  const facts = (rows: string[]) => `<table role="presentation" style="width:100%;border-collapse:collapse">${rows.join("")}</table>`;
+  const bullets = (items: readonly string[]) => `<ul style="font-size:14px;line-height:1.55;margin:0;padding-left:20px;color:${INK}">${items.map((x) => `<li style="margin:0 0 4px">${esc(x)}</li>`).join("")}</ul>`;
+  const stat = (label: string, value: string) =>
+    `<td style="padding:10px 6px;text-align:center;vertical-align:top;border:1px solid ${LINE};width:33%"><div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:${MUTED}">${esc(label)}</div><div style="font-size:16px;font-weight:700;color:${INK};margin-top:4px">${esc(value)}</div></td>`;
+  const th = (label: string, right = false) => `<th style="text-align:${right ? "right" : "left"};padding:6px 0 6px ${right ? 10 : 0}px;border-bottom:2px solid #383837;font-size:12px;color:${MUTED};font-weight:700">${esc(label)}</th>`;
+  const cell = (body: string, right = false, strong = false) =>
+    `<td style="padding:8px 0 8px ${right ? 10 : 0}px;border-bottom:1px solid ${LINE};font-size:14px;color:${INK};vertical-align:top;${right ? "text-align:right;white-space:nowrap;" : ""}${strong ? "font-weight:700;" : ""}">${body}</td>`;
+
+  const open = [
+    lead?.hubspotDealUrl
+      ? button(lead.hubspotDealUrl, "Open the HubSpot deal", true)
+      : `<p style="margin:0 0 10px;font-size:14px;color:${INK}">${lead?.problem ? `HubSpot deal: no lead was created (${esc(lead.problem)}).` : "HubSpot deal: still syncing. Open the P5 admin lead, which links to it once the sync finishes."}</p>`,
+    lead?.hubspotContactUrl ? button(lead.hubspotContactUrl, "HubSpot contact") : "",
+    links.qboUrl ? button(links.qboUrl, "QuickBooks estimate") : "",
+    links.scopeUrl ? button(links.scopeUrl, "Scope platform") : "",
+    button(links.customerViewUrl, "What the customer sees"),
+    lead?.adminUrl ? button(lead.adminUrl, "P5 admin lead") : "",
+  ].join("");
+
+  const html = `<!doctype html><html><body style="margin:0;padding:16px;background:#f1ede4;font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:${INK}">
+<div style="max-width:600px;margin:0 auto;background:#fbfaf6;padding:20px;border:1px solid ${LINE}">
+<p style="margin:0 0 4px;font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:${MUTED}">${needsReview ? "Review" : "New"} online estimate: ${esc(brandName)}</p>
+<h1 style="margin:0 0 4px;font-size:24px;font-weight:700;color:${INK}">${esc(name)}</h1>
+<p style="margin:0 0 14px;font-size:15px;color:${INK}">${esc(view.projectName)} &middot; ${esc(view.classLabel)}</p>
+<p style="margin:0;font-size:30px;font-weight:700;color:${INK}">${esc(money(Number(row.total)))}</p>
+<p style="margin:2px 0 12px;font-size:13px;color:${MUTED}">Base price. ${r.range ? `The customer was shown <strong style="color:${INK}">${esc(money(r.range.low))} to ${esc(money(r.range.high))}</strong>.` : "The customer was not shown a range."}</p>
+<table role="presentation" style="width:100%;border-collapse:collapse;margin:0 0 16px"><tr>${stat("Internal cost", money(r.totalCost))}${stat("Gross profit", money(r.grossProfit))}${stat("Gross margin", pct(r.grossMargin))}</tr></table>
+${needsReview ? `<div style="background:#fbf1e3;border-left:4px solid #c48d3f;padding:12px 14px;margin:0 0 16px;font-size:14px;color:${INK}"><strong>Needs review.</strong> ${row.price_withheld ? "The customer was not shown a price." : "The customer was shown this price."}<ul style="margin:6px 0 0;padding-left:18px">${review.map((x) => `<li>${esc(x.message)}</li>`).join("")}</ul></div>` : ""}
+${tel ? button(tel, `Call ${phone}`, true) : ""}
+${sms ? button(sms, `Text ${phone}`) : ""}
+${email ? button(`mailto:${email}`, `Email ${email}`) : ""}
+${address ? `<p style="margin:6px 0 0;font-size:15px"><a href="${esc(maps)}" style="color:${INK}">${esc(address)}</a> (open in maps)</p>` : `<p style="margin:6px 0 0;font-size:14px;color:${MUTED}">No property address given.</p>`}
+${section("Open", open)}
+${section("Estimate", facts([
+    fact("Estimate number", links.estimateNumber ?? "not created yet"),
+    fact("Status", links.status),
+    fact("Type", view.classLabel),
+    fact("Website", brandName),
+    ...(r.range ? [fact("Range shown", rangeLine)] : []),
+    fact("Marketing consent", row.marketing_consent ? "yes" : "no"),
+    ...(lead?.dealId ? [fact("Deal id", String(lead.dealId))] : []),
+  ]))}
+${section("What the customer chose", bullets(view.summary))}
+${section("Property information used", bullets(propertyLines.map(String)))}
+${section("Cost and price by phase and division", `<table style="width:100%;border-collapse:collapse"><tr>${th("Phase / division")}${th("Cost", true)}${th("Price", true)}</tr>
+${r.phases.map((p) => `<tr>${cell(esc(p.phase), false, true)}${cell(esc(money(p.cost)), true, true)}${cell(esc(money(p.price)), true, true)}</tr>${r.groups.filter((g) => g.phase === p.phase).map((g) => `<tr>${cell(`<span style="padding-left:12px;display:block">${esc(g.division)}</span>`)}${cell(esc(money(g.cost)), true)}${cell(esc(money(g.price)), true)}</tr>`).join("")}`).join("")}
+<tr>${cell("Total", false, true)}${cell(esc(money(r.totalCost)), true, true)}${cell(esc(money(r.totalPrice)), true, true)}</tr></table>`)}
+${section("Line items", `<table style="width:100%;border-collapse:collapse"><tr>${th("Work")}${th("Cost", true)}${th("Price", true)}</tr>
+${r.lines.map((l) => `<tr>${cell(`${esc(l.description)}${l.allowance ? " <em>(allowance)</em>" : ""}<div style="font-size:12px;color:${MUTED};margin-top:3px">${l.code ? `${esc(l.code)} &middot; ` : ""}${esc(l.quantity)} ${esc(l.unit)} at ${esc(money(l.unitCost))} cost, ${esc(money(l.unitPrice))} price</div>`)}${cell(esc(money(l.cost)), true)}${cell(esc(money(l.price)), true)}</tr>`).join("")}</table>`)}
+${section("Pricing adjustments", bullets([...r.adjustments, `Cost book version ${row.cost_book_version}, estimator rules ${row.rules_version}`]))}
+${section("Assumptions", bullets(view.assumptions))}
+${section("Not included", bullets(view.exclusions))}
+${attribution.length ? section("Source and attribution", facts(attribution.map((f) => fact(oneLine(f.label), oneLine(f.value), /^https:\/\/\S+$/.test(oneLine(f.value)) ? oneLine(f.value) : undefined)))) : ""}
+<p style="font-size:12px;color:${MUTED};margin:26px 0 0;padding-top:14px;border-top:1px solid ${LINE}">Confidential. Internal costs and margins are in this message only. Do not forward it to a customer.</p>
+</div></body></html>`;
+  return { subject, text: text.filter((line, index, all) => line !== "" || (index > 0 && all[index - 1] !== "")).join("\n"), html };
 }
 
 /**

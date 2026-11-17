@@ -624,6 +624,77 @@ test("the team report carries the full financial picture", () => {
   assert.match(message.text, /Division|09 Finishes/);
 });
 
+test("an estimate sends the team ONE email: the lead alert and the full report together", () => {
+  const estimate = price("bathroom-remodel", { bath: "hall", scope: "full", bathing: "walkin" }, "mid", "remodeling");
+  const report = internalReport(estimate);
+  const lead = {
+    dealId: 412,
+    adminUrl: "https://p5homeco.com/admin/lead/412",
+    hubspotDealUrl: "https://app-na2.hubspot.com/contacts/247066159/record/0-3/123",
+    hubspotContactUrl: "https://app-na2.hubspot.com/contacts/247066159/record/0-1/456",
+    attribution: [{ label: "Source", value: "Website" }, { label: "Campaign", value: "remodel-instant-estimate" }],
+  };
+  const links = { scopeUrl: "https://p5homeco.com/scopes/7", qboUrl: "https://qbo.intuit.com/app/estimate?txnId=90", estimateNumber: "1019", status: "In QuickBooks, not sent", customerViewUrl: "https://p5homeco.com/estimator/e/x" };
+  const message = teamReport(rowFor(estimate), { ...links, lead });
+
+  // Everything the "New lead" alert carried: contact buttons, the map, HubSpot, the admin page, the source.
+  for (const href of ["tel:+12085550100", "sms:+12085550100", "mailto:sample@example.com", "https://www.google.com/maps/search/?api=1&amp;query=", lead.hubspotDealUrl, lead.hubspotContactUrl, lead.adminUrl, links.qboUrl, links.scopeUrl, links.customerViewUrl]) {
+    assert.ok(message.html.includes(`href="${href}`), `button or link to ${href}`);
+  }
+  for (const label of ["Call (208) 555-0100", "Text (208) 555-0100", "Email sample@example.com", "Open the HubSpot deal", "HubSpot contact", "QuickBooks estimate", "Scope platform", "What the customer sees", "P5 admin lead", "remodel-instant-estimate"]) {
+    assert.ok(message.html.includes(label), label);
+  }
+  for (const line of [`HubSpot deal: ${lead.hubspotDealUrl}`, `HubSpot contact: ${lead.hubspotContactUrl}`, `P5 admin lead: ${lead.adminUrl}`, "Call: tel:+12085550100", "Text: sms:+12085550100", "  Campaign: remodel-instant-estimate", "Deal id: 412"]) {
+    assert.ok(message.text.split("\n").includes(line), line);
+  }
+  // The contact buttons come first, then the HubSpot deal, then the detail.
+  assert.ok(message.html.indexOf("Call (208) 555-0100") < message.html.indexOf("Open the HubSpot deal"));
+  assert.ok(message.html.indexOf("Open the HubSpot deal") < message.html.indexOf("Line items"));
+
+  // And everything the internal report carried: every line with its cost and price.
+  const dollars = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  for (const line of report.lines) {
+    for (const part of [message.text, message.html]) {
+      assert.ok(part.includes(dollars(line.price)), `${line.description} price`);
+      if (line.cost !== null) assert.ok(part.includes(dollars(line.cost)), `${line.description} cost`);
+      if (line.code) assert.ok(part.includes(line.code), `${line.description} code`);
+    }
+  }
+  for (const part of [message.text, message.html]) {
+    assert.ok(part.includes(dollars(report.totalCost!)) && part.includes(dollars(report.totalPrice)) && part.includes(dollars(report.grossProfit!)));
+    assert.match(part, /Gross margin/);
+    assert.ok(!part.includes(String.fromCharCode(0x2014)), "no em dash");
+  }
+
+  // Readable on a phone: no table has more than three columns.
+  const heads = message.html.match(/<tr>(?:<th [^>]*>[^<]*<\/th>)+<\/tr>/g) ?? [];
+  assert.ok(heads.length >= 2, "the phase table and the line item table have header rows");
+  for (const head of heads) assert.ok((head.match(/<th /g) ?? []).length <= 3, head);
+  // One "Name:", "Email:" and "Phone:" line, each at the start of a line.
+  for (const key of ["Name", "Email", "Phone"]) assert.equal((message.text.match(new RegExp(`^${key}:`, "gm")) ?? []).length, 1, key);
+  // "New lead" mail is mirrored into HubSpot by the inbox sync; costs and margins must not be.
+  assert.doesNotMatch(message.subject, /^New lead\b/i);
+  assert.match(message.subject, /^New online estimate: Sample Customer, /);
+
+  // HubSpot not finished yet, or no lead at all: the email says so and still has every other button.
+  const syncing = teamReport(rowFor(estimate), { ...links, lead: { ...lead, hubspotDealUrl: null, hubspotContactUrl: null } });
+  assert.match(syncing.html, /HubSpot deal: still syncing/);
+  assert.ok(syncing.html.includes(`href="${lead.adminUrl}"`) && syncing.html.includes("Call (208) 555-0100"));
+  const failed = teamReport(rowFor(estimate), { ...links, lead: { dealId: null, adminUrl: null, hubspotDealUrl: null, hubspotContactUrl: null, attribution: [], problem: "intake returned 503" } });
+  assert.match(failed.html, /no lead was created \(intake returned 503\)/);
+  assert.match(failed.text, /HubSpot deal: no lead was created \(intake returned 503\)/);
+  assert.doesNotMatch(failed.html, /P5 admin lead/);
+
+  // The second email is gone at the source: only the estimator switches the intake's alert off.
+  const handler = readFileSync(new URL("../app/api/leads/intake/handler.ts", import.meta.url), "utf8");
+  assert.match(handler, /if \(!deps\.skipLeadAlert\) \{\s*after\(async \(\) => \{\s*await notifyLeadCreated\(notice\);/);
+  const deliver = readFileSync(new URL("../app/lib/estimator/deliver.ts", import.meta.url), "utf8");
+  assert.match(deliver, /skipLeadAlert: true/);
+  assert.match(deliver, /const lead = await leadForReport\(row, input\.origin\)/);
+  const intakeRoute = readFileSync(new URL("../app/api/leads/intake/route.ts", import.meta.url), "utf8");
+  assert.doesNotMatch(intakeRoute, /skipLeadAlert/, "the public intake keeps its lead alert");
+});
+
 test("the customer confirmation carries no figure and no internal wording", () => {
   for (const estimate of [price("bathroom-remodel", { bath: "hall" }, "mid", "remodeling"), price("custom-home", {}, "high", "construction"), price("handyman", { tasks: { faucet: 2 } }, "mid", "handyman")]) {
     const message = customerConfirmation(rowFor(estimate), "https://p5homeco.com/estimator/e/abc");

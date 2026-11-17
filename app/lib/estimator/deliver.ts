@@ -9,11 +9,15 @@
  *                 the same scope document and priced lines. That is the
  *                 review workflow: the team opens it in /scopes.
  *   2. lead       The lead goes through the family lead intake, which
- *                 deduplicates the contact, syncs HubSpot and alerts the team.
+ *                 deduplicates the contact and syncs HubSpot. Its own "New
+ *                 lead" alert is switched off here: step 4 is the one email
+ *                 the team gets, and it carries the alert's buttons and links.
  *   3. QuickBooks Customer matched or created, and the full itemized estimate
  *                 created from the priced lines, UNSENT, according to
  *                 ESTIMATOR_QBO (below) and only when the estimate qualified.
- *   4. team email The full internal report.
+ *   4. team email ONE message: call, text and email buttons, the HubSpot deal
+ *                 and contact, QuickBooks, the scope platform, and the full
+ *                 internal report.
  *   5. customer   A short confirmation with the link to the estimate they saw:
  *                 the scope of work and one total range.
  *
@@ -41,13 +45,15 @@ import { handleIntake } from "../../api/leads/intake/handler.ts";
 import { queryOne } from "../db.ts";
 import { isQboConnected } from "../finance/qbo/oauth.ts";
 import { syncDealToHubSpot } from "../integrations/hubspot.ts";
+import { loadLeadAlert, within } from "../leads/leadPipeline.ts";
+import { hubspotContactUrl, hubspotDealUrl } from "../notifications/lead-created.ts";
 import { activeTransport } from "../notifications/transport.ts";
 import { ESTIMATE_STATUS_LABEL, estimateStatus, qboWebUrl } from "../scopes/estimate.ts";
 import { buildPayloadFor, createOrReviseEstimate, ensureCustomer, findCustomerCandidates, isSandbox } from "../scopes/qbo.ts";
 import { getProject, latestEstimate, loadScopeSettings, logEvent, saveVersion, syncProjectTitle } from "../scopes/store.ts";
 import type { PricingResult, ScopeDoc } from "../scopes/types.ts";
 import { brandConfig } from "./brands.ts";
-import { TEAM_INBOX, customerConfirmation, teamReport } from "./emails.ts";
+import { TEAM_INBOX, customerConfirmation, teamReport, type TeamReportLead } from "./emails.ts";
 import { guidedById, recordDelivery, setGuidedLinks, type Delivery, type GuidedRow } from "./store.ts";
 import { CLASS_LABELS, type BrandId, type EstimateClass } from "./types.ts";
 
@@ -136,10 +142,16 @@ async function sendLead(row: GuidedRow, origin: string, scopeProjectId: number |
     body: JSON.stringify(body),
   });
   const pending: Promise<void>[] = [];
+  // The team email (step 4) links to the HubSpot deal, so keep hold of the
+  // sync the intake starts and give it a little longer to finish.
+  let syncing: Promise<unknown> | null = null;
   const response = await handleIntake(request, (task) => void pending.push(task().catch((error) => console.error("[estimator] lead follow-up failed:", (error as Error).message))), {
-    syncHubSpot: syncDealToHubSpot,
+    syncHubSpot: (dealId) => (syncing = syncDealToHubSpot(dealId)),
+    // One team email per estimate: the report in step 4 replaces the alert.
+    skipLeadAlert: true,
   });
   await Promise.all(pending);
+  await within(syncing, 10_000);
   const json = (await response.json().catch(() => ({}))) as { ok?: boolean; duplicate?: boolean; error?: string };
   const deal = json.ok
     ? await queryOne<{ deal_id: number }>("SELECT deal_id::int FROM lead_external_ref WHERE brand = $1 AND external_id = $2", [body.brand, body.external_id]).catch(() => null)
@@ -148,6 +160,39 @@ async function sendLead(row: GuidedRow, origin: string, scopeProjectId: number |
     ok: response.ok && json.ok === true,
     detail: json.ok ? (json.duplicate ? "matched an existing lead" : "lead created") : json.error ?? `intake returned ${response.status}`,
     dealId: deal?.deal_id ?? null,
+  };
+}
+
+/**
+ * What the team email needs from the saved lead: the HubSpot deal and contact
+ * the sync wrote, the P5 admin page and where the lead came from. Read back
+ * from the deal, so the email links to what was actually stored.
+ */
+export async function leadForReport(row: GuidedRow, origin: string): Promise<TeamReportLead> {
+  const dealId = row.lead_deal_id;
+  const failed = row.delivery?.lead && !row.delivery.lead.ok ? row.delivery.lead.detail ?? "the lead intake failed" : null;
+  if (!dealId) return { dealId: null, adminUrl: null, hubspotDealUrl: null, hubspotContactUrl: null, attribution: [], problem: failed };
+  const brand = brandConfig(row.brand as BrandId);
+  const saved = await loadLeadAlert(dealId, {
+    dealId,
+    brand: brand?.name ?? "P5 Home Co",
+    projectType: row.customer_view.projectName,
+    firstName: row.first_name,
+    lastName: row.last_name,
+    email: row.email,
+    phone: row.phone,
+    propertyCity: null,
+    propertyAddress: row.address,
+    summary: null,
+    source: null,
+    originalForm: "Online estimator",
+  });
+  return {
+    dealId,
+    adminUrl: `${origin}/admin/lead/${dealId}`,
+    hubspotDealUrl: saved.hubspotDealId ? hubspotDealUrl(saved.hubspotDealId) : null,
+    hubspotContactUrl: saved.hubspotContactId ? hubspotContactUrl(saved.hubspotContactId) : null,
+    attribution: saved.attribution ?? [],
   };
 }
 
@@ -282,10 +327,15 @@ export async function deliverEstimate(input: DeliverInput): Promise<Delivery> {
   row = (await guidedById(input.id))!;
   const transport = activeTransport();
 
-  // 4. The team's report.
+  // 4. The team's one email: the lead alert and the internal report together.
   if (!done(row.delivery, "teamEmail")) {
     const official = await officialStatus(row);
+    const lead = await leadForReport(row, input.origin).catch((error) => {
+      console.error("[estimator] lead links not loaded:", (error as Error).message);
+      return null;
+    });
     const message = teamReport(row, {
+      lead,
       scopeUrl: row.scope_project_id ? `${input.origin}/scopes/${row.scope_project_id}` : null,
       qboUrl: official.qboUrl,
       estimateNumber: official.estimateNumber,
