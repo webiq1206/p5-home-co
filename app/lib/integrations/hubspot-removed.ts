@@ -44,6 +44,22 @@ export async function mirrorRemovedDeal(hubspotDealId: string): Promise<number |
     if (!row) return null;
     const id = Number(row.id);
     const wasOpen = row.stage !== "Closed Won" && row.stage !== "Closed Lost";
+    // Already mirrored for this HubSpot deal: only make sure nothing is left
+    // waiting to be sent. The audit trail gets one entry per deletion, not
+    // one per pass that notices it again.
+    const already = await client.query(
+      `SELECT 1 FROM audit_log WHERE record_type='deal' AND record_id=$1 AND action='hubspot_deal_removed'
+         AND new_value->>'hubspotDealId'=$2 LIMIT 1`,
+      [String(id), hubspotDealId],
+    );
+    if (already.rows.length && !wasOpen) {
+      await client.query(
+        `UPDATE deal SET integration_sync_status='synced', last_integration_error=NULL, hubspot_sync_lease_until=NULL
+          WHERE id=$1 AND (integration_sync_status<>'synced' OR last_integration_error IS NOT NULL)`,
+        [id],
+      );
+      return id;
+    }
     // A deal the team had already won stays won: deleting it in HubSpot is
     // housekeeping there, not a lost sale. Anything still open is closed.
     await client.query(
@@ -52,7 +68,8 @@ export async function mirrorRemovedDeal(hubspotDealId: string): Promise<number |
          closed_lost_reason=CASE WHEN stage='Closed Won' THEN closed_lost_reason
                                  ELSE COALESCE(NULLIF(btrim(closed_lost_reason),''),$2) END,
          closed_at=COALESCE(closed_at,now()),
-         next_action=NULL, next_action_at=NULL,
+         next_action=CASE WHEN stage='Closed Won' THEN next_action ELSE NULL END,
+         next_action_at=CASE WHEN stage='Closed Won' THEN next_action_at ELSE NULL END,
          integration_sync_status='synced', last_integration_error=NULL,
          hubspot_sync_lease_until=NULL, updated_at=now()
        WHERE id=$1`,

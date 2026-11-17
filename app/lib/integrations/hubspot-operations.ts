@@ -26,6 +26,9 @@ export async function pullHubSpotLeadActions(now = new Date(), limit = 25): Prom
     `SELECT id,hubspot_deal_id,updated_at::text AS revision FROM deal
      WHERE original_form IS DISTINCT FROM 'p5-estimator-synthetic-qa' AND hubspot_deal_id IS NOT NULL AND integration_sync_status='synced'
        AND (stage NOT IN ('Closed Won','Closed Lost') OR closed_at > now()-interval '7 days')
+       -- A deal already mirrored as deleted in HubSpot has nothing left to read.
+       AND NOT EXISTS (SELECT 1 FROM audit_log a WHERE a.record_type='deal' AND a.record_id=deal.id::text
+                         AND a.action='hubspot_deal_removed' AND a.new_value->>'hubspotDealId'=deal.hubspot_deal_id)
      ORDER BY last_hubspot_read_at ASC NULLS FIRST,id LIMIT $1`, [limit],
   );
   let read = 0;

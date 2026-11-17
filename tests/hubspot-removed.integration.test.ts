@@ -37,6 +37,7 @@ describe("HubSpot deletions are mirrored, not failures", { skip: TEST_DB ? false
   let nextId: number;
   let writes: { method: string; path: string; body: unknown }[];
   let rejectEmail: string | null;
+  let requests: number;
 
   const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status });
   const remote = (id: string, properties: Record<string, string>): Remote => ({ id, archived: false, archivedAt: null, properties });
@@ -67,6 +68,7 @@ describe("HubSpot deletions are mirrored, not failures", { skip: TEST_DB ? false
       const path = url.replace("https://api.hubapi.com", "");
       const method = init?.method ?? "GET";
       const body = init?.body ? JSON.parse(String(init.body)) : null;
+      requests++;
       if (method !== "GET" && !path.endsWith("/search")) writes.push({ method, path, body });
 
       if (path.startsWith("/account-info/v3/details")) return json({ portalId: 247066159 });
@@ -156,6 +158,7 @@ describe("HubSpot deletions are mirrored, not failures", { skip: TEST_DB ? false
     nextId = 1000;
     writes = [];
     rejectEmail = null;
+    requests = 0;
     await query("TRUNCATE hubspot_lead_review,lead_hubspot_retry,hubspot_archive_review,integration_health,lead_intake_submission,deal,contact,app_user,alert,lead_alert_incident,task,activity,audit_log,job_run,job_lock,setting RESTART IDENTITY CASCADE");
     await query("INSERT INTO setting (key,value) VALUES ('lead_manager',$1::jsonb)", [JSON.stringify({ featureFlags: { hubspotIntegrationEnabled: true } })]);
     await query("INSERT INTO app_user (email,full_name,role,hubspot_owner_id) VALUES ('hello@p5homeco.com','Manager','manager','55')");
@@ -253,6 +256,21 @@ describe("HubSpot deletions are mirrored, not failures", { skip: TEST_DB ? false
     assert.deepEqual(writes, []);
   });
 
+  test("a deletion is noticed once: later passes neither read the deal again nor repeat the audit entry", async () => {
+    deleteInHubSpot(deals, "100");
+    await pull(now);
+    const after = requests;
+    const second = await pull(new Date(now.getTime() + 60_000));
+    assert.deepEqual(second, { read: 0, failed: 0 });
+    assert.equal(requests, after, "a mirrored deal is not read again");
+    // Something marks the closed lead as waiting again (a staff edit): it is settled without a second audit entry.
+    await query("UPDATE deal SET integration_sync_status='pending'");
+    assert.equal((await push(1)).status, "removed");
+    const audits = await query("SELECT 1 FROM audit_log WHERE action='hubspot_deal_removed'");
+    assert.equal(audits.length, 1);
+    assert.equal((await localDeal()).integration_sync_status, "synced");
+  });
+
   test("a deal already won stays won when it is deleted in HubSpot", async () => {
     await query("UPDATE deal SET stage='Closed Won',closed_at=now()");
     deleteInHubSpot(deals, "100");
@@ -260,6 +278,8 @@ describe("HubSpot deletions are mirrored, not failures", { skip: TEST_DB ? false
     const deal = await localDeal();
     assert.equal(deal.stage, "Closed Won");
     assert.equal(deal.closed_lost_reason, null);
+    const [kept] = await query<{ next_action: string | null }>("SELECT next_action FROM deal WHERE id=1");
+    assert.equal(kept.next_action, "Make first contact", "a won deal keeps its next step");
   });
 
   test("a deleted deal settles its alerts and tasks without touching HubSpot", async () => {
