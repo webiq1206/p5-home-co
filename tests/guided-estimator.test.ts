@@ -608,6 +608,56 @@ function rowFor(estimate: PricedEstimate): GuidedRow {
   } as unknown as GuidedRow;
 }
 
+test("every site and every project gets the same team email layout", () => {
+  // Owner, 17 November 2026: the layout applies to all sites. There is one
+  // template and no per-brand branch, and this holds it there: every brand
+  // (the ADU site included, for the day it goes live) with every project it
+  // offers renders the same blocks in the same order.
+  const lead = {
+    dealId: 412,
+    adminUrl: "https://p5homeco.com/admin/lead/412",
+    hubspotDealUrl: "https://app-na2.hubspot.com/contacts/247066159/record/0-3/123",
+    hubspotContactUrl: "https://app-na2.hubspot.com/contacts/247066159/record/0-1/456",
+    attribution: [{ label: "Source", value: "Website" }],
+  };
+  const links = {
+    scopeUrl: "https://p5homeco.com/scopes/7",
+    qboUrl: "https://qbo.intuit.com/app/estimate?txnId=90",
+    estimateNumber: "1019",
+    status: "In QuickBooks, not sent",
+    customerViewUrl: "https://p5homeco.com/estimator/e/x",
+    qboCustomer: { url: "https://qbo.intuit.com/app/customerdetail?nameId=41", name: "Sample Customer", how: "created" as const },
+    lead,
+  };
+  let rendered = 0;
+  for (const brand of Object.values(BRAND_CONFIGS)) {
+    for (const project of brand.projects) {
+      const estimate = price(project, {}, "mid", brand.id);
+      const message = teamReport(rowFor(estimate), links);
+      const where = `${brand.id}/${project}`;
+      rendered++;
+      assert.ok(message.subject.endsWith(`(${brand.name})`), `${where}: the subject names the site`);
+      assert.match(message.html, new RegExp(`online estimate: ${brand.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`), `${where}: the header names the site`);
+      // One filled button, the contact row, then the three systems in order, then the detail.
+      assert.equal((message.html.match(/background:#383837;color:#fbfaf6/g) ?? []).length, 1, `${where}: one filled button`);
+      const order = ["Call (208) 555-0100", ">Text<", ">Email<", ">Records<", ">HubSpot<", ">Deal<", ">Contact<", ">QuickBooks<", ">Estimate 1019<", ">Customer<", ">P5<", ">Scope<", ">Lead<", "See what the customer sees", ">Estimate<", "What the customer chose", "Cost and price by phase and division", "Line items"];
+      let at = -1;
+      for (const marker of order) {
+        const next = message.html.indexOf(marker, at + 1);
+        assert.ok(next > at, `${where}: "${marker}" is present and in order`);
+        at = next;
+      }
+      for (const href of [lead.hubspotDealUrl, lead.hubspotContactUrl, links.qboUrl, links.qboCustomer.url, links.scopeUrl, lead.adminUrl, links.customerViewUrl]) {
+        assert.ok(message.html.includes(`href="${href}"`), `${where}: links to ${href}`);
+      }
+      const heads = message.html.match(/<tr>(?:<th [^>]*>[^<]*<\/th>)+<\/tr>/g) ?? [];
+      for (const head of heads) assert.ok((head.match(/<th /g) ?? []).length <= 3, `${where}: no table wider than three columns`);
+      assert.ok(!message.html.includes(String.fromCharCode(0x2014)) && !message.text.includes(String.fromCharCode(0x2014)), `${where}: no em dash`);
+    }
+  }
+  assert.ok(rendered >= Object.keys(BRAND_CONFIGS).length, "every brand rendered at least one project");
+});
+
 test("the team report carries the full financial picture", () => {
   const estimate = price("bathroom-remodel", { bath: "hall", scope: "full", bathing: "walkin" }, "mid", "remodeling");
   const message = teamReport(rowFor(estimate), { scopeUrl: "https://p5homeco.com/scopes/7", qboUrl: null, estimateNumber: null, status: "Waiting for team review", customerViewUrl: "https://p5homeco.com/estimator/e/x" });

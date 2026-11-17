@@ -169,17 +169,45 @@ export function renderLeadAlert(input: LeadCreatedNotifyInput): LeadAlertMessage
   const table = (items: readonly Field[]) =>
     `<table role="presentation" style="width:100%;border-collapse:collapse">${items.map(fileRow).join("")}</table>`;
   const section = (title: string, body: string) =>
-    `<h2 style="margin:22px 0 8px;font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:#4a4f49">${escapeHtml(title)}</h2>${body}`;
+    `<h2 style="margin:26px 0 10px;padding-top:16px;border-top:1px solid rgba(32,35,31,.15);font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:#4a4f49">${escapeHtml(title)}</h2>${body}`;
+  // The same layout as the team estimate email (owner, 17 November 2026):
+  // one filled Call button, Text and Email beside each other, then the
+  // records grouped by the system they live in, never a stack of buttons.
+  const EDGE = "rgba(32,35,31,.35)";
+  const action = (href: string, label: string) =>
+    `<a href="${escapeHtml(href)}" style="display:block;padding:14px 6px;text-align:center;font-size:17px;font-weight:700;line-height:1.2;text-decoration:none;background:#fbfaf6;color:#20231f;border:2px solid #383837">${escapeHtml(label)}</a>`;
+  const tile = (href: string, label: string) =>
+    `<a href="${escapeHtml(href)}" style="display:block;padding:13px 6px;text-align:center;font-size:15px;font-weight:700;line-height:1.2;text-decoration:none;background:#fbfaf6;color:#20231f;border:1px solid ${EDGE}">${escapeHtml(label)}</a>`;
+  const waiting = (label: string) =>
+    `<span style="display:block;padding:13px 6px;text-align:center;font-size:14px;line-height:1.2;color:#4a4f49;border:1px dashed ${EDGE}">${escapeHtml(label)}</span>`;
+  const side = (cells: string[]) =>
+    cells.length
+      ? `<table role="presentation" style="width:100%;border-collapse:collapse;table-layout:fixed;margin:0 0 8px"><tr>${cells
+          .map((c, i) => `<td style="padding:0 ${i < cells.length - 1 ? 4 : 0}px 0 ${i > 0 ? 4 : 0}px;vertical-align:top">${c}</td>`)
+          .join("")}</tr></table>`
+      : "";
+  const group = (system: string, about: string, tiles: string[], note: string) =>
+    `<div style="margin:0 0 16px"><p style="margin:0 0 7px;font-size:13px;color:#4a4f49"><strong style="font-size:15px;color:#20231f">${escapeHtml(system)}</strong> &middot; ${escapeHtml(about)}</p>${side(tiles)}${note ? `<p style="margin:0;font-size:13px;line-height:1.5;color:#4a4f49">${note}</p>` : ""}</div>`;
+  const records = [
+    group(
+      "HubSpot",
+      "follow-up and pipeline",
+      [dealUrl ? tile(dealUrl, "Deal") : waiting("Deal: syncing"), contactUrl ? tile(contactUrl, "Contact") : waiting("Contact: syncing")],
+      dealUrl && contactUrl ? "" : "Still syncing to HubSpot. The watchdog retries if it did not finish, and the P5 lead links to it once it is there.",
+    ),
+    group("P5", "the lead record", [tile(admin, "Lead")], ""),
+  ].join("");
 
   const html = `<!doctype html><html><body style="margin:0;padding:16px;background:#f1ede4;font-family:-apple-system,Segoe UI,Roboto,sans-serif;color:#20231f">
-<div style="max-width:560px;margin:0 auto;background:#fbfaf6;padding:20px;border:1px solid rgba(32,35,31,.15)">
+<div style="max-width:600px;margin:0 auto;background:#fbfaf6;padding:20px;border:1px solid rgba(32,35,31,.15)">
 <p style="margin:0 0 4px;font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#4a4f49">New lead: ${escapeHtml(brand)}</p>
 <h1 style="margin:0 0 4px;font-size:24px;font-weight:700">${escapeHtml(name)}</h1>
 <p style="margin:0 0 16px;font-size:15px">${escapeHtml(input.projectType ?? "Project not specified")}${input.propertyCity ? ` in ${escapeHtml(input.propertyCity)}` : ""}</p>
 ${tel ? button(tel, `Call ${phone}`, true) : ""}
-${sms ? button(sms, `Text ${phone}`, false) : ""}
-${email ? button(`mailto:${email}`, `Email ${email}`, false) : ""}
-${address ? `<p style="margin:6px 0 0;font-size:15px"><a href="${escapeHtml(maps)}" style="color:#20231f">${escapeHtml(address)}</a> (open in maps)</p>` : ""}
+${side([sms ? action(sms, "Text") : "", email ? action(`mailto:${email}`, "Email") : ""].filter(Boolean))}
+${email ? `<p style="margin:6px 0 0;font-size:15px"><a href="mailto:${escapeHtml(email)}" style="color:#20231f">${escapeHtml(email)}</a></p>` : ""}
+${address ? `<p style="margin:4px 0 0;font-size:15px"><a href="${escapeHtml(maps)}" style="color:#20231f">${escapeHtml(address)}</a> (open in maps)</p>` : ""}
+${section("Records", records)}
 ${input.summary ? section("Message", `<p style="margin:0;font-size:15px;line-height:1.5">${escapeHtml(input.summary).replace(/\n/g, "<br>")}</p>`) : ""}
 ${section("Lead", table([
   { label: "Brand", value: input.brand },
@@ -195,11 +223,6 @@ ${section("Lead", table([
 ]))}
 ${fields.length ? section("Everything submitted", table(fields)) : ""}
 ${attribution.length ? section("Source and attribution", table(attribution)) : ""}
-${section("Open", [
-  contactUrl ? button(contactUrl, "HubSpot contact", false) : `<p style="margin:0 0 10px;font-size:14px">HubSpot contact: syncing now. The five-minute watchdog retries if it did not finish.</p>`,
-  dealUrl ? button(dealUrl, "HubSpot deal", false) : "",
-  button(admin, "P5 admin lead", false),
-].join(""))}
 </div></body></html>`;
 
   return { subject, text, html };
