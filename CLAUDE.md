@@ -82,7 +82,7 @@ Owner decision, 17 November 2026: junk deleted in one system is removed from the
 * A deletion this platform made itself never comes back round: it marks the estimate deleted before QuickBooks reports it.
 * Only estimates from the websites are linked to a lead (`guided_estimate.lead_deal_id`), so only those carry. Deletions from before 17 November 2026 are mirrored but never reach into QuickBooks (`carry: false`).
 * QuickBooks unavailable: the cleanup is remembered on the lead's audit trail (`quickbooks_cleanup_pending`) and `settleRemovedLeads()` retries it from the watchdog, six hours apart, for a fortnight.
-* Guard: `tests/removed-everywhere.integration.test.ts` (needs `TEST_DATABASE_URL`).
+* Guard: `tests/removed-everywhere.integration.test.ts` (needs `TEST_DATABASE_URL`). Its fake QuickBooks refuses a filter on a field the real one does not index (`ParentRef` on a customer, found live on 17 November 2026); keep it that strict, and check a new QuickBooks query against the real API before trusting it.
 
 ## Publishing to Replit: never approve a DROP
 

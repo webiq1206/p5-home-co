@@ -49,6 +49,20 @@ async function audit(dealId: number, action: string, detail: unknown, succeeded 
   );
 }
 
+/**
+ * QuickBooks customers behind every estimate the websites made for this lead,
+ * removed projects included: a customer whose check could not finish the first
+ * time is looked at again on the retry, when its projects are already gone.
+ */
+async function leadCustomers(dealId: number): Promise<string[]> {
+  const rows = await query<{ id: string }>(
+    `SELECT DISTINCT sp.qbo_customer_id AS id FROM guided_estimate ge JOIN scope_project sp ON sp.id = ge.scope_project_id
+      WHERE ge.lead_deal_id = $1 AND sp.qbo_customer_id IS NOT NULL AND sp.deleted_at IS NOT NULL ORDER BY 1`,
+    [dealId],
+  );
+  return rows.map((r) => r.id);
+}
+
 /** Live scope projects the websites' estimator made for this lead. */
 async function leadProjects(dealId: number): Promise<number[]> {
   const rows = await query<{ id: number }>(
@@ -77,8 +91,10 @@ export async function deactivateCustomerIfUnused(qboCustomerId: string): Promise
     const rows = await qboQueryAll<{ Id: string }>(entity, `CustomerRef = '${id}'`);
     if (rows.length) return "kept";
   }
-  const children = await qboQueryAll<{ Id: string; Active?: boolean }>("Customer", `ParentRef = '${id}' AND Active = true`);
-  if (children.length) return "kept";
+  // QuickBooks will not filter customers on ParentRef (the query is refused),
+  // so the active customers are read and the parent is matched here.
+  const active = await qboQueryAll<{ Id: string; ParentRef?: { value?: string } }>("Customer", "Active = true");
+  if (active.some((customer) => customer.Id !== id && customer.ParentRef?.value === id)) return "kept";
   const current = await qboRequest<{ Customer?: { Id: string; SyncToken: string; Active?: boolean; Balance?: number } }>(`/customer/${encodeURIComponent(id)}`);
   if (!current.Customer) return "kept";
   if (current.Customer.Active === false) return "already-inactive";
@@ -99,7 +115,8 @@ export async function removeLeadFromQuickBooks(dealId: number): Promise<Outcome>
   const outcome: Outcome = { removed: [], kept: [], pending: null };
   if (!crossSystemDeleteEnabled()) return outcome;
   const projectIds = await leadProjects(dealId);
-  if (!projectIds.length) return outcome;
+  const earlier = await leadCustomers(dealId);
+  if (!projectIds.length && !earlier.length) return outcome;
 
   const { isQboConnected } = await import("../finance/qbo/oauth.ts");
   if (!(await isQboConnected().catch(() => false))) {
@@ -110,7 +127,7 @@ export async function removeLeadFromQuickBooks(dealId: number): Promise<Outcome>
   const scopes = await import("../scopes/qbo.ts");
   const store = await import("../scopes/store.ts");
   const { estimateStatus } = await import("../scopes/estimate.ts");
-  const customers = new Set<string>();
+  const customers = new Set<string>(earlier);
 
   for (const projectId of projectIds) {
     const project = await store.getProject(projectId);

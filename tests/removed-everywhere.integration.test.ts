@@ -38,6 +38,8 @@ describe("deletions carry across HubSpot and QuickBooks", { skip: TEST_DB ? fals
   let qboWrites: string[];
   let unexpected: string[];
   let qboDown: boolean;
+  let customerQueryDown: boolean;
+  let qboRefused: string[];
 
   const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status });
   const gone = () => json({ Fault: { Error: [{ Message: "Object Not Found", code: "610" }] } }, 400);
@@ -101,11 +103,23 @@ describe("deletions carry across HubSpot and QuickBooks", { skip: TEST_DB ? fals
         if (path.startsWith("/query?query=")) {
           const sql = decodeURIComponent(path.slice("/query?query=".length));
           const entity = /FROM (\w+)/.exec(sql)![1];
-          const customerId = /(?:CustomerRef|ParentRef) = '([^']+)'/.exec(sql)?.[1];
+          // The real QuickBooks refuses a filter on a field it does not index.
+          // ParentRef is one: found live on 17 November 2026, when a check
+          // written against a more forgiving fake left a customer active.
+          const where = /WHERE (.*?)(?: STARTPOSITION| MAXRESULTS|$)/.exec(sql)?.[1] ?? "";
+          const fields = [...where.matchAll(/(\w+) (?:=|IN|LIKE|<|>)/g)].map((m) => m[1]);
+          const queryable = entity === "Customer" ? ["Id", "Active", "Job", "DisplayName"] : ["Id", "CustomerRef", "DocNumber", "TxnDate"];
+          const refused = fields.find((field) => !queryable.includes(field));
+          if (refused) {
+            qboRefused.push(`${entity}.${refused}`);
+            return json({ Fault: { Error: [{ Message: "Invalid query", Detail: `QueryValidationError: Property ${refused} is not queryable`, code: "4001" }], type: "ValidationFault" } }, 400);
+          }
+          if (customerQueryDown && entity === "Customer") return json({ Fault: "unavailable" }, 400);
+          const customerId = /CustomerRef = '([^']+)'/.exec(sql)?.[1];
           let rows: unknown[] = [];
           if (entity === "Estimate") rows = [...estimates.values()].filter((e) => !e.deleted && e.CustomerRef.value === customerId);
           else if (entity === "Invoice") rows = invoices.filter((i) => i.CustomerRef === customerId);
-          else if (entity === "Customer") rows = [...customers.values()].filter((c) => c.Active && c.ParentRef?.value === customerId);
+          else if (entity === "Customer") rows = [...customers.values()].filter((c) => c.Active);
           return json({ QueryResponse: { [entity]: rows } });
         }
         const estimate = /^\/estimate\/(\d+)$/.exec(path)?.[1];
@@ -181,7 +195,7 @@ describe("deletions carry across HubSpot and QuickBooks", { skip: TEST_DB ? fals
     estimates = new Map();
     customers = new Map([["34", { Id: "34", SyncToken: "0", Active: true, Balance: 0 }]]);
     invoices = [];
-    hubWrites = []; qboWrites = []; unexpected = []; qboDown = false;
+    hubWrites = []; qboWrites = []; unexpected = []; qboDown = false; customerQueryDown = false; qboRefused = [];
     delete process.env.CROSS_SYSTEM_DELETE;
     await query("TRUNCATE guided_estimate,scope_event,scope_estimate,scope_version,scope_project,qbo_connection,hubspot_lead_review,lead_hubspot_retry,hubspot_archive_review,integration_health,lead_intake_submission,deal,contact,app_user,alert,lead_alert_incident,task,activity,audit_log,job_run,job_lock,setting RESTART IDENTITY CASCADE");
     await query("INSERT INTO setting (key,value) VALUES ('lead_manager',$1::jsonb)", [JSON.stringify({ featureFlags: { hubspotIntegrationEnabled: true } })]);
@@ -215,6 +229,36 @@ describe("deletions carry across HubSpot and QuickBooks", { skip: TEST_DB ? fals
     assert.ok(entry, "what was removed is on the lead's audit trail");
     assert.deepEqual(hubWrites, [], "nothing is written back to HubSpot");
     assert.deepEqual(unexpected, []);
+    assert.deepEqual(qboRefused, [], "every query is one QuickBooks accepts");
+  });
+
+  test("a customer with an active sub-customer is kept", async () => {
+    await estimateFor(1, "90", "34");
+    customers.set("35", { Id: "35", SyncToken: "0", Active: true, Balance: 0, ParentRef: { value: "34" } });
+    hubDeals.get("100")!.archived = true;
+    await pull(now);
+    assert.equal(estimates.get("90")!.deleted, true);
+    assert.equal(customers.get("34")!.Active, true);
+    assert.deepEqual(qboWrites, ["DELETE estimate/90"]);
+    assert.deepEqual(qboRefused, []);
+  });
+
+  test("a customer check that could not finish is completed on the retry, after its estimate is already gone", async () => {
+    const projectId = await estimateFor(1, "90", "34");
+    hubDeals.get("100")!.archived = true;
+    customerQueryDown = true;
+    await pull(now);
+    assert.equal(estimates.get("90")!.deleted, true, "the estimate goes at once");
+    assert.ok((await project(projectId)).deleted_at);
+    assert.equal(customers.get("34")!.Active, true, "the customer waits for the retry");
+    assert.equal((await audits("quickbooks_cleanup_pending")).filter((row) => !row.succeeded).length, 1);
+    customerQueryDown = false;
+    await query("UPDATE audit_log SET occurred_at=now()-interval '7 hours' WHERE action='quickbooks_cleanup_pending'");
+    assert.deepEqual(await everywhere.settleRemovedLeads(), { attempted: 1, finished: 1 });
+    assert.equal(customers.get("34")!.Active, false);
+    assert.equal((await audits("quickbooks_cleanup_pending")).filter((row) => !row.succeeded).length, 0);
+    assert.deepEqual(await everywhere.settleRemovedLeads(), { attempted: 0, finished: 0 });
+    assert.deepEqual(qboWrites, ["DELETE estimate/90", "UPDATE customer/34 Active=false"]);
   });
 
   test("accepted or invoiced work is never deleted, and its customer stays", async () => {
