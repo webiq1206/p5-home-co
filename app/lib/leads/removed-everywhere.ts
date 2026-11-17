@@ -21,13 +21,15 @@
  *     the lead's last estimate, the lead is not won, and either nobody has
  *     worked the lead yet or the QuickBooks customer was removed too. An
  *     estimate deleted to be redone on a live lead leaves HubSpot alone.
- *   - Only estimates that came from the websites (the guided estimator) are
- *     linked to a lead, so only those carry.
+ *   - Only estimates that came from the websites (the guided estimator, a
+ *     request form's planning range, the document estimator) are linked to a
+ *     lead, so only those carry. The link is read in estimate-links.ts.
  *
  * `CROSS_SYSTEM_DELETE=off` turns all of it off. Every step is on the lead's
  * audit trail and the scope project's event log.
  */
 import { query, queryOne } from "../db.ts";
+import { customersOfRemovedProjects, leadsForProject, projectsForLead, queryLeadLinks } from "./estimate-links.ts";
 
 const NO_EMPLOYEE = null as unknown as number;
 export const REMOVED_IN_QUICKBOOKS = "Removed in QuickBooks";
@@ -47,30 +49,6 @@ async function audit(dealId: number, action: string, detail: unknown, succeeded 
      VALUES ('deal',$1,$2,'integration','quickbooks',$3::jsonb,$4,$5)`,
     [String(dealId), action, JSON.stringify(detail), succeeded, error],
   );
-}
-
-/**
- * QuickBooks customers behind every estimate the websites made for this lead,
- * removed projects included: a customer whose check could not finish the first
- * time is looked at again on the retry, when its projects are already gone.
- */
-async function leadCustomers(dealId: number): Promise<string[]> {
-  const rows = await query<{ id: string }>(
-    `SELECT DISTINCT sp.qbo_customer_id AS id FROM guided_estimate ge JOIN scope_project sp ON sp.id = ge.scope_project_id
-      WHERE ge.lead_deal_id = $1 AND sp.qbo_customer_id IS NOT NULL AND sp.deleted_at IS NOT NULL ORDER BY 1`,
-    [dealId],
-  );
-  return rows.map((r) => r.id);
-}
-
-/** Live scope projects the websites' estimator made for this lead. */
-async function leadProjects(dealId: number): Promise<number[]> {
-  const rows = await query<{ id: number }>(
-    `SELECT DISTINCT sp.id::int AS id FROM guided_estimate ge JOIN scope_project sp ON sp.id = ge.scope_project_id
-      WHERE ge.lead_deal_id = $1 AND sp.deleted_at IS NULL ORDER BY 1`,
-    [dealId],
-  );
-  return rows.map((r) => r.id);
 }
 
 /**
@@ -114,8 +92,10 @@ export async function deactivateCustomerIfUnused(qboCustomerId: string): Promise
 export async function removeLeadFromQuickBooks(dealId: number): Promise<Outcome> {
   const outcome: Outcome = { removed: [], kept: [], pending: null };
   if (!crossSystemDeleteEnabled()) return outcome;
-  const projectIds = await leadProjects(dealId);
-  const earlier = await leadCustomers(dealId);
+  const projectIds = await projectsForLead(dealId);
+  // Customers of projects already removed: a check that could not finish the
+  // first time is made again on the retry.
+  const earlier = await customersOfRemovedProjects(dealId);
   if (!projectIds.length && !earlier.length) return outcome;
 
   const { isQboConnected } = await import("../finance/qbo/oauth.ts");
@@ -233,15 +213,12 @@ type LeadRow = {
  */
 export async function onQuickBooksEstimateRemoved(projectId: number): Promise<"removed" | "kept" | "ignored"> {
   if (!crossSystemDeleteEnabled()) return "ignored";
-  const links = await query<{ deal_id: number }>(
-    "SELECT DISTINCT lead_deal_id::int AS deal_id FROM guided_estimate WHERE scope_project_id = $1 AND lead_deal_id IS NOT NULL",
-    [projectId],
-  );
+  const links = await leadsForProject(projectId);
   if (!links.length) return "ignored"; // Not an estimate from the websites.
   const store = await import("../scopes/store.ts");
   let result: "removed" | "kept" | "ignored" = "ignored";
 
-  for (const { deal_id: dealId } of links) {
+  for (const dealId of links) {
     const lead = await queryOne<LeadRow>(
       `SELECT d.id::int AS id, d.stage, d.hubspot_deal_id, c.hubspot_contact_id,
               d.first_attempt_at, d.first_two_way_at, d.appointment_at
@@ -251,9 +228,9 @@ export async function onQuickBooksEstimateRemoved(projectId: number): Promise<"r
     if (!lead || lead.stage === "Closed Won" || lead.stage === "Closed Lost") continue;
 
     // Another estimate for this lead is still live in QuickBooks: the lead stands.
-    const others = await query<{ id: number }>(
-      `SELECT sp.id::int AS id FROM guided_estimate ge JOIN scope_project sp ON sp.id = ge.scope_project_id
-        WHERE ge.lead_deal_id = $1 AND sp.deleted_at IS NULL AND sp.id <> $2
+    const others = await queryLeadLinks<{ id: number }>(
+      (links) => `SELECT DISTINCT sp.id::int AS id FROM ${links} l JOIN scope_project sp ON sp.id = l.project_id
+        WHERE l.deal_id = $1 AND sp.deleted_at IS NULL AND sp.id <> $2
           AND EXISTS (SELECT 1 FROM scope_estimate se WHERE se.project_id = sp.id AND se.qbo_estimate_id IS NOT NULL
                         AND se.txn_status IS DISTINCT FROM 'Deleted')`,
       [dealId, projectId],
@@ -282,7 +259,7 @@ export async function onQuickBooksEstimateRemoved(projectId: number): Promise<"r
     }
     await hubspot.closeRemovedLead(dealId, REMOVED_IN_QUICKBOOKS, "quickbooks_estimate_removed", { projectId, removed, hubspotDealId: lead.hubspot_deal_id });
     // The scope projects behind the lead leave the list too; nothing is erased.
-    for (const id of await leadProjects(dealId)) {
+    for (const id of await projectsForLead(dealId)) {
       await store.markProjectDeleted(id, null, "The estimate was deleted in QuickBooks, so the lead was removed.");
       await store.logEvent(id, "project-deleted", { removed, reason: "estimate deleted in QuickBooks" }, NO_EMPLOYEE);
     }

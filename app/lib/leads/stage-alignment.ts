@@ -18,7 +18,9 @@
  *
  * QuickBooks is the accounting record, so the rules are narrow:
  *   - Only estimates that came from the websites are linked to a lead
- *     (`guided_estimate.lead_deal_id`). Anything else is left alone.
+ *     (estimate-links.ts: the guided estimator's `guided_estimate.lead_deal_id`
+ *     and a site estimate's `scope_project.lead_deal_id`). Anything else is
+ *     left alone.
  *   - An estimate the website created by itself moves nothing: a brand new
  *     lead stays "New Lead" until a person works the estimate.
  *   - An open stage only moves forward. A won lead is never moved. A lead
@@ -35,6 +37,7 @@
  */
 import { query, queryOne, transaction } from "../db.ts";
 import { MERGED_IN_HUBSPOT, REMOVED_IN_HUBSPOT } from "../integrations/hubspot-removed.ts";
+import { leadsForProject, projectsForLead, queryLeadLinks } from "./estimate-links.ts";
 import { REMOVED_IN_QUICKBOOKS } from "./removed-everywhere.ts";
 import { DEAL_STAGES, type DealStage } from "./types.ts";
 
@@ -209,16 +212,6 @@ async function currentEstimate(projectId: number): Promise<EstimateRecord | null
   );
 }
 
-/** Live scope projects the websites' estimator made for this lead. */
-async function leadProjects(dealId: number): Promise<number[]> {
-  const rows = await query<{ id: number }>(
-    `SELECT DISTINCT sp.id::int AS id FROM guided_estimate ge JOIN scope_project sp ON sp.id = ge.scope_project_id
-      WHERE ge.lead_deal_id = $1 AND sp.deleted_at IS NULL ORDER BY 1`,
-    [dealId],
-  );
-  return rows.map((row) => row.id);
-}
-
 /** The estimate's state from P5's stored copy and the mirrored invoices. No QuickBooks call. */
 async function storedStatus(estimate: EstimateRecord): Promise<string> {
   if (!estimate.qbo_estimate_id) return "not_created";
@@ -240,9 +233,9 @@ async function storedStatus(estimate: EstimateRecord): Promise<string> {
 export async function onEstimateStatusApplied(estimateId: number): Promise<void> {
   try {
     if (!stageAlignmentEnabled()) return;
-    const linked = await queryOne<{ project_id: number }>(
-      `SELECT se.project_id::int AS project_id FROM scope_estimate se
-        WHERE se.id = $1 AND EXISTS (SELECT 1 FROM guided_estimate ge WHERE ge.scope_project_id = se.project_id AND ge.lead_deal_id IS NOT NULL)`,
+    const [linked] = await queryLeadLinks<{ project_id: number }>(
+      (links) => `SELECT se.project_id::int AS project_id FROM scope_estimate se
+        WHERE se.id = $1 AND EXISTS (SELECT 1 FROM ${links} l WHERE l.project_id = se.project_id)`,
       [estimateId],
     );
     if (!linked) return; // Not an estimate from the websites.
@@ -262,20 +255,23 @@ export async function onEstimateStatusApplied(estimateId: number): Promise<void>
 export async function alignLeadsWithProject(projectId: number, options: { estimateId?: number; wait?: boolean } = {}): Promise<{ moved: number[] }> {
   const moved: number[] = [];
   if (!stageAlignmentEnabled()) return { moved };
-  const links = await query<{ deal_id: number }>(
-    `SELECT DISTINCT ge.lead_deal_id::int AS deal_id FROM guided_estimate ge JOIN scope_project sp ON sp.id = ge.scope_project_id
-      WHERE ge.scope_project_id = $1 AND ge.lead_deal_id IS NOT NULL AND sp.deleted_at IS NULL ORDER BY 1`,
-    [projectId],
-  );
+  const links = await leadsForProject(projectId, { live: true });
   if (!links.length) return { moved };
   const estimate = await currentEstimate(projectId);
   if (!estimate?.qbo_estimate_id) return { moved };
   // A status applied to an estimate that has since been replaced says nothing about the lead.
   if (options.estimateId !== undefined && options.estimateId !== estimate.id) return { moved };
   const status = await storedStatus(estimate);
-  const worked = estimateWorked(estimate.qbo_snapshot, estimate.created_by);
+  let worked = estimateWorked(estimate.qbo_snapshot, estimate.created_by);
+  // A revision the website made by itself (the visitor sent new figures;
+  // site-estimate.ts) is no more a person's work than the estimate the website
+  // created: the lead stays where it is. The next save by anyone counts.
+  if (worked && status === "created_unsent" && !estimate.created_by) {
+    const { savedByWebsiteOnly } = await import("./site-estimate.ts");
+    if (await savedByWebsiteOnly(projectId, estimate.id, String(estimate.qbo_snapshot?.SyncToken ?? ""))) worked = false;
+  }
 
-  for (const { deal_id: dealId } of links) {
+  for (const dealId of links) {
     const changed = await moveLead(dealId, projectId, estimate, status, worked);
     if (changed) moved.push(dealId);
     if (!changed && status !== "paid") continue;
@@ -331,7 +327,7 @@ async function moveLead(dealId: number, projectId: number, estimate: EstimateRec
 
 /** Another live website estimate for this lead that is still open, or was accepted. Stored copies only. */
 async function hasOtherLiveEstimate(dealId: number, exceptProjectId: number): Promise<boolean> {
-  for (const projectId of await leadProjects(dealId)) {
+  for (const projectId of await projectsForLead(dealId)) {
     if (projectId === exceptProjectId) continue;
     const estimate = await currentEstimate(projectId);
     if (!estimate?.qbo_estimate_id) continue;
@@ -379,10 +375,10 @@ export async function onQuickBooksTxn(entity: string, row: QboTxnRow): Promise<v
 
 /** Website estimates this invoice was made from: by the estimate's own link, or by the invoice's. */
 async function projectsForInvoice(invoiceId: string, estimateIds: string[]): Promise<number[]> {
-  const rows = await query<{ project_id: number }>(
-    `SELECT DISTINCT se.project_id::int AS project_id FROM scope_estimate se
+  const rows = await queryLeadLinks<{ project_id: number }>(
+    (links) => `SELECT DISTINCT se.project_id::int AS project_id FROM scope_estimate se
       WHERE (se.linked_invoice = $1 OR se.qbo_snapshot->'LinkedTxn' @> $2::jsonb OR se.qbo_estimate_id = ANY($3::text[]))
-        AND EXISTS (SELECT 1 FROM guided_estimate ge WHERE ge.scope_project_id = se.project_id AND ge.lead_deal_id IS NOT NULL)
+        AND EXISTS (SELECT 1 FROM ${links} l WHERE l.project_id = se.project_id)
       ORDER BY 1`,
     [invoiceId, JSON.stringify([{ TxnId: invoiceId, TxnType: "Invoice" }]), estimateIds],
   );
@@ -459,7 +455,7 @@ async function jobCompleteStageId(pipelineId: string): Promise<string | null> {
 async function leadJobPaid(dealId: number): Promise<{ paid: boolean; docNumbers: string[] }> {
   const docNumbers: string[] = [];
   let unfinished = false;
-  for (const projectId of await leadProjects(dealId)) {
+  for (const projectId of await projectsForLead(dealId)) {
     const estimate = await currentEstimate(projectId);
     if (!estimate?.qbo_estimate_id) continue;
     const status = await storedStatus(estimate);
@@ -656,7 +652,7 @@ async function closedLeadToQuickBooks(dealId: number, outcome: ClosedOutcome): P
   if (!lead) return;
   const target = quickBooksStatusForClosedLead(lead.stage, lead.closed_lost_reason);
   if (!target) return; // Reopened since, or closed by a deletion, a merge or a QuickBooks decline.
-  const projectIds = await leadProjects(dealId);
+  const projectIds = await projectsForLead(dealId);
   if (!projectIds.length) return;
 
   const { isQboConnected } = await import("../finance/qbo/oauth.ts");

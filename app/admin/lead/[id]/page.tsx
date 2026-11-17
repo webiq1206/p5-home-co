@@ -12,10 +12,12 @@ import {linkedEstimatorRecords} from "../../../../lib/p5/crmRecords";
 
 import { getSessionUser } from "../../../lib/auth.ts";
 import { isDatabaseConfigured, query } from "../../../lib/db.ts";
+import { describeLeadEstimate, estimatesForLead, type LeadEstimate } from "../../../lib/leads/estimate-links.ts";
 import { can, seesAllLeads } from "../../../lib/leads/permissions.ts";
 import { formatPhone } from "../../../lib/leads/normalize.ts";
 import { evaluateDeal, type DealSnapshot } from "../../../lib/leads/rules.ts";
 import { loadSettings } from "../../../lib/leads/settings.ts";
+import { qboWebUrl } from "../../../lib/scopes/estimate.ts";
 import type { DealStage } from "../../../lib/leads/types.ts";
 import { boiseTime, timeAgo } from "../../queries.ts";
 import { LogOutcomeForm } from "../../LogOutcomeForm.tsx";
@@ -113,6 +115,9 @@ export default async function LeadDetail({ params }: { params: Promise<{ id: str
 
   // Internal cost records remain limited to estimator administrators.
   const estimatorRecords = user.role === "administrator" ? await linkedEstimatorRecords(dealId) : [];
+  // Estimates the websites made for this lead (the instant estimator, a request form's planning
+  // range, the document estimator), each with its QuickBooks estimate. Customer prices only.
+  const websiteEstimates: LeadEstimate[] = await estimatesForLead(dealId).catch(() => []);
 
   const settings = await loadSettings();
   const now = new Date();
@@ -253,6 +258,24 @@ export default async function LeadDetail({ params }: { params: Promise<{ id: str
                 <Link href={`/admin/p5-estimators?id=${record.id}`} className="lead-action">
                   {record.brand} · Estimate {String(record.id).slice(0,8)} · linked revision {record.revision}
                 </Link>
+              </li>
+            ))}</ul>
+          </section>
+        )}
+
+        {websiteEstimates.length > 0 && (
+          <section className="lead-panel">
+            <h2>QuickBooks estimates</h2>
+            <p>What the websites priced for this lead. Each one is a scope project with an unsent estimate in QuickBooks until someone sends it.</p>
+            <ul>{websiteEstimates.map(estimate => (
+              <li key={estimate.projectId} style={{overflowWrap:"anywhere",padding:"8px 0"}}>
+                <Link href={`/scopes/${estimate.projectId}`} className="lead-action">
+                  {estimate.title || `Scope project ${estimate.projectId}`}
+                </Link>
+                <span> {describeLeadEstimate(estimate)}</span>
+                {estimate.qboEstimateId && estimate.txnStatus !== "Deleted" && (
+                  <> <a href={qboWebUrl("estimate", estimate.qboEstimateId, process.env.QBO_ENV === "sandbox")} target="_blank" rel="noreferrer">Open in QuickBooks</a></>
+                )}
               </li>
             ))}</ul>
           </section>

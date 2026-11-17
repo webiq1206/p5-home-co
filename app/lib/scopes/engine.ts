@@ -439,6 +439,11 @@ export async function reprice(projectId: number, userId: number, note: string): 
   const project = (await getProject(projectId))!;
   const { version, doc } = await currentDoc(project);
   if (!version) return;
+  // A site estimate's version holds the customer prices a website gave
+  // (leads/site-estimate.ts). There is no scope behind it to price again, so a
+  // pricing change must not replace it with an empty one. Once a person builds
+  // a scope in the project, that version is theirs and is priced as usual.
+  if (version.source === "site-estimate" && !doc.tasks?.length) return;
   const computed = await compute(project, doc);
   if (canonical(computed.pricing) === canonical(version.pricing)) {
     if (computed.readiness.status !== project.scope_status) await setProjectState(projectId, { scope_status: computed.readiness.status });
