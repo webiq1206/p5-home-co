@@ -32,6 +32,7 @@ import {
 import { loadSettings } from "../../../lib/leads/settings.ts";
 import { BRANDS, LEAD_SOURCES, type Brand, type LeadSource } from "../../../lib/leads/types.ts";
 import { notifyLeadCreated, notifyLeadDetailsAdded, type LeadCreatedNotifyInput } from "../../../lib/notifications/lead-created.ts";
+import type { Transport } from "../../../lib/notifications/transport.ts";
 import { sendRequestConfirmation } from "../../../lib/leads/sendLeadConfirmation.ts";
 import { scheduleIntentFor } from "../../../lib/leads/scheduleEmail.ts";
 import { allowLeadIntake, type IntakeLimitVerdict } from "./abuse.ts";
@@ -70,8 +71,31 @@ function collectUtm(body: Record<string, unknown>): Record<string, string> | nul
   return Object.keys(utm).length ? utm : null;
 }
 
+/**
+ * The team emails one submission produces. Normally each is sent after the
+ * response. When the caller asked to be told (`team_alert: "confirm"`, which
+ * the brand sites send so they can skip their own team email), they are sent
+ * before it and the response says whether they went.
+ */
+type TeamAlerts = {
+  confirm: boolean;
+  /** Test seam: the transport the team emails use. */
+  transport?: Transport;
+  /** Team-only lines from the brand site, printed in whatever email is sent. */
+  teamNotes: string[];
+  sends: Array<() => Promise<boolean>>;
+};
+
+function teamEmail(alerts: TeamAlerts, after: AfterResponse, send: () => Promise<boolean>): void {
+  if (alerts.confirm) alerts.sends.push(send);
+  else after(async () => { await send(); });
+}
+
+/** How long a caller that asked for confirmation waits for the team email. */
+const CONFIRM_ALERT_TIMEOUT_MS = 20_000;
+
 /** A merged Step 2 sends the team a short follow-up email after the response. */
-function followUp(after: AfterResponse, merged: MergeResult, subjectPrefix?: string): void {
+function followUp(alerts: TeamAlerts, after: AfterResponse, merged: MergeResult, subjectPrefix?: string): void {
   if (merged.status !== "merged") return;
   const notice = {
     dealId: merged.dealId,
@@ -82,10 +106,9 @@ function followUp(after: AfterResponse, merged: MergeResult, subjectPrefix?: str
     email: merged.email,
     lines: merged.lines,
     reroutedFrom: merged.reroutedFrom,
+    teamNotes: alerts.teamNotes,
   };
-  after(async () => {
-    await notifyLeadDetailsAdded(notice, subjectPrefix ? { subjectPrefix } : {});
-  });
+  teamEmail(alerts, after, () => notifyLeadDetailsAdded(notice, { ...(subjectPrefix ? { subjectPrefix } : {}), ...(alerts.transport ? { transport: alerts.transport } : {}) }));
 }
 
 /**
@@ -143,6 +166,10 @@ export type IntakeDeps = {
    * person would send; the details are still merged onto the lead.
    */
   skipLeadAlert?: boolean;
+  /** Test seam: how long a confirming caller waits for the team email. */
+  confirmAlertTimeoutMs?: number;
+  /** Test seam: the transport the team emails use (default: the configured one). */
+  alertTransport?: Transport;
 };
 
 /**
@@ -150,6 +177,36 @@ export type IntakeDeps = {
  * constructed Request and a captured `after`. route.ts passes the real one.
  */
 export async function handleIntake(request: Request, after: AfterResponse, deps: IntakeDeps = {}): Promise<Response> {
+  const alerts: TeamAlerts = { confirm: false, teamNotes: [], sends: [], transport: deps.alertTransport };
+  const response = await runIntake(request, after, deps, alerts);
+  if (!alerts.confirm || !response.ok) {
+    // A refused request that had already queued an email still sends it.
+    for (const send of alerts.sends) after(async () => { await send(); });
+    return response;
+  }
+  // The caller is waiting to hear whether the team email went. "none" means
+  // this submission produced no email (an exact repeat, or details that are
+  // waiting for their request): the caller decides what to do with that.
+  let alert: "sent" | "failed" | "none" = "none";
+  if (alerts.sends.length) {
+    const all = Promise.all(alerts.sends.map((send) => send().catch(() => false)));
+    const results = await Promise.race([
+      all,
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), deps.confirmAlertTimeoutMs ?? CONFIRM_ALERT_TIMEOUT_MS)),
+    ]);
+    if (results === null) {
+      // Still sending: say it is not confirmed, and let it finish.
+      after(async () => { await all; });
+      alert = "failed";
+    } else {
+      alert = results.every(Boolean) ? "sent" : "failed";
+    }
+  }
+  const data = (await response.json()) as Record<string, unknown>;
+  return Response.json({ ...data, alert }, { status: response.status });
+}
+
+async function runIntake(request: Request, after: AfterResponse, deps: IntakeDeps, alerts: TeamAlerts): Promise<Response> {
   if (!isDatabaseConfigured()) {
     // Fail loudly to the operator, softly to the visitor: never imply a lead
     // was captured when there is nowhere to put it.
@@ -194,6 +251,8 @@ export async function handleIntake(request: Request, after: AfterResponse, deps:
 
   const extras = readIntakeExtras(body);
   const details = extras.submissionKind === "details";
+  alerts.confirm = extras.confirmAlert;
+  alerts.teamNotes = extras.teamNotes;
 
   const brand = pickBrand(body.brand ?? body.company);
   if (!brand) {
@@ -219,7 +278,7 @@ export async function handleIntake(request: Request, after: AfterResponse, deps:
     if (limited) return limited;
     try {
       const merged = await mergeLeadDetails({ brand, externalId: extras.externalId }, readLeadDetails(body, extras));
-      followUp(after, merged);
+      followUp(alerts, after, merged);
       if (merged.status !== "not_found") {
         return Response.json({
           ok: true,
@@ -236,7 +295,7 @@ export async function handleIntake(request: Request, after: AfterResponse, deps:
       if (!str(body.phone ?? body.telephone) && !str(body.email)) {
         const held = await holdPendingDetails(brand, extras.externalId, readLeadDetails(body, extras));
         if (held.status === "applied") {
-          for (const result of held.results) followUp(after, result);
+          for (const result of held.results) followUp(alerts, after, result);
           return Response.json({ ok: true, merged: true, duplicate: false, accepted: false, message: "Thanks. The details are with the team." });
         }
         return Response.json(
@@ -351,14 +410,14 @@ export async function handleIntake(request: Request, after: AfterResponse, deps:
             requestKind: extras.requestKind,
           });
           // The estimator's own team email already carries this request.
-          if (!deps.skipLeadAlert) followUp(after, late, "Request added");
+          if (!deps.skipLeadAlert) followUp(alerts, after, late, "Request added");
         } catch (error) {
           console.error("[intake] late request merge failed:", (error as Error).message);
         }
       }
       // Any Step 2 that was waiting for this Step 1.
       try {
-        for (const pending of await applyPendingDetails(brand, extras.externalId)) followUp(after, pending);
+        for (const pending of await applyPendingDetails(brand, extras.externalId)) followUp(alerts, after, pending);
       } catch (error) {
         console.error("[intake] pending details not applied:", (error as Error).message);
       }
@@ -388,6 +447,7 @@ export async function handleIntake(request: Request, after: AfterResponse, deps:
         source: resolvedSource,
         originalForm: str(body.form ?? body.originalForm),
         extraLines: intakeNoticeLines(extras),
+        teamNotes: extras.teamNotes,
         propertyState,
         propertyZip,
         submittedFields: submittedFieldsFromBody(body),
@@ -398,11 +458,7 @@ export async function handleIntake(request: Request, after: AfterResponse, deps:
           return loadLeadAlert(result.dealId, { ...notice, prepare: undefined });
         },
       };
-      if (!deps.skipLeadAlert) {
-        after(async () => {
-          await notifyLeadCreated(notice);
-        });
-      }
+      if (!deps.skipLeadAlert) teamEmail(alerts, after, () => notifyLeadCreated(notice, alerts.transport ? { transport: alerts.transport } : {}));
       // Quote landing is the P5 form that posts here and does not already
       // email the lead. The guided estimator and the brand sites send their
       // own customer mail, so they are not confirmed a second time.

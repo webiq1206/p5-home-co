@@ -213,3 +213,28 @@ After the deal commits the hub syncs it to HubSpot inline (bounded, default
 links and the HubSpot contact and deal links. The watchdog stays the retry
 path. Only HubSpot portal 247066159 is ever written. Details:
 docs/meta-leadgen-setup.md.
+
+## One team email per request (17 November 2026)
+
+A request from a brand site used to produce two team emails in the same inbox:
+the site's own and the "New lead" email sent here. Two optional fields let the
+site make this one the only one, and keep its own as the fallback.
+
+| Field | Meaning |
+| --- | --- |
+| `team_alert: "confirm"` | The team email is sent before the answer, and the answer says whether it went. |
+| `team_notes: string[]` | Lines for the team only (the site's planning range, the parcel it looked up, its dashboard link). At most 40 lines of 300 characters. Printed in the team email under "From the website". Never stored on the lead, never sent to HubSpot, never listed under "Everything submitted". |
+
+With `team_alert: "confirm"` the JSON answer gains `alert`:
+
+* `"sent"`: the mail server accepted the team email.
+* `"failed"`: it did not, or it was still sending after 20 seconds (it is left to finish).
+* `"none"`: this submission produced no team email (an exact repeat, or details waiting for their request).
+
+The calling site sends its own team email unless `alert` is `"sent"`. A caller
+that does not send `team_alert` is answered exactly as before and the email
+goes after the response. An answer in this mode can take up to about 25
+seconds (the HubSpot links are waited for, then the mail server), so the site
+must wait for it off the visitor's path.
+
+Guard: `tests/lead-intake-confirm-alert.test.ts`.

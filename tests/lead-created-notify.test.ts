@@ -100,7 +100,11 @@ test("synthetic, failed, and thrown sends do not escape the helper", async () =>
 test("public intake notifies only after a created lead and ignores the escalation flag", () => {
   const source = readFileSync(new URL("../app/api/leads/intake/handler.ts", import.meta.url), "utf8");
   assert.match(source, /if \(result\.status === "created"\) \{/);
-  assert.match(source, /after\(async \(\) => \{\s*await notifyLeadCreated\(notice\)/);
+  // The alert goes through teamEmail(): after the response, or before it when
+  // the caller asked to be told it went (tests/lead-intake-confirm-alert.test.ts).
+  assert.match(source, /if \(!deps\.skipLeadAlert\) teamEmail\(alerts, after, \(\) => notifyLeadCreated\(notice/);
+  assert.match(source, /if \(alerts\.confirm\) alerts\.sends\.push\(send\);\s*else after\(async \(\) => \{ await send\(\); \}\);/);
+  assert.equal((source.match(/notifyLeadCreated\(notice/g) ?? []).length, 1);
   assert.equal(source.includes("P5_LEAD_ALERT_EMAILS_ENABLED"), false);
 });
 

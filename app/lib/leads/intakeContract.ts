@@ -33,7 +33,35 @@ export type IntakeExtras = {
   files: LeadFileLink[];
   /** File entries dropped because they had no usable https link or name. */
   filesDropped: number;
+  /**
+   * Lines a brand site wants in the team email only (its own planning range,
+   * the parcel it looked up, a link to its dashboard). Printed in the email
+   * under "From the website"; never stored on the lead or sent to HubSpot.
+   */
+  teamNotes: string[];
+  /**
+   * The caller waits for the team email and is told whether it went
+   * (`alert` in the response). A brand site asks for this so it can skip its
+   * own team email, and send it after all when this one did not go.
+   */
+  confirmAlert: boolean;
 };
+
+export const MAX_TEAM_NOTES = 40;
+export const MAX_TEAM_NOTE_LENGTH = 300;
+
+/** Plain single lines, capped. Anything that is not a non-empty string is dropped. */
+export function readTeamNotes(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  const notes: string[] = [];
+  for (const item of raw) {
+    if (typeof item !== "string") continue;
+    const line = item.replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/\s+/g, " ").trim().slice(0, MAX_TEAM_NOTE_LENGTH);
+    if (line) notes.push(line);
+    if (notes.length >= MAX_TEAM_NOTES) break;
+  }
+  return notes;
+}
 
 /** What a Step 2 ("add details") post may add to an existing lead. */
 export type LeadDetails = {
@@ -155,6 +183,8 @@ export function readIntakeExtras(body: Record<string, unknown>): IntakeExtras {
     timeline: text(pick(body, ["timeline", "timing"]), 120),
     files,
     filesDropped: dropped,
+    teamNotes: readTeamNotes(pick(body, ["team_notes", "teamNotes"])),
+    confirmAlert: pick(body, ["team_alert", "teamAlert"]) === "confirm",
   };
 }
 

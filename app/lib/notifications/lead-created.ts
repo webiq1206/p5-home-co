@@ -50,6 +50,11 @@ export type LeadCreatedNotifyInput = {
   originalForm: string | null;
   /** Request kind, contact preference, best time and file links, when sent. */
   extraLines?: readonly string[];
+  /**
+   * Lines the brand site sent for the team only (its planning range, the
+   * parcel it looked up, its dashboard link). Shown under "From the website".
+   */
+  teamNotes?: readonly string[];
   /** Every field the submission carried, in the order sent. */
   submittedFields?: readonly Field[];
   /** Source, campaign, click ids, landing page, Meta form and ad ids. */
@@ -145,6 +150,9 @@ export function renderLeadAlert(input: LeadCreatedNotifyInput): LeadAlertMessage
     "",
     input.summary ?? "",
     "",
+    input.teamNotes?.length ? "From the website:" : "",
+    ...(input.teamNotes ?? []).map((line) => `  ${oneLine(line)}`),
+    "",
     fields.length ? "Everything submitted:" : "",
     ...fields.map((field) => `  ${oneLine(field.label)}: ${oneLine(field.value)}`),
     "",
@@ -160,11 +168,16 @@ export function renderLeadAlert(input: LeadCreatedNotifyInput): LeadAlertMessage
   const button = (href: string, label: string, primary: boolean) =>
     `<a href="${escapeHtml(href)}" style="display:block;margin:0 0 10px;padding:16px 18px;text-align:center;font-size:${primary ? 20 : 16}px;font-weight:700;text-decoration:none;${primary ? "background:#383837;color:#fbfaf6;border-bottom:4px solid #b08a5a" : "background:#fbfaf6;color:#20231f;border:1px solid rgba(32,35,31,.3)"}">${escapeHtml(label)}</a>`;
   const row = (label: string, value: string, href?: string) =>
-    `<tr><td style="padding:6px 10px 6px 0;vertical-align:top;color:#4a4f49;font-size:13px;white-space:nowrap">${escapeHtml(label)}</td><td style="padding:6px 0;font-size:14px;color:#20231f">${href ? `<a href="${escapeHtml(href)}" style="color:#20231f">${escapeHtml(value)}</a>` : escapeHtml(value).replace(/\n/g, "<br>")}</td></tr>`;
+    `<tr><td style="padding:6px 10px 6px 0;vertical-align:top;color:#4a4f49;font-size:13px;white-space:nowrap">${escapeHtml(label)}</td><td style="padding:6px 0;font-size:14px;color:#20231f;overflow-wrap:anywhere;word-break:break-word">${href ? `<a href="${escapeHtml(href)}" style="color:#20231f">${escapeHtml(value)}</a>` : escapeHtml(value).replace(/\n/g, "<br>")}</td></tr>`;
   const linked = (value: string) => (/^https:\/\/\S+$/.test(value) ? value : undefined);
   const fileRow = (field: Field) => {
     const match = /^(.*) (https:\/\/\S+)$/.exec(field.value);
     return match ? row(field.label, match[1], match[2]) : row(field.label, field.value, linked(field.value));
+  };
+  // "Label: value" lines become a labelled row; anything else is a "Detail".
+  const labelled = (line: string): Field => {
+    const at = line.indexOf(": ");
+    return at > 0 && at <= 40 ? { label: line.slice(0, at), value: line.slice(at + 2) } : { label: "Detail", value: line };
   };
   const table = (items: readonly Field[]) =>
     `<table role="presentation" style="width:100%;border-collapse:collapse">${items.map(fileRow).join("")}</table>`;
@@ -209,16 +222,14 @@ ${email ? `<p style="margin:6px 0 0;font-size:15px"><a href="mailto:${escapeHtml
 ${address ? `<p style="margin:4px 0 0;font-size:15px"><a href="${escapeHtml(maps)}" style="color:#20231f">${escapeHtml(address)}</a> (open in maps)</p>` : ""}
 ${section("Records", records)}
 ${input.summary ? section("Message", `<p style="margin:0;font-size:15px;line-height:1.5">${escapeHtml(input.summary).replace(/\n/g, "<br>")}</p>`) : ""}
+${input.teamNotes?.length ? section("From the website", table(input.teamNotes.map(labelled))) : ""}
 ${section("Lead", table([
   { label: "Brand", value: input.brand },
   { label: "Project", value: input.projectType ?? "(not specified)" },
   ...(phone ? [{ label: "Phone", value: phone }] : []),
   ...(email ? [{ label: "Email", value: email }] : []),
   ...(address ? [{ label: "Address", value: address }] : []),
-  ...(input.extraLines ?? []).map((line) => {
-    const at = line.indexOf(": ");
-    return at > 0 ? { label: line.slice(0, at), value: line.slice(at + 2) } : { label: "Detail", value: line };
-  }),
+  ...(input.extraLines ?? []).map(labelled),
   { label: "Deal id", value: String(input.dealId) },
 ]))}
 ${fields.length ? section("Everything submitted", table(fields)) : ""}
@@ -228,11 +239,12 @@ ${attribution.length ? section("Source and attribution", table(attribution)) : "
   return { subject, text, html };
 }
 
+/** Resolves true only when the transport accepted the message. Never throws. */
 export async function notifyLeadCreated(
   input: LeadCreatedNotifyInput,
   options: LeadCreatedNotifyOptions = {},
-): Promise<void> {
-  if (input.originalForm === SYNTHETIC_ESTIMATOR_FORM) return;
+): Promise<boolean> {
+  if (input.originalForm === SYNTHETIC_ESTIMATOR_FORM) return false;
   try {
     let lead = input;
     if (input.prepare) {
@@ -248,8 +260,10 @@ export async function notifyLeadCreated(
     if (!result.ok) {
       console.error(`[intake-notify] send to ${PUBLIC_EMAIL} failed: ${result.error}`);
     }
+    return result.ok;
   } catch (error) {
     console.error("[intake-notify]", (error as Error).message);
+    return false;
   }
 }
 
@@ -263,6 +277,8 @@ export type LeadFollowUpNotifyInput = {
   /** One line per detail or file, already formatted. */
   lines: readonly string[];
   reroutedFrom?: string | null;
+  /** Team-only lines from the brand site, as on the "New lead" email. */
+  teamNotes?: readonly string[];
 };
 
 /**
@@ -272,7 +288,7 @@ export type LeadFollowUpNotifyInput = {
 export async function notifyLeadDetailsAdded(
   input: LeadFollowUpNotifyInput,
   options: LeadCreatedNotifyOptions & { subjectPrefix?: string } = {},
-): Promise<void> {
+): Promise<boolean> {
   try {
     const name =
       oneLine([input.firstName, input.lastName].filter(Boolean).join(" ")) || "Unnamed contact";
@@ -286,6 +302,9 @@ export async function notifyLeadDetailsAdded(
       "",
       ...input.lines,
       "",
+      input.teamNotes?.length ? "From the website:" : "",
+      ...(input.teamNotes ?? []).map((line) => `  ${oneLine(line)}`),
+      "",
       adminDealUrl(input.dealId),
     ].filter((line, index, all) => line !== "" || (index > 0 && all[index - 1] !== ""));
     const text = lines.join("\n");
@@ -295,7 +314,9 @@ export async function notifyLeadDetailsAdded(
     if (!result.ok) {
       console.error(`[intake-notify] follow-up to ${PUBLIC_EMAIL} failed: ${result.error}`);
     }
+    return result.ok;
   } catch (error) {
     console.error("[intake-notify]", (error as Error).message);
+    return false;
   }
 }
