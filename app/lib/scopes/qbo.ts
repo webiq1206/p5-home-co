@@ -283,6 +283,26 @@ export async function ensureCustomer(
   return { qboId: result.qboId, name };
 }
 
+/**
+ * Find the QuickBooks customer for a project a website made, or create one,
+ * with no person choosing. Only a match on email or phone links
+ * automatically: a shared name or street is not enough to put one family's
+ * estimate on another family's account. Used by every estimate that arrives
+ * from a website (the guided estimator and site estimates), so they all link
+ * a customer by the same rule.
+ */
+export async function linkOrCreateCustomer(projectId: number): Promise<{ qboId: string; name: string | null; how: "created" | "matched" | null }> {
+  const project = await getProject(projectId);
+  if (!project) throw new Error("The scope project for this estimate is missing.");
+  // Already linked by an earlier pass: how it was linked is not known here.
+  if (project.qbo_customer_id) return { qboId: project.qbo_customer_id, name: null, how: null };
+  const candidates = await findCustomerCandidates(project);
+  const match = candidates.find((c) => c.reasons.includes("same email")) ?? candidates.find((c) => c.reasons.includes("same phone"));
+  // A customer submission has no employee behind it; the actor columns are nullable.
+  const linked = await ensureCustomer(project, match ? { qboId: match.qboId } : { create: true }, null as unknown as number);
+  return { qboId: linked.qboId, name: linked.name || null, how: match ? "matched" : "created" };
+}
+
 // ---------------------------------------------------------------------------
 // Estimates
 // ---------------------------------------------------------------------------

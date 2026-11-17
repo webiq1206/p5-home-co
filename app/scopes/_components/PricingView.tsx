@@ -19,6 +19,7 @@ const BASIS: Record<string, string> = {
   allowance: "Allowance",
   percentage: "Percentage",
   "trip-charge": "Trip charge",
+  "site-estimate": "Website estimate",
 };
 
 export default function PricingView({ ws, onDetails }: { ws: Workspace; onDetails: () => void }) {

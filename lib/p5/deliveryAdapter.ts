@@ -35,5 +35,15 @@ export async function syncCrm(record:any,key:string){
     summary:record.customer.summary,externalLeadId:mode==='synthetic_qa'?'qa-'+key:key,originalForm:"p5-estimator",originalCampaign:attribution?.utm_campaign||null,utm:attribution,receivedAt:new Date()},await loadSettings(),null,{estimatorDeliveryMode:mode});
   if(result.status==="rejected")throw new Error("CRM rejected the estimate lead");
   if(!Number.isInteger(result.dealId)||result.dealId<=0)throw new Error("CRM duplicate acknowledgement has no resolved lead identifier; reconcile before retrying");
+  // Every estimate a website gives becomes a QuickBooks customer and an UNSENT estimate for its lead
+  // (owner decision, 13 and 17 November 2026; app/lib/leads/site-estimate.ts). The lead is saved by now,
+  // so this never fails the delivery: it is bounded, and the watchdog finishes what is left. A QA record
+  // never reaches QuickBooks.
+  if(mode!=='synthetic_qa')await documentEstimateToQuickBooks(record,result.dealId);
   return String(result.dealId);
+}
+/** Loaded on demand, so the mail paths of this adapter never load the QuickBooks code. */
+async function documentEstimateToQuickBooks(record:unknown,dealId:number){
+  try{const {createSiteEstimateFromDocument}=await import("../../app/lib/leads/site-estimate.ts");await createSiteEstimateFromDocument(record,dealId);}
+  catch(error){console.error("[p5-delivery] the QuickBooks estimate was left for the retry:",error instanceof Error?error.message:"unknown error");}
 }

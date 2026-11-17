@@ -199,7 +199,9 @@ export type PriceBasis =
   | "internal-labor"
   | "allowance"
   | "percentage"
-  | "trip-charge";
+  | "trip-charge"
+  /** A customer price a website gave (leads/site-estimate.ts). Not priced here: there is no cost behind it. */
+  | "site-estimate";
 
 export type EstimateLine = {
   id: string;
