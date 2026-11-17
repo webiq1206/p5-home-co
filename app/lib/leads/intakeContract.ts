@@ -33,7 +33,51 @@ export type IntakeExtras = {
   files: LeadFileLink[];
   /** File entries dropped because they had no usable https link or name. */
   filesDropped: number;
+  /**
+   * Lines a brand site wants in the team email only (its own planning range,
+   * the parcel it looked up, a link to its dashboard). Printed in the email
+   * under "From the website" and not stored on the lead. The email itself is
+   * copied into HubSpot by the inbox sync, so a line that names a cost or a
+   * margin is withheld (`readTeamNotes`): those stay out of HubSpot.
+   */
+  teamNotes: string[];
+  /**
+   * The caller waits for the team email and is told whether it went
+   * (`alert` in the response). A brand site asks for this so it can skip its
+   * own team email, and send it after all when this one did not go.
+   */
+  confirmAlert: boolean;
 };
+
+export const MAX_TEAM_NOTES = 40;
+export const MAX_TEAM_NOTE_LENGTH = 300;
+
+/**
+ * Internal figures that must not reach HubSpot. The "New lead" email is
+ * copied there with its whole body (inbox-policy.ts), so a team note that
+ * names one of these is withheld here, whatever site sent it.
+ */
+const INTERNAL_FIGURE = /\b(?:costs?|margins?|mark-?ups?|profits?|contingenc(?:y|ies)|overheads?)\b/i;
+
+/**
+ * Plain single lines, capped. Anything that is not a non-empty string is
+ * dropped. A line naming a cost or a margin is withheld and counted, so the
+ * team can see something was left out and look on the site's own dashboard.
+ */
+export function readTeamNotes(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  const notes: string[] = [];
+  let withheld = 0;
+  for (const item of raw) {
+    if (typeof item !== "string") continue;
+    const line = item.replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/\s+/g, " ").trim().slice(0, MAX_TEAM_NOTE_LENGTH);
+    if (!line) continue;
+    if (INTERNAL_FIGURE.test(line)) { withheld++; continue; }
+    if (notes.length < MAX_TEAM_NOTES) notes.push(line);
+  }
+  if (withheld) notes.push(`Withheld: ${withheld} internal ${withheld === 1 ? "line" : "lines"} (not emailed; see the site's own record)`);
+  return notes;
+}
 
 /** What a Step 2 ("add details") post may add to an existing lead. */
 export type LeadDetails = {
@@ -155,6 +199,8 @@ export function readIntakeExtras(body: Record<string, unknown>): IntakeExtras {
     timeline: text(pick(body, ["timeline", "timing"]), 120),
     files,
     filesDropped: dropped,
+    teamNotes: readTeamNotes(pick(body, ["team_notes", "teamNotes"])),
+    confirmAlert: pick(body, ["team_alert", "teamAlert"]) === "confirm",
   };
 }
 
