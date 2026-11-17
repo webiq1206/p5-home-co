@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 
 import { classify, type Mail } from "../app/lib/integrations/inbox-policy.ts";
 import {
@@ -109,4 +110,30 @@ test("prepare runs first and a failing prepare still sends the original alert", 
   assert.match(sent[0].html, /record\/0-3\/999/);
   await notifyLeadCreated(lead({ prepare: async () => { throw new Error("db down"); } }), { transport });
   assert.equal(sent.length, 2);
+});
+
+test("the lead email uses the same layout as the team estimate email", async () => {
+  // Owner, 17 November 2026: one layout for every team email, from every site.
+  const { html } = renderLeadAlert(lead());
+  // One filled button (the call); Text and Email beside each other; records grouped by system.
+  assert.equal((html.match(/background:#383837;color:#fbfaf6/g) ?? []).length, 1);
+  const order = ["Call (208) 555-0177", ">Text<", ">Email<", ">Records<", ">HubSpot<", ">Deal<", ">Contact<", ">P5<", ">Lead<", ">Message<"];
+  let at = -1;
+  for (const marker of order) {
+    const next = html.indexOf(marker, at + 1);
+    assert.ok(next > at, `"${marker}" is present and in order`);
+    at = next;
+  }
+  // The pieces are the estimate email's own, so the two cannot drift apart unnoticed.
+  const estimate = readFileSync(new URL("../app/lib/estimator/emails.ts", import.meta.url), "utf8");
+  const alert = readFileSync(new URL("../app/lib/notifications/lead-created.ts", import.meta.url), "utf8");
+  for (const style of ["padding:14px 6px;text-align:center;font-size:17px;font-weight:700", "padding:13px 6px;text-align:center;font-size:15px;font-weight:700", "border:1px dashed"]) {
+    assert.ok(estimate.includes(style) && alert.includes(style), style);
+  }
+  // Not synced yet: dashed tiles and one plain sentence, never a missing section.
+  const syncing = renderLeadAlert(lead({ hubspotContactId: null, hubspotDealId: null })).html;
+  assert.match(syncing, /Deal: syncing/);
+  assert.match(syncing, /Contact: syncing/);
+  assert.match(syncing, /Still syncing to HubSpot\./);
+  assert.ok(syncing.includes(">Lead<"));
 });
