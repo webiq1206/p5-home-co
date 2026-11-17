@@ -648,6 +648,15 @@ export async function applyEstimateStatus(
      VALUES ($1,$2,$3,$4::jsonb) ON CONFLICT (estimate_id, sync_token) DO NOTHING`,
     [estimateId, r.SyncToken ?? null, s.source, JSON.stringify(r)],
   );
+  // The lead behind a website estimate follows its QuickBooks status (owner,
+  // 17 November 2026; rules in leads/stage-alignment.ts). Loaded on demand, and
+  // a problem there never fails whoever is storing the status.
+  try {
+    const alignment = await import("../leads/stage-alignment.ts");
+    await alignment.onEstimateStatusApplied(estimateId);
+  } catch (error) {
+    console.error("[scopes] the lead stage was not aligned with the estimate:", (error as Error).message);
+  }
 }
 
 export async function estimateStatusError(estimateId: number, error: string): Promise<void> {

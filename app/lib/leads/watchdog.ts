@@ -311,6 +311,14 @@ export async function runWatchdog(now: Date = new Date()): Promise<WatchdogSumma
     } catch (error) {
       console.error("[watchdog] QuickBooks cleanup retry failed", error instanceof Error ? error.message : error);
     }
+    // Stage alignment that could not finish: a closed lead whose QuickBooks
+    // estimate was not set, or a paid job HubSpot did not take. Never stops the watchdog.
+    try {
+      const { settleStageAlignment } = await import("./stage-alignment.ts");
+      await settleStageAlignment();
+    } catch (error) {
+      console.error("[watchdog] stage alignment retry failed", error instanceof Error ? error.message : error);
+    }
 
     // Tell people. Last, because raising the alert correctly matters more
     // than delivering it quickly, and a mail outage must not stop the rules

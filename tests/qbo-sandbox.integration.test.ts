@@ -308,6 +308,54 @@ describe(
       assert.equal(po.POStatus ?? "Open", "Open", "a new commitment starts open");
     });
 
+    test("an estimate's status is set by a sparse update, and a stale SyncToken is refused", async () => {
+      // What stage alignment writes when a lead is closed
+      // (app/lib/leads/stage-alignment.ts): only the status, with the token of
+      // the copy just read. The fake in tests/stage-alignment.integration.test.ts
+      // is built to behave like this; only QuickBooks can confirm it does.
+      const jobs = await qbo<{ QueryResponse: { Customer?: { Id: string }[] } }>(
+        `/query?query=${encodeURIComponent(`SELECT * FROM Customer WHERE DisplayName = '${runTag} Kitchen'`)}`,
+      );
+      const jobId = jobs.QueryResponse.Customer?.[0]?.Id;
+      const items = await qbo<{ QueryResponse: { Item?: { Id: string }[] } }>(
+        `/query?query=${encodeURIComponent("SELECT * FROM Item MAXRESULTS 1")}`,
+      );
+      const itemId = items.QueryResponse.Item?.[0]?.Id;
+      assert.ok(jobId && itemId, "the job created earlier and one item are needed");
+
+      type Estimate = { Id: string; SyncToken: string; TxnStatus?: string; TotalAmt: number; CustomerRef: { value: string }; Line?: unknown[] };
+      const estimate = await create<Estimate>(
+        "Estimate",
+        invoicePayload({ customerQboId: jobId, lines: [{ itemQboId: itemId, amount: 1_000, description: `${runTag} estimate` }] }),
+        `${runTag}:estimate`,
+      );
+      assert.equal(estimate.SyncToken, "0", "a new record starts at SyncToken 0, which is how an untouched estimate is recognised");
+      assert.equal(estimate.TxnStatus, "Pending");
+      const tracked = created.find((record) => record.entity === "Estimate" && record.id === estimate.Id)!;
+
+      const setStatus = async (syncToken: string, status: string) =>
+        (await qbo<{ Estimate: Estimate }>("/estimate", {
+          method: "POST",
+          body: JSON.stringify({ Id: estimate.Id, SyncToken: syncToken, sparse: true, TxnStatus: status, CustomerRef: estimate.CustomerRef }),
+        })).Estimate;
+
+      const accepted = await setStatus(estimate.SyncToken, "Accepted");
+      tracked.syncToken = accepted.SyncToken;
+      assert.equal(accepted.TxnStatus, "Accepted");
+      assert.equal(accepted.TotalAmt, 1_000, "a sparse update must leave the lines alone");
+      assert.equal(accepted.CustomerRef.value, jobId);
+      assert.ok(Number(accepted.SyncToken) > 0, "every save adds to the SyncToken");
+
+      // The token the first update used is now old. This is the answer the
+      // code reads as "someone saved it in between" (isStale).
+      await assert.rejects(setStatus(estimate.SyncToken, "Rejected"), /Stale Object|"code":"5010"/);
+
+      const rejected = await setStatus(accepted.SyncToken, "Rejected");
+      tracked.syncToken = rejected.SyncToken;
+      assert.equal(rejected.TxnStatus, "Rejected");
+      assert.equal(rejected.TotalAmt, 1_000);
+    });
+
     // -- Cleanup ----------------------------------------------------------
     after(async () => {
       if (!accessToken) return;

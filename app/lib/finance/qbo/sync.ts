@@ -188,6 +188,16 @@ export async function upsertTxn(
       console.error("[scopes] estimate change was not applied:", (error as Error).message);
     }
   }
+  // A payment does not touch the estimate, so "paid in full" is noticed from
+  // the invoice (leads/stage-alignment.ts). Same terms: on demand, never fails the sync.
+  if ((entity === "Invoice" || entity === "Payment") && r.Id) {
+    try {
+      const alignment = await import("../../leads/stage-alignment.ts");
+      await alignment.onQuickBooksTxn(entity, r);
+    } catch (error) {
+      console.error("[stage-alignment] an invoice change was not applied:", (error as Error).message);
+    }
+  }
 }
 
 async function syncTxnEntity(entity: (typeof TXN_ENTITIES)[number]): Promise<number> {
