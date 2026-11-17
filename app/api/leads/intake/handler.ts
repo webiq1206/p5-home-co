@@ -448,6 +448,7 @@ async function runIntake(request: Request, after: AfterResponse, deps: IntakeDep
         originalForm: str(body.form ?? body.originalForm),
         extraLines: intakeNoticeLines(extras),
         teamNotes: extras.teamNotes,
+        internalNotes: extras.teamInternalNotes,
         propertyState,
         propertyZip,
         submittedFields: submittedFieldsFromBody(body),

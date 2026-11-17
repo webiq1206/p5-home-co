@@ -22,6 +22,7 @@ await db.exec(
 
 const { handleIntake } = await import("../app/api/leads/intake/handler.ts");
 const { readTeamNotes, MAX_TEAM_NOTES, MAX_TEAM_NOTE_LENGTH } = await import("../app/lib/leads/intakeContract.ts");
+const { classify } = await import("../app/lib/integrations/inbox-policy.ts");
 
 type Json = Record<string, unknown>;
 type Sent = { to: string; subject: string; text: string; html: string };
@@ -179,6 +180,41 @@ test("a team note that names a cost or a margin never reaches the email, which H
     assert.ok(!mail.text.includes(secret) && !mail.html.includes(secret), secret);
   }
   assert.match(mail.text, /Withheld: 4 internal lines/);
+});
+
+test("internal pricing travels in its own field, and that email is one the inbox sync does not copy into HubSpot", async () => {
+  const internal = ["Our cost: $11,200", "Gross margin: 38%", "Pricing check: margin trimmed from 30% to 28%"];
+  const { json } = await post(request("9", {
+    team_alert: "confirm",
+    team_notes: ["Planning range: $18,000 to $24,000"],
+    team_internal_notes: internal,
+  }));
+  assert.equal(json.alert, "sent");
+  const [mail] = sent;
+  assert.match(mail.subject, /^Lead and pricing: Boise Cabinet Co \| Kitchen cabinets \| Pat Example 9/);
+  assert.match(mail.text, /Internal pricing \(this email is not copied into HubSpot\):\n  Our cost: \$11,200\n  Gross margin: 38%/);
+  assert.match(mail.html, /Internal pricing/);
+  assert.match(mail.html, /This email is not copied into HubSpot/);
+  assert.match(mail.text, /From the website:\n  Planning range: \$18,000 to \$24,000/);
+  assert.doesNotMatch(JSON.stringify(await db.rows("SELECT fields FROM lead_intake_submission")), /11,200|team_internal_notes/);
+  const [deal] = await db.rows<{ summary: string }>("SELECT summary FROM deal WHERE name LIKE $1", ["%Example 9%"]);
+  assert.doesNotMatch(deal.summary ?? "", /11,200|margin/i);
+
+  // The inbox sync's own rule, not a copy of it: the same message as Gmail
+  // files it (sent by our address to our inbox) is ignored with internal
+  // pricing and picked up as a website notification without.
+  const asMail = (subject: string) => ({
+    messageId: "<m1@p5homeco.com>", subject, receivedAt: new Date().toISOString(), sentAt: new Date().toISOString(),
+    from: [{ email: "hello@p5homeco.com", name: "P5 Home Co" }], to: [{ email: "hello@p5homeco.com", name: "" }], cc: [],
+    text: mail.text, html: mail.html, headers: [], attachments: [], labels: ["\\Sent", "\\Inbox"],
+  });
+  assert.deepEqual(classify(asMail(mail.subject)), { status: "ignored", reason: "internal-or-logging-sent" });
+  assert.notEqual(classify(asMail(mail.subject.replace(/^Lead and pricing/, "New lead"))).status, "ignored");
+  // Without internal pricing the subject is unchanged.
+  sent = [];
+  await post(request("0", { team_alert: "confirm" }));
+  assert.match(sent[0].subject, /^New lead: /);
+  assert.doesNotMatch(sent[0].html, /Internal pricing/);
 });
 
 test("team notes are plain single lines, capped in number and length", () => {

@@ -42,6 +42,14 @@ export type IntakeExtras = {
    */
   teamNotes: string[];
   /**
+   * The brand site's INTERNAL lines: its cost, margin and pricing checks for a
+   * planning range. They are printed in the team email under "Internal
+   * pricing", and their presence changes the email's subject to "Lead and
+   * pricing: ...", which the inbox sync does not copy into HubSpot (only a
+   * subject starting "New lead" is copied). Never stored on the lead.
+   */
+  teamInternalNotes: string[];
+  /**
    * The caller waits for the team email and is told whether it went
    * (`alert` in the response). A brand site asks for this so it can skip its
    * own team email, and send it after all when this one did not go.
@@ -50,6 +58,7 @@ export type IntakeExtras = {
 };
 
 export const MAX_TEAM_NOTES = 40;
+export const MAX_TEAM_INTERNAL_NOTES = 60;
 export const MAX_TEAM_NOTE_LENGTH = 300;
 
 /**
@@ -76,6 +85,23 @@ export function readTeamNotes(raw: unknown): string[] {
     if (notes.length < MAX_TEAM_NOTES) notes.push(line);
   }
   if (withheld) notes.push(`Withheld: ${withheld} internal ${withheld === 1 ? "line" : "lines"} (not emailed; see the site's own record)`);
+  return notes;
+}
+
+/**
+ * The site's internal lines (cost, margin, pricing checks). Plain single
+ * lines, capped; nothing is withheld, because an email that carries them is
+ * sent under a subject the inbox sync never copies into HubSpot.
+ */
+export function readTeamInternalNotes(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  const notes: string[] = [];
+  for (const item of raw) {
+    if (typeof item !== "string") continue;
+    const line = item.replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/\s+/g, " ").trim().slice(0, MAX_TEAM_NOTE_LENGTH);
+    if (line) notes.push(line);
+    if (notes.length >= MAX_TEAM_INTERNAL_NOTES) break;
+  }
   return notes;
 }
 
@@ -200,6 +226,7 @@ export function readIntakeExtras(body: Record<string, unknown>): IntakeExtras {
     files,
     filesDropped: dropped,
     teamNotes: readTeamNotes(pick(body, ["team_notes", "teamNotes"])),
+    teamInternalNotes: readTeamInternalNotes(pick(body, ["team_internal_notes", "teamInternalNotes"])),
     confirmAlert: pick(body, ["team_alert", "teamAlert"]) === "confirm",
   };
 }

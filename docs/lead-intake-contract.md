@@ -225,6 +225,8 @@ site make this one the only one, and keep its own as the fallback.
 | `team_alert: "confirm"` | The team email is sent before the answer, and the answer says whether it went. |
 | `team_notes: string[]` | Lines for the team only (the site's planning range, the parcel it looked up, its dashboard link). At most 40 lines of 300 characters. Printed in the team email under "From the website". Not stored on the lead and not listed under "Everything submitted". The email itself is copied into HubSpot by the inbox sync, so never send a cost, margin, markup, profit, contingency or overhead figure: a line that names one is withheld and counted. |
 
+| `team_internal_notes: string[]` | The site's INTERNAL lines for the team: its cost, margin and pricing checks for a planning range. At most 60 lines of 300 characters. Printed under "Internal pricing". When any are sent, the email's subject is "Lead and pricing: ..." instead of "New lead: ...". The inbox sync copies only "New lead" mail into HubSpot, so this email stays out of it. Not stored on the lead. |
+
 With `team_alert: "confirm"` the JSON answer gains `alert`:
 
 * `"sent"`: the mail server accepted the team email.

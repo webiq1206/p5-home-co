@@ -15,7 +15,7 @@ export type SubmittedField = { label: string; value: string };
 /** Honeypots are empty on every accepted lead, and never worth a line. */
 // Honeypots, and the two instructions a brand site sends about the team email
 // (not something the visitor submitted, and not stored on the lead).
-const SKIPPED_KEYS = new Set(["website_url", "company_website", "team_notes", "teamNotes", "team_alert", "teamAlert"]);
+const SKIPPED_KEYS = new Set(["website_url", "company_website", "team_notes", "teamNotes", "team_internal_notes", "teamInternalNotes", "team_alert", "teamAlert"]);
 const MAX_FIELDS = 200;
 const MAX_VALUE = 4000;
 

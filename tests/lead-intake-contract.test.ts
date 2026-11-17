@@ -37,6 +37,7 @@ test("intake extras: every new field is optional and read forgivingly", () => {
     files: [],
     filesDropped: 0,
     teamNotes: [],
+    teamInternalNotes: [],
     confirmAlert: false,
   });
 
