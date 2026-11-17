@@ -22,8 +22,8 @@ function date(value: string | null | undefined): Date | null {
 export async function pullHubSpotLeadActions(now = new Date(), limit = 25): Promise<{ read: number; failed: number }> {
   const settings = await loadSettings();
   if (!settings.featureFlags.hubspotIntegrationEnabled || !process.env.HUBSPOT_TOKEN) return { read: 0, failed: 0 };
-  const rows = await query<{ id: string; hubspot_deal_id: string; revision: string }>(
-    `SELECT id,hubspot_deal_id,updated_at::text AS revision FROM deal
+  const rows = await query<{ id: string; hubspot_deal_id: string; revision: string; stage: string }>(
+    `SELECT id,hubspot_deal_id,updated_at::text AS revision,stage FROM deal
      WHERE original_form IS DISTINCT FROM 'p5-estimator-synthetic-qa' AND hubspot_deal_id IS NOT NULL AND integration_sync_status='synced'
        AND (stage NOT IN ('Closed Won','Closed Lost') OR closed_at > now()-interval '7 days')
        -- A deal already mirrored as deleted in HubSpot has nothing left to read.
@@ -69,7 +69,7 @@ export async function pullHubSpotLeadActions(now = new Date(), limit = 25): Prom
         }
       }
       if (!Object.keys(patch).length) { read++; continue; }
-      await transaction(async (client) => {
+      const applied = await transaction(async (client) => {
         const entries = Object.entries(patch);
         const values = entries.map(([, v]) => v);
         // Column names come exclusively from the fixed map above. Compare the
@@ -85,13 +85,26 @@ export async function pullHubSpotLeadActions(now = new Date(), limit = 25): Prom
              AND (${changed}) RETURNING id`,
           [...values, stage ? stage === "Closed Won" || stage === "Closed Lost" : null, row.id, row.revision],
         );
-        if (!result.rowCount) return;
+        if (!result.rowCount) return false;
         await client.query(
           `INSERT INTO audit_log (record_type,record_id,action,action_source,integration_source,new_value)
            VALUES ('deal',$1,'hubspot_actions_read','integration','hubspot',$2::jsonb)`,
           [row.id, JSON.stringify({ fields: Object.keys(patch) })],
         );
+        return true;
       });
+      // A deal closed in HubSpot carries to the lead's QuickBooks estimates
+      // (leads/stage-alignment.ts). After the transaction, and never a failure
+      // of this read: the row's stage is the one the update replaced, because
+      // the update only lands on the revision that was read.
+      if (applied && stage && stage !== row.stage) {
+        try {
+          const alignment = await import("../leads/stage-alignment.ts");
+          await alignment.onLeadStageChanged(Number(row.id), row.stage, stage);
+        } catch (error) {
+          console.error("[hubspot] a closed deal was not carried to QuickBooks:", (error as Error).message);
+        }
+      }
       read++;
     } catch (error) {
       // Deleted in HubSpot: the team removed it. Close it here too and move on.
