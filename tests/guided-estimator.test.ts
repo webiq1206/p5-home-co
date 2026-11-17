@@ -690,6 +690,11 @@ test("an estimate sends the team ONE email: the lead alert and the full report t
   assert.match(handler, /if \(!deps\.skipLeadAlert\) \{\s*after\(async \(\) => \{\s*await notifyLeadCreated\(notice\);/);
   const deliver = readFileSync(new URL("../app/lib/estimator/deliver.ts", import.meta.url), "utf8");
   assert.match(deliver, /skipLeadAlert: true/);
+  // A second estimate from the same person merges onto the existing lead. That
+  // merge must not send its own "Request added" note for an estimate either
+  // (seen live on 17 November 2026: the report and the note both arrived).
+  assert.match(handler, /if \(!deps\.skipLeadAlert\) followUp\(after, late, "Request added"\);/);
+  assert.equal((handler.match(/followUp\(after, late, "Request added"\)/g) ?? []).length, 1);
   assert.match(deliver, /const lead = await leadForReport\(row, input\.origin\)/);
   const intakeRoute = readFileSync(new URL("../app/api/leads/intake/route.ts", import.meta.url), "utf8");
   assert.doesNotMatch(intakeRoute, /skipLeadAlert/, "the public intake keeps its lead alert");
