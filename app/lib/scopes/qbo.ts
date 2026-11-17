@@ -412,6 +412,7 @@ export async function refreshEstimate(e: EstimateRow): Promise<void> {
   } catch (error) {
     if (isGone(error as Error)) {
       await markEstimateDeleted(e.id);
+      await carryEstimateDeletion(e.project_id);
       return;
     }
     await estimateStatusError(e.id, (error as Error).message);
@@ -470,6 +471,22 @@ export async function onEstimateDeleted(qboId: string): Promise<void> {
   if (!e || e.txn_status === "Deleted") return;
   await markEstimateDeleted(e.id);
   await logEvent(e.project_id, "estimate-deleted-in-quickbooks", { docNumber: e.doc_number }, null);
+  await carryEstimateDeletion(e.project_id);
+}
+
+/**
+ * A person deleted this estimate in QuickBooks (this is never reached for a
+ * deletion made from here: that marks the estimate deleted first). Deletions
+ * carry across to HubSpot (owner, 17 November 2026); the rules are in
+ * leads/removed-everywhere.ts. A problem there never fails the caller.
+ */
+async function carryEstimateDeletion(projectId: number): Promise<void> {
+  try {
+    const everywhere = await import("../leads/removed-everywhere.ts");
+    await everywhere.onQuickBooksEstimateRemoved(projectId);
+  } catch (error) {
+    console.error("[scopes] the estimate deletion was not carried to HubSpot:", (error as Error).message);
+  }
 }
 
 /** Why a project cannot be deleted from QuickBooks, or null when it can. */

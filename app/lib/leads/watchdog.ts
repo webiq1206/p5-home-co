@@ -303,6 +303,14 @@ export async function runWatchdog(now: Date = new Date()): Promise<WatchdogSumma
       console.error("[watchdog] HubSpot activity push failed", error instanceof Error ? error.message : error);
     }
     const tasks = await syncHubSpotAlertTasks(now);
+    // QuickBooks cleanups that could not finish when a deal was deleted in
+    // HubSpot (QuickBooks disconnected or busy). Never stops the watchdog.
+    try {
+      const { settleRemovedLeads } = await import("./removed-everywhere.ts");
+      await settleRemovedLeads();
+    } catch (error) {
+      console.error("[watchdog] QuickBooks cleanup retry failed", error instanceof Error ? error.message : error);
+    }
 
     // Tell people. Last, because raising the alert correctly matters more
     // than delivering it quickly, and a mail outage must not stop the rules

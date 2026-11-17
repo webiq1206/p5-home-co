@@ -68,7 +68,20 @@ Every lead reaches HubSpot, and a deletion in HubSpot is never a failure (owner 
 * No lead is held back. An email address HubSpot rejects goes in without that field, with the address as typed at the top of the deal description. The old "review" holds (`hubspot_lead_review`, `hubspot_archive_review`) are released or settled on the next pass and no new ones are written.
 * A HubSpot stage P5 has no name for (one the team added there, such as "Job Complete") is left alone in both directions: reading it changes nothing here, and a push never drags the deal back to a P5 stage.
 * `integration_health` says `failed` only for a real failure (a request HubSpot refused or could not answer). Do not make a deleted or unknown record a failure again.
+* A deal the team merged in HubSpot is archived too, and is not a deletion: `mergedInto()` finds the surviving deal (`hs_merged_object_ids`) and the lead follows it, or closes as a duplicate when another lead already has it.
 * Guards, which need `TEST_DATABASE_URL` (a throwaway Postgres with `tools/migrate.ts` applied): `tests/hubspot-removed.integration.test.ts` and `tests/hubspot-tasks.integration.test.ts`.
+
+## Deletions carry across HubSpot and QuickBooks (`app/lib/leads/removed-everywhere.ts`)
+
+Owner decision, 17 November 2026: junk deleted in one system is removed from the other. `CROSS_SYSTEM_DELETE=off` turns it off. QuickBooks is the accounting record, so the rules are narrow; do not widen them without the owner.
+
+* HubSpot deal deleted: `mirrorRemovedDeal()` closes the lead, then `removeLeadFromQuickBooks()` deletes the QuickBooks estimates the website estimator made for it, through `deleteProjectEverywhere()`. Only a proposal is deleted (unsent, sent and unanswered, declined or closed). Accepted, invoiced or paid work is kept and noted once on the project.
+* A QuickBooks customer is only made inactive when nothing else is on it in QuickBooks (checked live: estimates, invoices, sales receipts, payments, credit memos, refunds, active sub-customers) and no other project here uses it. QuickBooks has no customer delete.
+* QuickBooks estimate deleted by a person (`onEstimateDeleted` from the webhook, or a refresh that finds it gone): the HubSpot deal is deleted, and a contact with no other deal, only when it was the lead's last live estimate, the lead is not won, and either nobody has worked the lead (still "New Lead", no contact attempt, no appointment) or the QuickBooks customer was removed too. An estimate deleted to be redone on a live lead leaves HubSpot alone, and says why on the project's event log.
+* A deletion this platform made itself never comes back round: it marks the estimate deleted before QuickBooks reports it.
+* Only estimates from the websites are linked to a lead (`guided_estimate.lead_deal_id`), so only those carry. Deletions from before 17 November 2026 are mirrored but never reach into QuickBooks (`carry: false`).
+* QuickBooks unavailable: the cleanup is remembered on the lead's audit trail (`quickbooks_cleanup_pending`) and `settleRemovedLeads()` retries it from the watchdog, six hours apart, for a fortnight.
+* Guard: `tests/removed-everywhere.integration.test.ts` (needs `TEST_DATABASE_URL`).
 
 ## Publishing to Replit: never approve a DROP
 
