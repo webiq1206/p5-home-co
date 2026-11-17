@@ -442,9 +442,14 @@ export default function GuidedEstimator({
       const json = (await response.json()) as { ok?: boolean; estimate?: CustomerEstimate; error?: string; errors?: { field: string; message: string }[] };
       if (json.ok && json.estimate) {
         setEstimate(json.estimate);
-        report("completed");
-        // One accepted lead, counted once. A framed estimator leaves this to the site that frames it.
-        if (!embedded) trackAcceptedInquiry("instant_estimator");
+        // A duplicate submission returns the saved estimate with 200. Restore
+        // its result UI without reporting another lead on this site or its host.
+        // Only 201 proves that the server created a new durable estimate.
+        if (response.status === 201) {
+          report("completed");
+          // A framed estimator leaves its conversion to the site that frames it.
+          if (!embedded) trackAcceptedInquiry("instant_estimator");
+        }
         window.scrollTo?.({ top: 0 });
       } else if (json.errors?.length) {
         setErrors(Object.fromEntries(json.errors.map((e) => [e.field, e.message])));
