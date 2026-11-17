@@ -12,6 +12,9 @@ export type DeliveryStep = { at: string; ok: boolean; detail?: string | null };
 export type Delivery = Partial<Record<"scope" | "lead" | "qboCustomer" | "qboEstimate" | "qboSend" | "teamEmail" | "customerEmail", DeliveryStep>> & {
   qboEstimateId?: string | null;
   qboDocNumber?: string | null;
+  /** The QuickBooks customer the estimate sits on, and how it got there. */
+  qboCustomerName?: string | null;
+  qboCustomerHow?: "created" | "matched" | null;
 };
 
 export type GuidedRow = {

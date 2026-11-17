@@ -138,7 +138,9 @@ export type IntakeDeps = {
   /**
    * The caller mails the team itself, in a message that carries everything the
    * "New lead" alert does. The guided estimator sets this so an estimate
-   * produces ONE team email, not two (owner request, 16 November 2026).
+   * produces ONE team email, not two (owner request, 16 November 2026). It
+   * also holds back the "Request added" note a repeat submission from the same
+   * person would send; the details are still merged onto the lead.
    */
   skipLeadAlert?: boolean;
 };
@@ -348,7 +350,8 @@ export async function handleIntake(request: Request, after: AfterResponse, deps:
             heading: "Request received:",
             requestKind: extras.requestKind,
           });
-          followUp(after, late, "Request added");
+          // The estimator's own team email already carries this request.
+          if (!deps.skipLeadAlert) followUp(after, late, "Request added");
         } catch (error) {
           console.error("[intake] late request merge failed:", (error as Error).message);
         }

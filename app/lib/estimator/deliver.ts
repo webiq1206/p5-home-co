@@ -53,7 +53,7 @@ import { buildPayloadFor, createOrReviseEstimate, ensureCustomer, findCustomerCa
 import { getProject, latestEstimate, loadScopeSettings, logEvent, saveVersion, syncProjectTitle } from "../scopes/store.ts";
 import type { PricingResult, ScopeDoc } from "../scopes/types.ts";
 import { brandConfig } from "./brands.ts";
-import { TEAM_INBOX, customerConfirmation, teamReport, type TeamReportLead } from "./emails.ts";
+import { TEAM_INBOX, customerConfirmation, teamReport, type TeamReportLead, type TeamReportQboCustomer } from "./emails.ts";
 import { guidedById, recordDelivery, setGuidedLinks, type Delivery, type GuidedRow } from "./store.ts";
 import { CLASS_LABELS, type BrandId, type EstimateClass } from "./types.ts";
 
@@ -201,13 +201,14 @@ export async function leadForReport(row: GuidedRow, origin: string): Promise<Tea
  * on email or phone links automatically: a shared name or street is not
  * enough to put one family's estimate on another family's account.
  */
-async function ensureQboCustomer(projectId: number): Promise<string> {
+async function ensureQboCustomer(projectId: number): Promise<{ qboId: string; name: string | null; how: "created" | "matched" | null }> {
   const project = (await getProject(projectId))!;
-  if (project.qbo_customer_id) return project.qbo_customer_id;
+  // Already linked by an earlier pass: how it was linked is not known here.
+  if (project.qbo_customer_id) return { qboId: project.qbo_customer_id, name: null, how: null };
   const candidates = await findCustomerCandidates(project);
   const match = candidates.find((c) => c.reasons.includes("same email")) ?? candidates.find((c) => c.reasons.includes("same phone"));
   const linked = await ensureCustomer(project, match ? { qboId: match.qboId } : { create: true }, NO_EMPLOYEE);
-  return linked.qboId;
+  return { qboId: linked.qboId, name: linked.name || null, how: match ? "matched" : "created" };
 }
 
 /** The range the customer saw. QuickBooks totals one figure, so the range travels as words. */
@@ -232,8 +233,10 @@ export function qboAction(row: Pick<GuidedRow, "review" | "price_withheld">, mod
 
 async function qboEstimate(row: GuidedRow, projectId: number): Promise<Delivery> {
   const patch: Delivery = {};
-  const customerId = await ensureQboCustomer(projectId);
-  patch.qboCustomer = step(true, customerId);
+  const customer = await ensureQboCustomer(projectId);
+  patch.qboCustomer = step(true, customer.qboId);
+  if (customer.name) patch.qboCustomerName = customer.name;
+  if (customer.how) patch.qboCustomerHow = customer.how;
   const project = (await getProject(projectId))!;
   const version = await queryOne<{ id: number; project_id: number; version_no: number; source: string; note: string | null; doc: ScopeDoc; pricing: PricingResult; created_by: number | null; created_at: Date }>(
     "SELECT id::int, project_id::int, version_no, source, note, doc, pricing, created_by::int, created_at FROM scope_version WHERE id = $1",
@@ -280,6 +283,23 @@ export async function officialStatus(row: GuidedRow): Promise<{ status: string; 
   if (delivery.qboEstimate && !delivery.qboEstimate.ok) return { status: `QuickBooks estimate failed: ${delivery.qboEstimate.detail ?? "unknown error"}`, qboUrl: null, estimateNumber: null };
   if (row.price_withheld || row.review.some((r) => r.code !== "budgetary")) return { status: "Waiting for team review", qboUrl: null, estimateNumber: null };
   return { status: "Not in QuickBooks yet. Create the estimate from the scope platform", qboUrl: null, estimateNumber: null };
+}
+
+/**
+ * The QuickBooks customer record behind this estimate, for the team email.
+ * Read from the delivery record, or from the scope project when the estimate
+ * step failed after the customer was linked.
+ */
+export async function qboCustomerForReport(row: GuidedRow): Promise<TeamReportQboCustomer | null> {
+  const delivery = row.delivery ?? {};
+  let id = delivery.qboCustomer?.ok ? (delivery.qboCustomer.detail ?? null) : null;
+  if (!id && row.scope_project_id) id = (await getProject(row.scope_project_id).catch(() => null))?.qbo_customer_id ?? null;
+  if (!id) return null;
+  const name =
+    delivery.qboCustomerName ??
+    (await queryOne<{ display_name: string }>("SELECT display_name FROM qbo_customer WHERE qbo_id = $1", [id]).catch(() => null))?.display_name ??
+    null;
+  return { url: qboWebUrl("customer", id, isSandbox()), name, how: delivery.qboCustomerHow ?? null };
 }
 
 export async function deliverEstimate(input: DeliverInput): Promise<Delivery> {
@@ -334,8 +354,13 @@ export async function deliverEstimate(input: DeliverInput): Promise<Delivery> {
       console.error("[estimator] lead links not loaded:", (error as Error).message);
       return null;
     });
+    const qboCustomer = await qboCustomerForReport(row).catch((error) => {
+      console.error("[estimator] QuickBooks customer link not loaded:", (error as Error).message);
+      return null;
+    });
     const message = teamReport(row, {
       lead,
+      qboCustomer,
       scopeUrl: row.scope_project_id ? `${input.origin}/scopes/${row.scope_project_id}` : null,
       qboUrl: official.qboUrl,
       estimateNumber: official.estimateNumber,
