@@ -58,6 +58,18 @@ One customer estimator for every brand, built on the scope platform. Code: `app/
 
 The conversational scope and document estimator is published from here to every brand site with `scripts/p5-sync.mjs` (hash-checked; edit shared files here only). Scope and one total applies to it too (owner decision, 16 November 2026): `customerPresentation()` in `lib/p5/customerProjection.ts` is the one customer boundary, and it carries the scope, quantities and ONE price (the range, or a firm total) for the whole project. No line, unit, category, building or allowance price reaches the customer page, email, PDF or saved link, including estimates saved before the change, which are re-projected on every read. The internal record, the team email, the administrative PDF and the CRM payload keep every price (`record.internal`).
 
+## HubSpot sync (`app/lib/integrations/hubspot*.ts`)
+
+Every lead reaches HubSpot, and a deletion in HubSpot is never a failure (owner decision, 17 November 2026). The team deletes spam and junk in HubSpot as a matter of routine.
+
+* A deal deleted in HubSpot is mirrored: the P5 lead is closed as "Removed in HubSpot" (a deal already won stays won), its alerts and tasks are settled, and nothing is recreated. `mirrorRemovedDeal()` in `hubspot-removed.ts` is the one place this happens; the lead sync, the stage read-back and the task sync all call it.
+* The one time a deleted deal comes back: the customer writes in again after the deletion (`shouldRecreateDeal()` compares the latest submission with HubSpot's `archivedAt`). A new request from a closed lead already makes a new P5 lead, because the intake only matches open ones.
+* A task deleted in HubSpot is dismissed (`dismissRemovedTask()`), never made again. A contact deleted in HubSpot is made again when its lead is still being sent.
+* No lead is held back. An email address HubSpot rejects goes in without that field, with the address as typed at the top of the deal description. The old "review" holds (`hubspot_lead_review`, `hubspot_archive_review`) are released or settled on the next pass and no new ones are written.
+* A HubSpot stage P5 has no name for (one the team added there, such as "Job Complete") is left alone in both directions: reading it changes nothing here, and a push never drags the deal back to a P5 stage.
+* `integration_health` says `failed` only for a real failure (a request HubSpot refused or could not answer). Do not make a deleted or unknown record a failure again.
+* Guards, which need `TEST_DATABASE_URL` (a throwaway Postgres with `tools/migrate.ts` applied): `tests/hubspot-removed.integration.test.ts` and `tests/hubspot-tasks.integration.test.ts`.
+
 ## Publishing to Replit: never approve a DROP
 
 Replit's Republish compares the development database with production and

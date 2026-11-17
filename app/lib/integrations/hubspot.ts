@@ -1,4 +1,5 @@
-import { HubSpotLeadReviewError, providerRejectedEmail, holdLeadReview, heldLeadReview, recheckLeadReviews, openLeadReviewCount } from "./hubspot-lead-review.ts";
+import { HubSpotLeadReviewError, providerRejectedEmail } from "./hubspot-lead-review.ts";
+import { mirrorRemovedDeal, shouldRecreateDeal } from "./hubspot-removed.ts";
 /**
  * HubSpot CRM sync.
  *
@@ -25,6 +26,7 @@ import {
   dealProperties,
   detailsNoteBody,
   newRecordOwnerId,
+  STAGE_BY_ID,
   streetOnly,
   submissionNoteBody,
   type ContactSyncInput,
@@ -49,6 +51,8 @@ const MAX_ATTEMPTS = 4;
 export type SyncOutcome =
   | { status: "synced"; contactId: string; dealId: string }
   | { status: "skipped"; reason: string }
+  /** The deal was deleted in HubSpot and nobody has written in since: closed here, nothing sent. */
+  | { status: "removed"; reason: string }
   | { status: "failed"; error: string };
 
 export class HubSpotError extends Error {
@@ -236,13 +240,13 @@ async function upsertContact(
     let owner: string | null = null;
     try { owner = await contactOwner(knownId); }
     catch (error) {
-      if (error instanceof HubSpotError && error.httpStatus === 404) {
-        const archived = await call<{ archived?: boolean }>(`/crm/v3/objects/contacts/${encodeURIComponent(knownId)}?archived=true`, { method: "GET" });
-        if (archived.archived === true) throw new HubSpotLeadReviewError("archived_contact", knownId);
-      }
-      throw error;
+      // The contact was deleted in HubSpot (404). A lead that is still being
+      // sent needs a contact, so fall through and find or create one; the
+      // caller stores the new id. Anything else is a real failure.
+      if (!(error instanceof HubSpotError && error.httpStatus === 404)) throw error;
+      knownId = null;
     }
-    return update({ id: knownId, ownerId: owner });
+    if (knownId) return update({ id: knownId, ownerId: owner });
   }
 
   // Search before create: HubSpot rejects a duplicate email with 409, and a
@@ -263,17 +267,44 @@ async function upsertContact(
   return created.id;
 }
 
+/**
+ * Is the HubSpot deal this lead points at still there? A deal the team deleted
+ * answers 404; the archived lookup then says when it was deleted. Both lookups
+ * failing means it is gone for good (HubSpot purges deleted records).
+ */
+async function probeDeal(id: string): Promise<{ removed: false; stageId: string | null } | { removed: true; archivedAt: Date | null }> {
+  const path = `/crm/v3/objects/deals/${encodeURIComponent(id)}?properties=dealstage`;
+  try {
+    const live = await call<{ properties?: { dealstage?: string | null } }>(path, { method: "GET" });
+    return { removed: false, stageId: live.properties?.dealstage ?? null };
+  } catch (error) {
+    if (!(error instanceof HubSpotError && error.httpStatus === 404)) throw error;
+  }
+  try {
+    const gone = await call<{ archived?: boolean; archivedAt?: string | null }>(`${path}&archived=true`, { method: "GET" });
+    const at = gone.archivedAt ? new Date(gone.archivedAt) : null;
+    return { removed: true, archivedAt: at && Number.isFinite(at.getTime()) ? at : null };
+  } catch (error) {
+    if (!(error instanceof HubSpotError && error.httpStatus === 404)) throw error;
+    return { removed: true, archivedAt: null };
+  }
+}
+
 async function upsertDeal(
   input: DealSyncInput,
   knownId: string | null,
   p5DealId: number,
   availableProperties: ReadonlySet<string> | undefined,
   newDealOwnerId: string | null = null,
+  keepRemoteStage = false,
 ): Promise<string> {
   // The P5 deal id is the idempotency key, so a replayed sync updates the
   // same HubSpot deal instead of creating a second one.
   const externalId = input.externalLeadId ?? `p5-deal-${p5DealId}`;
   const properties = { ...dealProperties(input, availableProperties), p5_external_lead_id: externalId };
+  // The deal sits in a HubSpot stage P5 has no name for (one the team added
+  // there). That stage is HubSpot's to keep: never push it back to a P5 one.
+  if (keepRemoteStage && knownId) delete (properties as Record<string, string>).dealstage;
 
   const id = knownId ?? (await findDealByExternalId(externalId));
 
@@ -542,7 +573,10 @@ export async function syncDealToHubSpot(dealId: number): Promise<SyncOutcome> {
   if (!rows.length) return { status: "failed", error: `Deal ${dealId} not found.` };
   const row = rows[0];
   if(row.original_form==="p5-estimator-synthetic-qa")return {status:"skipped",reason:"Synthetic estimator acceptance has downstream delivery suppressed."};
-  if (await heldLeadReview(dealId, row.lead_source === "Facebook Lead Ad" ? normalizeEmail(row.email) : row.email)) return { status: "skipped", reason: "HubSpot delivery requires review; original lead and references preserved." };
+  // No lead is held back from HubSpot any more (owner, 17 November 2026): a
+  // rejected email goes in without the address and a deleted contact is made
+  // again. A hold left by the earlier rule is released here.
+  await query("UPDATE hubspot_lead_review SET released_at=now(),last_checked_at=now() WHERE deal_id=$1 AND released_at IS NULL", [dealId]).catch(() => undefined);
   // The inline sync after intake and the watchdog can reach the same deal at
   // once. A short lease lets exactly one of them push it; the other skips and
   // the deal stays pending for the next pass. Released when this pass ends.
@@ -593,22 +627,57 @@ async function syncLeasedDeal(dealId: number, row: DealRow): Promise<SyncOutcome
         ...attribution.map(f => `${f.label}: ${f.value}`),
       ].join("\n");
     }
-    const contactId = await upsertContact(
-      {
-        firstName: isMeta && !row.first_name && !row.last_name ? "Meta lead (contact needs review)" : row.first_name,
-        lastName: row.last_name,
-        // HubSpot rejects malformed email properties. Preserve the exact value
-        // in the local contact, deal description and raw-answers note instead.
-        email: isMeta ? normalizeEmail(row.email) : row.email,
-        phone: row.phone,
-        address: streetOnly(row.property_address, row.property_zip),
-        city: row.property_city,
-        state: row.property_state ?? null,
-        zip: row.property_zip ?? null,
-      },
-      row.hubspot_contact_id,
-      ownerForNewRecords,
-    );
+    // Deleted in HubSpot? Spam and junk are deleted there as a matter of
+    // routine (owner, 17 November 2026). Mirror it and stop, unless the
+    // customer has written in since, in which case HubSpot gets a new deal.
+    let knownDealId = row.hubspot_deal_id;
+    let keepRemoteStage = false;
+    if (knownDealId) {
+      const probe = await probeDeal(knownDealId);
+      if (probe.removed) {
+        if (!(await shouldRecreateDeal(dealId, probe.archivedAt))) {
+          await mirrorRemovedDeal(knownDealId);
+          return { status: "removed", reason: "The deal was deleted in HubSpot. The lead is closed here as removed and nothing was sent." };
+        }
+        await query(
+          `INSERT INTO audit_log (record_type, record_id, action, new_value, action_source, integration_source)
+           VALUES ('deal',$1,'hubspot_deal_recreated',$2::jsonb,'integration','hubspot')`,
+          [String(dealId), JSON.stringify({ deletedHubspotDealId: knownDealId, reason: "The customer wrote in again after the deal was deleted in HubSpot." })],
+        );
+        knownDealId = null;
+      } else {
+        keepRemoteStage = Boolean(probe.stageId) && !STAGE_BY_ID[probe.stageId as string];
+      }
+    }
+
+    const contactInput = {
+      firstName: isMeta && !row.first_name && !row.last_name ? "Meta lead (contact needs review)" : row.first_name,
+      lastName: row.last_name,
+      // HubSpot rejects malformed email properties. Preserve the exact value
+      // in the local contact, deal description and raw-answers note instead.
+      email: isMeta ? normalizeEmail(row.email) : row.email,
+      phone: row.phone,
+      address: streetOnly(row.property_address, row.property_zip),
+      city: row.property_city,
+      state: row.property_state ?? null,
+      zip: row.property_zip ?? null,
+    };
+    let contactId: string;
+    try {
+      contactId = await upsertContact(contactInput, row.hubspot_contact_id, ownerForNewRecords);
+    } catch (error) {
+      // HubSpot would not take the email address as typed. The lead still
+      // goes in, without that one field; the address as entered is kept at
+      // the top of the deal description so someone can correct it.
+      if (!(error instanceof HubSpotLeadReviewError) || error.reason !== "invalid_email") throw error;
+      contactId = await upsertContact({ ...contactInput, email: null }, row.hubspot_contact_id, ownerForNewRecords);
+      summary = [`Email as entered (HubSpot would not accept it, please correct): ${row.email ?? ""}`, summary ?? ""].filter(Boolean).join("\n\n");
+      await query(
+        `INSERT INTO audit_log (record_type, record_id, action, action_source, integration_source, succeeded, error)
+         VALUES ('deal',$1,'hubspot_email_rejected','integration','hubspot',TRUE,$2)`,
+        [String(dealId), "HubSpot rejected the email address; the lead was sent without it."],
+      ).catch(() => undefined);
+    }
 
     const hubspotDealId = await upsertDeal(
       {
@@ -645,10 +714,11 @@ async function syncLeasedDeal(dealId: number, row: DealRow): Promise<SyncOutcome
         timeline: row.timeline,
         files,
       },
-      row.hubspot_deal_id,
+      knownDealId,
       dealId,
       propertyNames ?? undefined,
       ownerForNewRecords,
+      keepRemoteStage,
     );
 
     await associate(hubspotDealId, contactId);
@@ -689,8 +759,7 @@ async function syncLeasedDeal(dealId: number, row: DealRow): Promise<SyncOutcome
     return { status: "synced", contactId, dealId: hubspotDealId };
   } catch (error) {
     const message = (error as Error).message;
-    if (error instanceof HubSpotLeadReviewError) await holdLeadReview(dealId, error, row.lead_source === "Facebook Lead Ad" ? normalizeEmail(row.email) : row.email);
-    else await recordHubspotFailure(dealId);
+    await recordHubspotFailure(dealId);
     await query(
       `UPDATE deal SET integration_sync_status = 'failed',
               last_integration_error = $2, updated_at = now()
@@ -726,12 +795,17 @@ export async function syncPendingDeals(limit = 25): Promise<{
     return { attempted: 0, synced: 0, failed: 0, skipped: 1 };
   }
 
-  await recheckLeadReviews(id => call<{ archived?: boolean }>(`/crm/v3/objects/contacts/${encodeURIComponent(id)}?properties=hs_object_id`, { method: "GET" }));
+  // Leads the earlier rule held for review are released and retried now:
+  // every lead reaches HubSpot (owner, 17 November 2026).
+  await query(
+    `UPDATE lead_hubspot_retry SET next_attempt_at=now()
+      WHERE deal_id IN (SELECT deal_id FROM hubspot_lead_review WHERE released_at IS NULL)`,
+  ).catch(() => undefined);
+  await query("UPDATE hubspot_lead_review SET released_at=now(),last_checked_at=now() WHERE released_at IS NULL").catch(() => undefined);
   const rows = await query<{ id: string }>(
     `SELECT id FROM deal
       WHERE integration_sync_status IN ('pending','failed')
         AND original_form IS DISTINCT FROM 'p5-estimator-synthetic-qa'
-        AND NOT EXISTS (SELECT 1 FROM hubspot_lead_review r WHERE r.deal_id=deal.id AND r.released_at IS NULL)
       ORDER BY received_at ASC
       LIMIT $1`,
     [limit],
@@ -742,26 +816,22 @@ export async function syncPendingDeals(limit = 25): Promise<{
   let skipped = 0;
   for (const row of rows) {
     const result = await syncDealToHubSpot(Number(row.id));
-    if (result.status === "synced") synced += 1;
+    // A lead whose deal was deleted in HubSpot is settled, like a synced one.
+    if (result.status === "synced" || result.status === "removed") synced += 1;
     else if (result.status === "failed") failed += 1;
     else skipped += 1;
   }
 
-  const reviews = await openLeadReviewCount();
   const [remaining] = await query<{count:string}>(`SELECT count(*)::text AS count FROM deal
     WHERE integration_sync_status IN ('pending','failed')
-      AND original_form IS DISTINCT FROM 'p5-estimator-synthetic-qa'
-      AND NOT EXISTS (SELECT 1 FROM hubspot_lead_review r WHERE r.deal_id=deal.id AND r.released_at IS NULL)`);
+      AND original_form IS DISTINCT FROM 'p5-estimator-synthetic-qa'`);
   const pendingRemaining=Number(remaining.count);
-  if (reviews) {
-    await query(`INSERT INTO integration_health(name,state,last_attempt_at,last_error,records_processed)
-      VALUES('hubspot','failed',now(),$1,$2) ON CONFLICT(name) DO UPDATE SET state='failed',last_attempt_at=now(),last_error=EXCLUDED.last_error,records_processed=EXCLUDED.records_processed`,
-      [`${reviews} lead delivery record(s) require review. Correct rejected email or verify archived contact restoration; original records preserved. ${failed} additional sync failure(s); ${pendingRemaining} other delivery record(s) remain pending or failed.`,synced]);
-  } else if (pendingRemaining && !failed && !skipped) {
+  if (pendingRemaining && !failed && !skipped) {
     await query(`INSERT INTO integration_health(name,state,last_attempt_at,last_error,records_processed)
       VALUES('hubspot','failed',now(),$1,$2) ON CONFLICT(name) DO UPDATE SET state='failed',last_attempt_at=now(),last_error=EXCLUDED.last_error,records_processed=EXCLUDED.records_processed`,
       [`${pendingRemaining} delivery record(s) remain pending or failed outside the completed batch.`,synced]);
-  } else if (rows.length && !failed && !skipped && !pendingRemaining) {
+  } else if (!failed && !skipped && !pendingRemaining) {
+    // Nothing is waiting or failing, whether or not this pass had work to do.
     await query(
       `INSERT INTO integration_health (name, state, last_success_at, last_attempt_at, records_processed)
        VALUES ('hubspot','connected',now(),now(),$1)
