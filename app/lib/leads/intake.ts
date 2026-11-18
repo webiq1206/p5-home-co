@@ -95,11 +95,15 @@ async function upsertContact(
 }
 
 /** Find an existing deal that this submission should attach to instead. */
+/** The document estimator's lead key for one project (lib/p5/intakeDeliveryPayload.ts, `intakeLeadKey`). */
+export const PROJECT_REQUEST_KEY = /^p5-intake-[0-9a-f]{64}$/;
+
 async function findExistingDeal(
   client: PoolClient,
   externalLeadId: string | null,
   dedupKey: string | null,
   brandRef: { brand: Brand; externalId: string } | null = null,
+  requestExternalId: string | null = null,
 ): Promise<{ id: number; reason: string } | null> {
   if (brandRef) {
     const { rows } = await client.query<{ deal_id: string }>(
@@ -108,6 +112,23 @@ async function findExistingDeal(
     );
     if (rows.length) {
       return { id: Number(rows[0].deal_id), reason: "Already received with the same brand request id." };
+    }
+  }
+
+  // One lead per project (owner, 18 November 2026). The document estimator's
+  // project request and the estimate published for it are separate posts, and
+  // the request is filed under the team it was routed to, which need not be
+  // the brand of the site that publishes the estimate. So the request's key is
+  // looked up under any brand. Only that key's own format is read this way.
+  if (requestExternalId && PROJECT_REQUEST_KEY.test(requestExternalId)) {
+    const { rows } = await client.query<{ deal_id: string }>(
+      `SELECT deal_id FROM lead_external_ref WHERE external_id = $1
+       UNION SELECT id FROM deal WHERE external_lead_id = $1
+       ORDER BY 1 LIMIT 1`,
+      [requestExternalId],
+    );
+    if (rows.length) {
+      return { id: Number(rows[0].deal_id), reason: "The lead of this project's request." };
     }
   }
 
@@ -258,7 +279,9 @@ export async function ingestLead(
       const brandRef = lead.brandExternalId ? { brand: lead.brand, externalId: lead.brandExternalId } : null;
       // Resolve immutable event identity before touching contact data. Replays may
       // carry the rejected address that an administrator has since corrected.
-      let existing = await findExistingDeal(client, lead.externalLeadId, dedupKey, brandRef);
+      // A QA record never attaches to a customer's lead.
+      const requestRef = synthetic ? null : lead.requestExternalId ?? null;
+      let existing = await findExistingDeal(client, lead.externalLeadId, dedupKey, brandRef, requestRef);
       let contactId: number;
       if (existing) {
         const { rows } = await client.query<{ contact_id: string; identity_key:string; corrected:boolean }>(
@@ -275,7 +298,7 @@ export async function ingestLead(
         }
       } else {
         contactId = await upsertContact(client, lead, identityKey);
-        existing = await findExistingDeal(client, lead.externalLeadId, dedupKey, brandRef);
+        existing = await findExistingDeal(client, lead.externalLeadId, dedupKey, brandRef, requestRef);
         if (existing) {
           const { rows } = await client.query<{ contact_id:string }>('SELECT contact_id FROM deal WHERE id=$1',[existing.id]);
           if (Number(rows[0].contact_id) !== contactId) throw new IntakeIdentityReviewError('A matching request changed during intake. Reload and review the existing lead before resubmitting.');

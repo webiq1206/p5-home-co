@@ -15,7 +15,8 @@ export type SubmittedField = { label: string; value: string };
 /** Honeypots are empty on every accepted lead, and never worth a line. */
 // Honeypots, and the two instructions a brand site sends about the team email
 // (not something the visitor submitted, and not stored on the lead).
-const SKIPPED_KEYS = new Set(["website_url", "company_website", "team_notes", "teamNotes", "team_internal_notes", "teamInternalNotes", "team_alert", "teamAlert"]);
+// `request_external_id` is plumbing too: the key that joins an estimate to its project request.
+const SKIPPED_KEYS = new Set(["website_url", "company_website", "team_notes", "teamNotes", "team_internal_notes", "teamInternalNotes", "team_alert", "teamAlert", "request_external_id", "requestExternalId"]);
 // The price a brand site gave the visitor, for QuickBooks (`estimate`, read by
 // readSiteEstimate in intakeContract.ts). Not something the visitor typed:
 // never stored on the lead and never sent to HubSpot. Skipped at the top of

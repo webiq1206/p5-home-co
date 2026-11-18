@@ -73,7 +73,10 @@ export async function publishManualReview(body:any,actor:Actor){
   const customer=customerEstimate(estimate,review.input.scopeSummary);
   const internal={...estimate,scope,contact,manualReview:{id:review.id,input:review.input,notes:review.notes,reviewedBy:review.actor_id,publishedBy:actor.id,publishedAt:new Date().toISOString()}};
   const revision=draft.revision+1;
-  const record={draftId:draft.id,revision,brand:brand.name,estimator:"p5-policy",contact,scope,internal,customer};
+  // The project this estimate answers, so the CRM delivery can attach it to the lead the visitor's
+  // request made (p5LeadIntake.ts: one lead per project). A project handed over from another site keeps its id.
+  const projectId=String(draft.payload.intake?.projectId||`${brand.id}:${draft.id}`);
+  const record={draftId:draft.id,revision,projectId,brand:brand.name,estimator:"p5-policy",contact,scope,internal,customer};
   const recipients=await adminRecipients();if(!recipients.length)throw new DraftError("No estimate administrator is configured.",503);
   // An existing CRM acknowledgement must be reconciled as an update until its
   // upstream update/idempotency contract is verified. Never create a second lead.

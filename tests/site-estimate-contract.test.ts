@@ -14,8 +14,12 @@ import {
   MAX_SITE_ESTIMATE_LINES,
   SITE_ESTIMATE_CEILING,
   SITE_ESTIMATE_UNVERIFIED_CEILING,
+  readIntakeExtras,
   readSiteEstimate,
+  siteSentTeamEmail,
 } from "../app/lib/leads/intakeContract.ts";
+import { PROJECT_REQUEST_KEY } from "../app/lib/leads/intake.ts";
+import { DOCUMENT_ESTIMATE_MAX_LINES, documentEstimateBody } from "../lib/p5/documentEstimateFigures.ts";
 import {
   SITE_ESTIMATE_ITEMS,
   documentSiteEstimate,
@@ -349,7 +353,8 @@ test("the switch, the wiring and the house style", () => {
 
 test("the examples in the contract document are estimates this code accepts", () => {
   const doc = read("docs/lead-intake-contract.md");
-  const section = doc.slice(doc.indexOf("## The price the website gave"));
+  const from = doc.indexOf("## The price the website gave");
+  const section = doc.slice(from, doc.indexOf("\n## ", from + 10));
   const bodies = [...section.matchAll(/```json\n([\s\S]*?)\n```/g)].map((m) => JSON.parse(m[1]) as { brand: string; estimate: unknown });
   assert.equal(bodies.length, 2);
   const [byTrade, byRoom] = bodies.map((body) => readSiteEstimate(body.estimate));
@@ -362,6 +367,59 @@ test("the examples in the contract document are estimates this code accepts", ()
   // The document never shows a cost or a margin inside an estimate.
   for (const body of bodies) assert.doesNotMatch(JSON.stringify(body.estimate), /cost|margin|markup|profit|overhead|contingenc/i);
   assert.ok(!doc.includes(String.fromCharCode(8212)));
+
+  // The document estimator's two posts: a project request with no price, and the estimate published for it.
+  const estimator = doc.slice(doc.indexOf("## The document estimator on a brand site"));
+  const [requestBody, estimateBody] = [...estimator.matchAll(/```json\n([\s\S]*?)\n```/g)].map((m) => JSON.parse(m[1]) as Record<string, unknown>);
+  assert.equal([...estimator.matchAll(/```json\n/g)].length, 2);
+  assert.deepEqual([requestBody.form, requestBody.team_alert, "estimate" in requestBody], ["p5-project-request", "site", false]);
+  assert.match(String(requestBody.external_id), PROJECT_REQUEST_KEY);
+  assert.equal(estimateBody.request_external_id, requestBody.external_id, "the estimate names the request it answers");
+  assert.equal(siteSentTeamEmail(requestBody.form, readIntakeExtras(requestBody), readSiteEstimate(requestBody.estimate)), true);
+  const published = readSiteEstimate(estimateBody.estimate);
+  assert.equal(published.problem, null);
+  assert.deepEqual([published.estimate!.kind, published.estimate!.base, published.estimate!.verified, published.estimate!.notes.length], ["document", 56480.25, true, 0]);
+  assert.equal(siteSentTeamEmail(estimateBody.form, readIntakeExtras(estimateBody), published), true);
+  assert.doesNotMatch(JSON.stringify(estimateBody), /cost|margin|markup|profit|overhead|contingenc/i);
+  for (const body of [requestBody, estimateBody]) assert.ok((BRANDS as readonly string[]).includes(String(body.brand)));
+});
+
+test("the document estimate is built once: what p5homeco.com books and what a brand site posts are the same figures", () => {
+  assert.equal(DOCUMENT_ESTIMATE_MAX_LINES, MAX_SITE_ESTIMATE_LINES, "the shared builder and the intake agree on how many lines one estimate carries");
+  const line = (i: number, extra: Record<string, unknown> = {}) => ({ description: `Work item ${i}`, quantity: i + 1, unit: "EA", trade: i % 3 ? "Plumbing" : "Electrical", sellingAmount: 1234.567 + i * 10.111, cost: 800, operatingProfit: 90, ...extra });
+  const records = [
+    { scope: { answers: { service: "kitchen" } }, customer: { range: { low: 3000, high: 3600 } }, internal: { contractPrice: 3333.335, lines: [{ description: "Install owner-supplied trim", quantity: 120, unit: "LF", trade: "Trim & Finish Carpentry", sellingAmount: 1111.1117 }, { description: "Paint new trim", quantity: 1, unit: "LS", trade: "Painting", sellingAmount: 2222.2233 }] } },
+    { customer: { range: { low: 8000, high: 10000 } }, internal: { contractPrice: 7 * 1234.567 + 21 * 10.111, lines: Array.from({ length: 7 }, (_, i) => line(i, i === 2 ? { description: `A long description ${"with many words ".repeat(30)}`, trade: "" } : {})) } },
+    { customer: { range: { low: 100000, high: 140000 } }, internal: { contractPrice: 80 * 1234.567 + 3160 * 10.111, lines: Array.from({ length: 80 }, (_, i) => line(i)) } },
+    { customer: { range: { low: 900, high: 900 } }, internal: { contractPrice: 880, lines: [] } },
+  ];
+  for (const record of records) {
+    const booked = documentSiteEstimate(record)!;
+    const posted = readSiteEstimate(JSON.parse(JSON.stringify(documentEstimateBody(record))));
+    assert.equal(posted.problem, null);
+    // Read by the intake, the brand site's post is exactly the estimate p5homeco.com books in process.
+    assert.deepEqual({ ...posted.estimate!, notes: [] }, { ...booked, notes: [] });
+    assert.deepEqual(posted.estimate!.notes, [], "nothing had to be adjusted on the way in");
+    if (booked.lines.length) assert.equal(sum(booked.lines.map((l) => l.amount)), booked.base, "the lines add up to the contract price");
+    assert.deepEqual(readSiteEstimate(booked).estimate!.base, booked.base);
+  }
+  // The shared files are published to the brand sites, so they may not reach outside lib/p5.
+  assert.match(read("app/lib/leads/site-estimate.ts"), /import \{ documentEstimate \} from "\.\.\/\.\.\/\.\.\/lib\/p5\/documentEstimateFigures\.ts";/);
+  assert.doesNotMatch(read("lib/p5/documentEstimateFigures.ts"), /^import /m);
+});
+
+test("team_alert site is wired through one rule, and never touches the QuickBooks work", () => {
+  const handler = read("app/api/leads/intake/handler.ts");
+  assert.match(handler, /alerts\.withheld = siteSentTeamEmail\(body\.form \?\? body\.originalForm, extras, siteEstimate\);/);
+  assert.match(handler, /function teamEmail\([\s\S]{0,120}\{\s*\/\/[^\n]*\n\s*if \(alerts\.withheld\) return;/, "every team email goes through the one gate");
+  assert.equal((handler.match(/alerts\.withheld/g) ?? []).length, 3, "set once, read at the gate and for the answer");
+  assert.doesNotMatch(handler.slice(handler.indexOf("function queueSiteEstimate"), handler.indexOf("function teamEmail")), /withheld/, "the estimate is queued whether or not an email is sent");
+  // The key that joins an estimate to its request is plumbing, not something the visitor typed.
+  const fields = submittedFieldsFromBody({ name: "Pat Example", team_alert: "site", request_external_id: `p5-intake-${"a".repeat(64)}`, requestExternalId: "x" });
+  assert.deepEqual(fields.map((f) => f.label), ["Name"]);
+  for (const file of ["docs/lead-intake-contract.md", "app/api/leads/intake/handler.ts", "app/lib/leads/intakeContract.ts", "app/lib/leads/submittedFields.ts", "CLAUDE.md"]) {
+    assert.ok(!read(file).includes(String.fromCharCode(8212)), `${file} has an em dash`);
+  }
 });
 
 test("until a database has migration 032, the lead links read the guided estimator alone, as before", async () => {

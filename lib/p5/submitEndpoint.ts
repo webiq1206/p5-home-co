@@ -163,7 +163,7 @@ export async function completeSubmission(id:string,draft:Awaited<ReturnType<type
     // A revised estimate says what changed from the version it replaces (estimateRevisions.ts).
     const revisionOf=Number((draft as {revisionOf?:number}).revisionOf);
     const revisionSummary=Number.isInteger(revisionOf)?changeSummary(await archivedVersion(id,revisionOf).catch(()=>undefined),priced.customer):[];
-    const record={draftId:id,revision:draft.revision,brand:brand.name,estimator:"p5-policy",contact,scope:draft.reviewed,...priced,customer:{...priced.customer,...(revisionSummary.length?{revisionSummary,revisionOf}:{}),issue:{...issue,contact:{...issue.contact,email:issue.contact?.email||notifyEmail}}}};
+    const record={draftId:id,revision:draft.revision,projectId:draft.intake?.projectId||`${brand.id}:${id}`,brand:brand.name,estimator:"p5-policy",contact,scope:draft.reviewed,...priced,customer:{...priced.customer,...(revisionSummary.length?{revisionSummary,revisionOf}:{}),issue:{...issue,contact:{...issue.contact,email:issue.contact?.email||notifyEmail}}}};
     const accepted=await enqueueSubmission(id,draft.revision,record);
     if(!accepted){
       const [persisted]=await query("SELECT status,revision,customer_estimate,internal_estimate,submitted_at FROM p5_estimator_drafts WHERE id=$1",[id]);

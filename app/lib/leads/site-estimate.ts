@@ -40,7 +40,8 @@ import { defaultPhase, isDivision } from "../scopes/divisions.ts";
 import { rangeWords } from "../scopes/estimate.ts";
 import { canonical, emptyScope } from "../scopes/types.ts";
 import type { EstimateLine, ItemKey, PricingResult, ScopeDoc } from "../scopes/types.ts";
-import { readSiteEstimate, MAX_SITE_ESTIMATE_LINES } from "./intakeContract.ts";
+import { documentEstimate } from "../../../lib/p5/documentEstimateFigures.ts";
+import { readSiteEstimate } from "./intakeContract.ts";
 import type { SiteEstimate, SiteEstimateKind, SiteEstimateLine } from "./intakeContract.ts";
 import { SYNTHETIC_ESTIMATOR_FORM } from "./synthetic-qa.ts";
 import { BRANDS } from "./types.ts";
@@ -273,47 +274,34 @@ type DocumentRecord = {
  * amount of each line (`sellingAmount`), the contract price as the one figure
  * and the range the customer was shown. Null when the customer was shown no
  * price. Cost, contingency, overhead and profit fields are never read.
+ *
+ * The figures are built by `documentEstimate()` in
+ * lib/p5/documentEstimateFigures.ts, the
+ * same function a brand site uses to post its document estimate to the
+ * intake, so the estimate made here in process and the one a brand site sends
+ * cannot drift. This only gives them the shape this file works in.
  */
 export function documentSiteEstimate(record: DocumentRecord | null | undefined): SiteEstimate | null {
-  const low = Number(record?.customer?.range?.low);
-  const high = Number(record?.customer?.range?.high);
-  const contract = Number(record?.internal?.contractPrice);
-  if (![low, high, contract].every((n) => Number.isFinite(n) && n > 0)) return null;
-  const base = round2(contract);
-  const notes: string[] = [];
-  let lines: SiteEstimateLine[] = [];
-  for (const entry of Array.isArray(record?.internal?.lines) ? (record!.internal!.lines as Record<string, unknown>[]) : []) {
-    const amount = round2(Number(entry?.sellingAmount));
-    const description = typeof entry?.description === "string" ? entry.description.replace(/\s+/g, " ").trim() : "";
-    if (!Number.isFinite(amount) || amount <= 0 || !description) continue;
-    const quantity = Number(entry.quantity);
-    lines.push({
-      title: description.slice(0, 200),
-      description: description.length > 200 ? description.slice(0, 1000) : null,
-      quantity: Number.isFinite(quantity) && quantity > 0 ? quantity : null,
-      unit: typeof entry.unit === "string" && entry.unit.trim() ? entry.unit.trim().slice(0, 20) : null,
-      amount,
-      division: typeof entry.trade === "string" && entry.trade.trim() ? entry.trade.trim().slice(0, 80) : null,
-    });
-  }
-  if (lines.length > MAX_SITE_ESTIMATE_LINES) {
-    // More lines than one estimate carries: one line per trade, same total.
-    const byTrade = new Map<string, number>();
-    for (const line of lines) byTrade.set(line.division ?? "Other Project Work", round2((byTrade.get(line.division ?? "Other Project Work") ?? 0) + line.amount));
-    notes.push(`${lines.length} lines were combined into one line per trade`);
-    lines = [...byTrade].map(([trade, amount]) => ({ title: trade, description: null, quantity: null, unit: null, amount, division: trade }));
-    if (lines.length > MAX_SITE_ESTIMATE_LINES) lines = [];
-  }
-  if (lines.length) {
-    // Each line is rounded to the cent; the cents that rounding moved go on the largest line, so the lines add up to the contract price.
-    const drift = round2(base - lines.reduce((sum, line) => sum + line.amount, 0));
-    if (drift !== 0 && Math.abs(drift) <= 0.01 * lines.length) {
-      const largest = lines.reduce((a, b) => (b.amount > a.amount ? b : a));
-      largest.amount = round2(largest.amount + drift);
-    }
-  }
-  const service = typeof record?.scope?.answers?.service === "string" ? record.scope.answers.service.trim().slice(0, 120) : "";
-  return { kind: "document", low: round2(low), high: round2(high), base, label: service ? `Document estimate, ${service}` : "Document estimate", lines, verified: true, notes };
+  const built = documentEstimate(record);
+  if (!built) return null;
+  const { estimate, notes } = built;
+  return {
+    kind: estimate.kind,
+    low: estimate.low,
+    high: estimate.high,
+    base: estimate.base,
+    label: estimate.label,
+    lines: estimate.lines.map((line) => ({
+      title: line.title,
+      description: line.description ?? null,
+      quantity: line.quantity ?? null,
+      unit: line.unit ?? null,
+      amount: line.amount,
+      division: line.division ?? null,
+    })),
+    verified: estimate.verified,
+    notes,
+  };
 }
 
 // ---------------------------------------------------------------------------

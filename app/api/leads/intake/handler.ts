@@ -29,6 +29,7 @@ import {
   readIntakeExtras,
   readLeadDetails,
   readSiteEstimate,
+  siteSentTeamEmail,
 } from "../../../lib/leads/intakeContract.ts";
 import { loadSettings } from "../../../lib/leads/settings.ts";
 import { BRANDS, LEAD_SOURCES, type Brand, type LeadSource } from "../../../lib/leads/types.ts";
@@ -80,6 +81,12 @@ function collectUtm(body: Record<string, unknown>): Record<string, string> | nul
  */
 type TeamAlerts = {
   confirm: boolean;
+  /**
+   * The calling site has already emailed the team (`team_alert: "site"`, the
+   * document estimator only: siteSentTeamEmail). No team email is sent from
+   * here for this submission and the answer says `alert: "none"`.
+   */
+  withheld: boolean;
   /** Test seam: the transport the team emails use. */
   transport?: Transport;
   /** Team-only lines from the brand site, printed in whatever email is sent. */
@@ -131,6 +138,8 @@ function queueSiteEstimate(
 }
 
 function teamEmail(alerts: TeamAlerts, after: AfterResponse, send: () => Promise<boolean>): void {
+  // The site that posted this has mailed the team itself: one team email, not two.
+  if (alerts.withheld) return;
   if (alerts.confirm) alerts.sends.push(send);
   else after(async () => { await send(); });
 }
@@ -221,12 +230,17 @@ export type IntakeDeps = {
  * constructed Request and a captured `after`. route.ts passes the real one.
  */
 export async function handleIntake(request: Request, after: AfterResponse, deps: IntakeDeps = {}): Promise<Response> {
-  const alerts: TeamAlerts = { confirm: false, teamNotes: [], sends: [], transport: deps.alertTransport };
+  const alerts: TeamAlerts = { confirm: false, withheld: false, teamNotes: [], sends: [], transport: deps.alertTransport };
   const response = await runIntake(request, after, deps, alerts);
   if (!alerts.confirm || !response.ok) {
     // A refused request that had already queued an email still sends it.
     for (const send of alerts.sends) after(async () => { await send(); });
     if (alerts.siteEstimate) after(alerts.siteEstimate);
+    // The site mailed the team itself: say that no email was sent from here.
+    if (alerts.withheld && response.ok) {
+      const accepted = (await response.json()) as Record<string, unknown>;
+      return Response.json({ ...accepted, alert: "none" }, { status: response.status });
+    }
     return response;
   }
   // The caller is waiting to hear whether the team email went. "none" means
@@ -302,6 +316,8 @@ async function runIntake(request: Request, after: AfterResponse, deps: IntakeDep
   alerts.teamNotes = extras.teamNotes;
   // The price the website gave the visitor, if it sent one. Never a reason to refuse the lead.
   const siteEstimate = readSiteEstimate(body.estimate ?? body.site_estimate ?? body.siteEstimate);
+  // The document estimator mails the team itself before it posts here.
+  alerts.withheld = siteSentTeamEmail(body.form ?? body.originalForm, extras, siteEstimate);
   const estimateSource = [str(body.form ?? body.originalForm), extras.externalId ? `request ${extras.externalId}` : null].filter(Boolean).join(", ").slice(0, 300) || null;
 
   const brand = pickBrand(body.brand ?? body.company);
@@ -439,6 +455,7 @@ async function runIntake(request: Request, after: AfterResponse, deps: IntakeDep
          })(),
         receivedAt: new Date(),
         brandExternalId: extras.externalId,
+        requestExternalId: extras.requestExternalId,
         requestKind: extras.requestKind,
         contactPreference: extras.contactPreference,
         bestTime: extras.bestTime,

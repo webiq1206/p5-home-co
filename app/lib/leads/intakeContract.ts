@@ -55,6 +55,17 @@ export type IntakeExtras = {
    * own team email, and send it after all when this one did not go.
    */
   confirmAlert: boolean;
+  /**
+   * `team_alert: "site"`: the calling site says it has already emailed the
+   * team about this submission. Honoured only for the document estimator's two
+   * forms (`siteSentTeamEmail`), so a malformed post still gets its email.
+   */
+  siteAlert: boolean;
+  /**
+   * `request_external_id`: the id of the project request this submission
+   * belongs to. The lead that holds it is the lead (one lead per project).
+   */
+  requestExternalId: string | null;
 };
 
 export const MAX_TEAM_NOTES = 40;
@@ -394,7 +405,42 @@ export function readIntakeExtras(body: Record<string, unknown>): IntakeExtras {
     teamNotes: readTeamNotes(pick(body, ["team_notes", "teamNotes"])),
     teamInternalNotes: readTeamInternalNotes(pick(body, ["team_internal_notes", "teamInternalNotes"])),
     confirmAlert: pick(body, ["team_alert", "teamAlert"]) === "confirm",
+    siteAlert: pick(body, ["team_alert", "teamAlert"]) === "site",
+    requestExternalId: text(pick(body, ["request_external_id", "requestExternalId"]), MAX_EXTERNAL_ID),
   };
+}
+
+/** The form a published document estimate is filed under (lib/p5/p5LeadIntake.ts). */
+export const DOCUMENT_ESTIMATE_FORM = "p5-estimator";
+/** The form a visitor's unpriced project request from the document estimator is filed under. */
+export const PROJECT_REQUEST_FORM = "p5-project-request";
+
+/**
+ * Has the calling site already emailed the team about this submission, so
+ * that none is sent from here? (`team_alert: "site"`; owner, 17 and 18
+ * November 2026: one team email, not two.) True only for the document
+ * estimator, whose own delivery emails the team before it posts here:
+ *
+ *   - a published estimate: form `p5-estimator` AND a readable `estimate` of
+ *     kind `document` (the site emailed its internal estimate record);
+ *   - a visitor's project request: form `p5-project-request` (the site's team
+ *     channel emailed the whole request with its files).
+ *
+ * Anything else that says "site" is not believed and the email goes as
+ * usual: a lead must never end with no team email because of a malformed
+ * post. The intake has no caller authentication, so this is the site's word.
+ * All it can do is withhold an email: the lead is still saved, still reaches
+ * HubSpot's first stage, and an estimate is still held to its ceilings.
+ */
+export function siteSentTeamEmail(
+  form: unknown,
+  extras: Pick<IntakeExtras, "siteAlert">,
+  site: { estimate: Pick<SiteEstimate, "kind"> | null },
+): boolean {
+  if (!extras.siteAlert) return false;
+  const name = typeof form === "string" ? form.trim() : "";
+  if (name === PROJECT_REQUEST_FORM) return true;
+  return name === DOCUMENT_ESTIMATE_FORM && site.estimate?.kind === "document";
 }
 
 /** Street address, with a ZIP appended when it was sent separately. */

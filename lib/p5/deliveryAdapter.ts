@@ -29,10 +29,16 @@ export async function syncCrm(record:any,key:string){
   const mode=estimatorDeliveryMode(record.contact.name,record.contact.email);
   const names=record.contact.name.trim().split(/\s+/);
   const attribution=collectAttribution(record.attribution||{});
+  // Loaded on demand, like the QuickBooks code below: the mail paths of this adapter load nothing new.
+  const {projectRequestKey}=await import("./p5LeadIntake.ts");
  const result=await ingestLead({firstName:names.shift()||null,lastName:names.join(" ")||null,email:record.contact.email,phone:record.contact.phone||null,
     brand:deliveryBrand(record),projectType:record.scope.answers.service,source:sourceFromAttribution(attribution),sourceDetail:`p5-estimator:${record.draftId}`,
     propertyAddress:record.scope.answers.address||null,propertyCity:record.scope.answers.location||null,
-    summary:record.customer.summary,externalLeadId:mode==='synthetic_qa'?'qa-'+key:key,originalForm:"p5-estimator",originalCampaign:attribution?.utm_campaign||null,utm:attribution,receivedAt:new Date()},await loadSettings(),null,{estimatorDeliveryMode:mode});
+    summary:record.customer.summary,externalLeadId:mode==='synthetic_qa'?'qa-'+key:key,originalForm:"p5-estimator",originalCampaign:attribution?.utm_campaign||null,utm:attribution,receivedAt:new Date(),
+    // One lead per project (owner decision, 18 November 2026): when the visitor's project request already made a
+    // lead (intakeDeliveryRuntime.ts), the estimate published for it joins that lead instead of making a second.
+    // With no such lead, this changes nothing. A QA record never joins a customer's lead (ingestLead ignores it).
+    requestExternalId:projectRequestKey(record,brand.name)||null},await loadSettings(),null,{estimatorDeliveryMode:mode});
   if(result.status==="rejected")throw new Error("CRM rejected the estimate lead");
   if(!Number.isInteger(result.dealId)||result.dealId<=0)throw new Error("CRM duplicate acknowledgement has no resolved lead identifier; reconcile before retrying");
   // Every estimate a website gives becomes a QuickBooks customer and an UNSENT estimate for its lead
