@@ -223,6 +223,7 @@ site make this one the only one, and keep its own as the fallback.
 | Field | Meaning |
 | --- | --- |
 | `team_alert: "confirm"` | The team email is sent before the answer, and the answer says whether it went. |
+| `team_alert: "site"` | The calling site has already emailed the team about this submission, so no team email is sent from here. The document estimator only: see "The document estimator on a brand site" below. Ignored for every other post. |
 | `team_notes: string[]` | Lines for the team only (the site's planning range, the parcel it looked up, its dashboard link). At most 40 lines of 300 characters. Printed in the team email under "From the website". Not stored on the lead and not listed under "Everything submitted". The email itself is copied into HubSpot by the inbox sync, so never send a cost, margin, markup, profit, contingency or overhead figure: a line that names one is withheld and counted. |
 
 | `team_internal_notes: string[]` | The site's INTERNAL lines for the team: its cost, margin and pricing checks for a planning range. At most 60 lines of 300 characters. Printed under "Internal pricing". When any are sent, the email's subject is "Lead and pricing: ..." instead of "New lead: ...". The inbox sync copies only "New lead" mail into HubSpot, so this email stays out of it. Not stored on the lead. |
@@ -381,3 +382,154 @@ the range is built on a figure other than its midpoint.
 
 Guards: `tests/site-estimate-contract.test.ts` (the reading, no database) and
 `tests/site-estimate.integration.test.ts` (needs `TEST_DATABASE_URL`).
+
+## The document estimator on a brand site: project requests and published estimates (18 November 2026)
+
+The document estimator (`/estimate/scope`, shared code in `lib/p5`) runs on all
+five sites. On p5homeco.com it saves its leads in the same process. A brand site
+posts them here, with the shared code in `lib/p5/p5LeadIntake.ts` (published to
+the brand repositories by `scripts/p5-sync.mjs`; never copied by hand):
+
+1. The visitor's unpriced PROJECT REQUEST ("Send project request"), form
+   `p5-project-request`. The `crm` channel of the request delivery posts it
+   (`p5LeadIntakeTransport()`). It becomes a lead and a HubSpot deal in the
+   first stage. There is no price, so it carries no `estimate` and nothing goes
+   to QuickBooks.
+2. The ESTIMATE the team later prices and publishes for it, form
+   `p5-estimator`, with `estimate` of kind `document`. The brand's delivery
+   adapter posts it (`forwardEstimateToP5()`). It joins the request's lead and
+   becomes the QuickBooks customer and an UNSENT estimate, as any `estimate`
+   does.
+
+### One team email: `team_alert: "site"`
+
+The document estimator emails the team itself before it posts: the whole
+request with its files (the request's own `team` channel), and later the
+internal estimate record with the administrative PDF. A "New lead" email from
+here would be a second email for the same thing, which the owner ruled out (17
+November 2026). So both posts say `team_alert: "site"`, meaning "this site has
+already emailed the team; send nothing".
+
+It is believed only for the document estimator (`siteSentTeamEmail()` in
+`app/lib/leads/intakeContract.ts`):
+
+- form `p5-project-request`, or
+- form `p5-estimator` AND a readable `estimate` of kind `document`.
+
+Then no "New lead", "Details added" or "Request added" email is sent for that
+post, and the JSON answer carries `alert: "none"`. In every other case (another
+form, no `estimate`, one that cannot be read, kind `planning-range`) `"site"` is
+ignored: the email goes after the response and the answer is exactly what a
+caller that sent no `team_alert` gets. A lead must never end with no team email
+because of a malformed post. `team_alert: "confirm"` keeps its meaning.
+
+What `"site"` can and cannot do. The intake has no caller authentication, so
+`"site"` is the caller's word, like `verified`. All it does is withhold one
+email. The lead is still saved, still syncs to HubSpot in the first stage (the
+column the team works from) with its first-contact task and the watchdog's
+alerts, and an estimate is still held to the same reading and ceilings
+(nothing above $5,000,000; nothing above $500,000 unless `verified: true`; a
+total that belongs to its range). It cannot change a lead, hide one, or put a
+figure in QuickBooks that an ordinary post could not.
+
+### One lead per project: `external_id` and `request_external_id`
+
+| Post | `external_id` | `request_external_id` |
+| --- | --- | --- |
+| Project request | The request's lead key, `p5-intake-<sha256 of the project id>`: one per project, the same for every revision. | Not sent. |
+| Published estimate | `p5-estimator:<draft id>`: one per draft, the same for every revision. | The lead key of the request it answers. |
+
+- A request sent again (the delivery retries a post whose answer was lost, for
+  up to two hours) is answered as a duplicate: no second lead, no email,
+  nothing new for HubSpot. A revised request is the same lead with its new
+  words added.
+- A request is filed under the PRIMARY TEAM it was routed to (`brand`), which
+  need not be the brand of the site that took it or of the site that later
+  publishes the estimate. So the estimate names the request by its key, and the
+  intake attaches the estimate to the lead that holds that key under ANY brand
+  (`findExistingDeal()` in `app/lib/leads/intake.ts`). Only a key in exactly
+  that format is looked up this way; anything else in `request_external_id` is
+  ignored. It is not a submitted field.
+- With no such lead (the request was never forwarded), the estimate is matched
+  or created like any other submission.
+- A different project from the same person has a different key. It joins an
+  OPEN lead for the same person, brand, address and kind of work, as every form
+  does, and is a new lead when that one is closed.
+- An estimate published again with the same figures changes nothing. New
+  figures revise the same QuickBooks estimate while nobody has worked it.
+- The same person may be asked "several requests this hour" (429) after five
+  new posts for one brand in an hour. The sender treats that as a failure and
+  its own delivery record says so.
+
+A visitor's project request from boiseconstruction.co, routed to the remodeling
+team:
+
+```json
+{
+  "brand": "Boise Remodeling Co",
+  "name": "Pat Example",
+  "email": "pat@example.com",
+  "phone": "(208) 555-0142",
+  "projectType": "kitchen",
+  "address": "123 N Main St",
+  "city": "Boise",
+  "message": "Project request BCC-4F7K2Q, revision 1, sent from boiseconstruction.co. No price has been given.\nTeam: Boise Remodeling Co. Supporting services: cabinetry, electrical\nPreferred contact: Phone\nWhat they want: A brighter kitchen with an island\nScope: Remove the wall between kitchen and dining. New cabinets, tops and floor.\nFiles attached: 2\nFull request and files (staff sign-in): https://boiseconstruction.co/api/admin/p5-intake?draftId=12345678-1234-4234-8234-123456789abc&revision=1",
+  "form": "p5-project-request",
+  "request_kind": "quote",
+  "contact_preference": "phone",
+  "sourceDetail": "p5-project-request:12345678-1234-4234-8234-123456789abc",
+  "external_id": "p5-intake-1f0e2ad1c6b1a9f4a7f5f0a6c2f6c3b8d9e4a7b1c0d2e3f4a5b6c7d8e9f0a1b2",
+  "utm_source": "google",
+  "utm_medium": "cpc",
+  "gclid": "abc123",
+  "team_alert": "site"
+}
+```
+
+The estimate the Boise Construction Co team published for it:
+
+```json
+{
+  "brand": "Boise Construction Co",
+  "name": "Pat Example",
+  "email": "pat@example.com",
+  "phone": "(208) 555-0142",
+  "projectType": "kitchen",
+  "address": "123 N Main St",
+  "city": "Boise",
+  "message": "Open the kitchen to the dining room, with new cabinets, countertops and flooring.",
+  "form": "p5-estimator",
+  "sourceDetail": "p5-estimator:12345678-1234-4234-8234-123456789abc",
+  "external_id": "p5-estimator:12345678-1234-4234-8234-123456789abc",
+  "request_external_id": "p5-intake-1f0e2ad1c6b1a9f4a7f5f0a6c2f6c3b8d9e4a7b1c0d2e3f4a5b6c7d8e9f0a1b2",
+  "team_alert": "site",
+  "estimate": {
+    "kind": "document",
+    "low": 52000,
+    "high": 61000,
+    "base": 56480.25,
+    "label": "Document estimate, kitchen",
+    "verified": true,
+    "lines": [
+      { "title": "Remove the wall between kitchen and dining", "quantity": 1, "unit": "LS", "amount": 9150.75, "division": "Framing" },
+      { "title": "Install shaker cabinets, painted", "quantity": 24, "unit": "LF", "amount": 21840, "division": "Cabinets" },
+      { "title": "Quartz countertops, eased edge", "quantity": 52.5, "unit": "SF", "amount": 9989.5, "division": "Countertops" },
+      { "title": "Luxury vinyl plank flooring", "quantity": 187, "unit": "SF", "amount": 15500, "division": "Flooring" }
+    ]
+  }
+}
+```
+
+`base` is the contract price, `low` and `high` the range the customer was
+shown, and each `amount` the customer's price for that line; the lines add up
+to `base` to the cent. `verified` is `true` because the site's server priced
+it. Customer amounts only, as for every `estimate`. When the figures cannot be
+used the forwarder sends the lead without `estimate` and without `team_alert`,
+so the usual "New lead" email covers it. A synthetic QA record is never
+posted.
+
+Guards: `tests/lead-intake-confirm-alert.test.ts` (the intake, with the shared
+builders posting into it), `tests/p5-lead-intake.test.ts` (the shared code,
+fake fetch), `tests/project-request-lead.test.ts` (p5homeco.com's own path) and
+`tests/site-estimate.integration.test.ts` (QuickBooks, needs
+`TEST_DATABASE_URL`).

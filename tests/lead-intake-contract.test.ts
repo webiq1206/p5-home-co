@@ -39,6 +39,8 @@ test("intake extras: every new field is optional and read forgivingly", () => {
     teamNotes: [],
     teamInternalNotes: [],
     confirmAlert: false,
+    siteAlert: false,
+    requestExternalId: null,
   });
 
   const full = readIntakeExtras({

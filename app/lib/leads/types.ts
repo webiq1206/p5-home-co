@@ -133,6 +133,13 @@ export type InboundLead = {
    */
   /** The brand site's own request id, unique per brand. */
   brandExternalId?: string | null;
+  /**
+   * The id of the project request this submission belongs to (the document
+   * estimator's lead key, `p5-intake-<sha256>`), whichever brand that request
+   * was filed under. A lead that already holds it is the lead: one lead per
+   * project. Anything that is not such a key is ignored.
+   */
+  requestExternalId?: string | null;
   requestKind?: RequestKind | null;
   contactPreference?: LeadContactPreference | null;
   bestTime?: string | null;

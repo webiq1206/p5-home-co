@@ -1011,6 +1011,107 @@ describe("site estimates into QuickBooks", { skip: TEST_DB ? false : "TEST_DATAB
     assert.deepEqual(qboRequests, []);
   });
 
+  // ---- the document estimator on a brand site: request first, then the published estimate -----
+
+  /** The brand site's side of the wire: the shared forwarder's fetch, answered by the real intake. */
+  function brandSite() {
+    const tasks: (() => Promise<void>)[] = [];
+    const posted: Json[] = [];
+    const viaIntake = (async (_url: unknown, init?: RequestInit) => {
+      posted.push(JSON.parse(String(init?.body)) as Json);
+      return handleIntake(
+        new Request("https://p5homeco.com/api/leads/intake", { method: "POST", headers: { "Content-Type": "application/json", "x-forwarded-for": `198.51.100.${++ip % 250}` }, body: String(init?.body) }),
+        (task) => void tasks.push(task),
+        { alertTransport: transport },
+      );
+    }) as typeof fetch;
+    const finish = async () => { for (const task of tasks.splice(0)) await task(); await site.siteEstimatesSettled(); await alignment.stageAlignmentSettled(); };
+    return { viaIntake, posted, finish };
+  }
+
+  test("a brand site's document estimator: the request makes the lead, the published estimate becomes its customer and unsent estimate, and P5 sends no email", async () => {
+    const forward = await import("../lib/p5/p5LeadIntake.ts");
+    const { intakeDeliveryEnvelope } = await import("../lib/p5/intakeDeliveryPayload.ts");
+    const { routeIntake } = await import("../lib/p5/intakePolicy.ts");
+    const { emptyIntakeDetails } = await import("../lib/p5/intakeContract.ts");
+    const brand = brandSite();
+    const draftId = "12345678-1234-4123-8123-123456789abc";
+
+    // 1. The visitor sends an unpriced project request on boiseconstruction.co. A kitchen is the remodeling team's work.
+    const request = {
+      schema: 1, projectId: `construction:${draftId}`, reference: "BCC-4F7K2Q", originSite: "construction", currentSite: "construction", draftId, revision: 1, contextVersion: 0,
+      savedAt: "2099-01-02T12:00:00.000Z", contact: { name: "Dana Document", email: "dana@example.com", phone: "(208) 555-0155", preferredContact: "email" },
+      details: { ...emptyIntakeDetails(), desiredOutcome: "New trim through the main floor" },
+      scope: { text: "Install trim and paint it.", answers: { service: "kitchen", address: "77 W Idaho St", location: "Boise" }, extraction: null, uploads: [] },
+      routing: routeIntake("construction", "kitchen"), unresolved: [],
+    };
+    const transportToP5 = forward.p5LeadIntakeTransport({ enabled: true, fetch: brand.viaIntake });
+    const envelope = intakeDeliveryEnvelope(request as never, "crm", "e".repeat(64));
+    assert.equal(transportToP5.validate!(envelope), null);
+    assert.equal(await transportToP5.send(envelope), `p5-intake:${envelope.leadKey}`);
+    await brand.finish();
+    assert.deepEqual([(await leadRow()).brand, (await leadRow()).stage], ["Boise Remodeling Co", "New Lead"]);
+    assert.deepEqual(qboRequests, [], "a request has no price: QuickBooks is not touched");
+    assert.deepEqual(await projects(), []);
+    assert.deepEqual(sent, [], "the site emailed the team itself: nothing from P5");
+
+    // 2. The team prices it and publishes. The brand's adapter forwards the estimate with the shared forwarder.
+    const record = documentRecord({ brand: "Boise Construction Co", projectId: `construction:${draftId}` });
+    assert.equal(await forward.forwardEstimateToP5(record, "p5-outbox-key", { brand: "Boise Construction Co", fetch: brand.viaIntake }), `p5-intake:p5-estimator:${draftId}`);
+    assert.equal(brand.posted[1].team_alert, "site");
+    assert.equal(brand.posted[1].request_external_id, envelope.leadKey);
+    assert.deepEqual(qboRequests, [], "nothing on the caller's path");
+    await brand.finish();
+    assert.equal((await query<{ n: number }>("SELECT count(*)::int AS n FROM deal"))[0].n, 1, "one lead for the project");
+    const customer = only(customers.values());
+    assert.equal(customer.DisplayName, "Dana Document");
+    const estimate = only(estimates.values());
+    assert.equal(estimate.EmailStatus, "NotSet", "created unsent");
+    assert.equal(estimate.TotalAmt, 3333.34, "the contract price, to the cent");
+    assert.deepEqual(sales(estimate).map((l) => l.Description).sort(), ["Install owner-supplied trim (120 LF)", "Paint new trim"]);
+    assert.match(estimate.CustomerMemo!.value, /Preliminary range given online: \$3,000 to \$3,600\./);
+    assert.match(estimate.CustomerMemo!.value, /Document estimator on Boise Construction Co\. Figures verified by the site's server\./);
+    const project = only(await projects());
+    assert.equal(project.lead_deal_id, 1, "linked to the request's lead, so the stage and deletion rules reach it");
+    const [created] = await audits("site_estimate_created");
+    assert.deepEqual([created.record_id, created.new_value.kind, created.new_value.total], ["1", "document", 3333.34]);
+    assert.match(String(created.new_value.from), /p5-estimator, request p5-estimator:12345678-1234-4123-8123-123456789abc/);
+    assert.equal((await leadRow()).stage, "New Lead", "the estimate the website creates moves nothing");
+    assert.deepEqual(sent, [], "still no email from P5: not New lead, not Request added");
+
+    // 3. Published again unchanged: nothing more. With new figures: the same estimate, revised.
+    const writes = [...qboWrites];
+    await forward.forwardEstimateToP5(record, "p5-outbox-key", { brand: "Boise Construction Co", fetch: brand.viaIntake });
+    await brand.finish();
+    assert.deepEqual(qboWrites, writes);
+    const revised = documentRecord({ brand: "Boise Construction Co", projectId: `construction:${draftId}`, revision: 4, customer: { summary: "Install 120 LF of trim and paint it", range: { low: 3600, high: 4400 } },
+      internal: { contractPrice: 4000, lines: [{ description: "Install owner-supplied trim", quantity: 120, unit: "LF", trade: "Trim & Finish Carpentry", sellingAmount: 1500, cost: 900 }, { description: "Paint new trim, two coats", quantity: 1, unit: "LS", trade: "Painting", sellingAmount: 2500, cost: 1500 }] } });
+    await forward.forwardEstimateToP5(revised, "p5-outbox-key-4", { brand: "Boise Construction Co", fetch: brand.viaIntake });
+    await brand.finish();
+    assert.equal(only(estimates.values()).TotalAmt, 4000, "the same estimate, with the new figures");
+    assert.equal((await projects()).length, 1);
+    assert.equal(only(customers.values()).DisplayName, "Dana Document");
+    assert.equal((await query<{ n: number }>("SELECT count(*)::int AS n FROM deal"))[0].n, 1);
+    assert.deepEqual(sent, []);
+  });
+
+  test("a document estimate with more lines than one estimate carries still totals the contract price to the cent", async () => {
+    const forward = await import("../lib/p5/p5LeadIntake.ts");
+    const brand = brandSite();
+    const lines = Array.from({ length: 80 }, (_, i) => ({ description: `Work item ${i}`, quantity: 1, unit: "EA", trade: i % 3 ? "Plumbing" : "Electrical", sellingAmount: 1234.567 + i * 10.111, cost: 800 }));
+    const contractPrice = lines.reduce((total, line) => total + line.sellingAmount, 0);
+    const record = documentRecord({ brand: "Boise Remodeling Co", customer: { summary: "A long list of work", range: { low: 120000, high: 140000 } }, internal: { contractPrice, lines } });
+    await forward.forwardEstimateToP5(record, "p5-outbox-key", { brand: "Boise Remodeling Co", fetch: brand.viaIntake });
+    await brand.finish();
+    const estimate = only(estimates.values());
+    assert.equal(estimate.TotalAmt, round2(contractPrice));
+    assert.equal(sales(estimate).length, 2, "one line per trade");
+    assert.deepEqual(sent, []);
+    // The same record through p5homeco.com's own path books the same total.
+    const [created] = await audits("site_estimate_created");
+    assert.equal(created.new_value.total, site.documentSiteEstimate(record as never)!.base);
+  });
+
   // ---- beside the guided estimator, the stage rules and the deletion rules -----
 
   /** A guided-estimator estimate for the lead, exactly as the online estimator leaves it. */
