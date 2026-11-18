@@ -773,6 +773,38 @@ test("QuickBooks lines lead with the name of the work, not just the item", async
   assert.equal(lineText({ description: "Older line with no title." }), "Older line with no title.");
 });
 
+test("a scope line never opens with its division, and keeps everything else", async () => {
+  const { lineText } = await import("../app/lib/scopes/estimate.ts");
+  const { withoutDivisionPrefix } = await import("../app/lib/scopes/divisions.ts");
+  // The labels that reached QuickBooks by hand on 9 November 2026.
+  assert.equal(withoutDivisionPrefix("Div 05 | Structural framing, revised layout and crawl access"), "Structural framing, revised layout and crawl access");
+  assert.equal(withoutDivisionPrefix("Div 00 Plan | Permitting plan updates"), "Permitting plan updates");
+  assert.equal(withoutDivisionPrefix("Division 12: casework for the pantry"), "Casework for the pantry");
+  assert.equal(withoutDivisionPrefix("DIV. 9 - Drywall and finish"), "Drywall and finish");
+  assert.equal(withoutDivisionPrefix("  div 22 | plumbing rough-in"), "Plumbing rough-in");
+  // Not labels: no number, or no separator. Wording is never guessed away.
+  for (const kept of ["Divider wall: frame and drywall", "Division 12 casework install", "Diverter valve | replace", "Install 12 | 24 tile", "Demolition, disposal and sitework", ""]) {
+    assert.equal(withoutDivisionPrefix(kept), kept);
+  }
+  // Only one label is removed, and only from the front.
+  assert.equal(withoutDivisionPrefix("Div 05 | Div 06 | Envelope"), "Div 06 | Envelope");
+  assert.equal(withoutDivisionPrefix("Framing per Div 05 | notes"), "Framing per Div 05 | notes");
+  // What QuickBooks prints for a line, whoever wrote the title or the description.
+  assert.equal(lineText({ title: "Div 05 | Framing", description: "Div 05 | Frame the revised layout." }), "Framing\nFrame the revised layout.");
+  assert.equal(lineText({ description: "Div 08 | Minor duct changes." }), "Minor duct changes.");
+
+  // The finance invoice mapping strips the label and keeps the item and class,
+  // which is what QuickBooks tracks a division by.
+  const { invoicePayload } = await import("../app/lib/finance/qbo/map.ts");
+  const invoice = invoicePayload({
+    customerQboId: "16",
+    lines: [{ description: "Div 05 | Structural framing", amount: 23500, itemQboId: "23", classQboId: "1000000011" }],
+  }) as { Line: { Description: string; SalesItemLineDetail: { ItemRef: { value: string }; ClassRef: { value: string } } }[] };
+  assert.equal(invoice.Line[0].Description, "Structural framing");
+  assert.equal(invoice.Line[0].SalesItemLineDetail.ItemRef.value, "23");
+  assert.equal(invoice.Line[0].SalesItemLineDetail.ClassRef.value, "1000000011");
+});
+
 // ---------------------------------------------------------------------------
 // Long PDFs: page-by-page reading
 // ---------------------------------------------------------------------------

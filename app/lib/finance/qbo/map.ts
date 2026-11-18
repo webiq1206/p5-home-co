@@ -7,6 +7,7 @@
  */
 
 import { createHash } from "node:crypto";
+import { withoutDivisionPrefix } from "../../scopes/divisions.ts";
 
 export type QboRef = { value: string; name?: string };
 
@@ -139,7 +140,7 @@ export type LineInput = {
   itemQboId?: string | null;
   accountQboId?: string | null;
   classQboId?: string | null;
-  /** QBO stores the P5 phase on the line as a custom-ish description prefix. */
+  /** The division is carried by the item, never by a prefix on the description. */
   quantity?: number | null;
   unitPrice?: number | null;
 };
@@ -159,7 +160,8 @@ function salesLine(line: LineInput, index: number): Record<string, unknown> {
 
   return {
     LineNum: index + 1,
-    Description: line.description,
+    // A customer-facing line never opens with its division (scopes/divisions.ts).
+    Description: withoutDivisionPrefix(line.description),
     Amount: money(line.amount),
     DetailType: "SalesItemLineDetail",
     SalesItemLineDetail: detail,

@@ -9,7 +9,7 @@
  */
 
 import { SCHEDULE_MEMO } from "../leads/scheduleLink.ts";
-import { divisionLabel, phaseName, groupByPhaseDivision } from "./divisions.ts";
+import { divisionLabel, phaseName, groupByPhaseDivision, withoutDivisionPrefix } from "./divisions.ts";
 import type { EstimateLine, ItemKey, PricingResult } from "./types.ts";
 
 export type QboLine = {
@@ -95,8 +95,10 @@ export function buildEstimatePayload(input: {
  * product or service item ("Subcontractor Work"), which says nothing about the
  * job, so the work's own name leads the description on a line of its own.
  */
-export function lineText(l: Pick<EstimateLine, "title" | "description">): string {
-  const title = (l.title ?? "").trim();
+export function lineText(line: Pick<EstimateLine, "title" | "description">): string {
+  // No division in front of the wording, whoever wrote the line (divisions.ts).
+  const l = { title: withoutDivisionPrefix((line.title ?? "").trim()), description: withoutDivisionPrefix(line.description) };
+  const title = l.title;
   if (!title) return l.description;
   // Do not repeat a title the description already opens with.
   const plain = (x: string) => x.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
