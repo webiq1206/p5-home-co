@@ -67,6 +67,23 @@ export function divisionLabel(code: string): string {
   return `${code} ${divisionName(code)}`;
 }
 
+/**
+ * A scope line never opens with its division (owner, 17 November 2026). The
+ * division already shows on the line as its product or service, or on the
+ * heading row above it, so "Div 05 | Structural framing" prints it twice.
+ * This removes one leading division label ("Div 05 |", "Div 00 Plan |",
+ * "Division 12: ") and nothing else: a label needs a number and a separator,
+ * so "Division 12 casework install" and "Divider wall: frame" are left alone.
+ * It only changes wording. The line keeps its item, class and amount, which is
+ * what QuickBooks tracks a division by.
+ */
+const DIVISION_PREFIX = /^\s*div(?:ision)?\.?\s*\d{1,2}(?:\s+[A-Za-z&+/(),. ]{0,40}?)?\s*(?:[|:]|\s[-\u2013]\s)\s*/i;
+
+export function withoutDivisionPrefix(text: string): string {
+  const out = String(text ?? "").replace(DIVISION_PREFIX, "");
+  return out ? out.charAt(0).toUpperCase() + out.slice(1) : String(text ?? "");
+}
+
 export function phaseName(id: PhaseId): string {
   const phase = PHASES.find((p) => p.id === id)!;
   return `Phase ${phase.number}: ${phase.name}`;
