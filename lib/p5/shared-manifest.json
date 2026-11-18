@@ -1,7 +1,7 @@
 {
   "source": "p5-home-co",
-  "commit": "a957bdc9447df4e61c97805fcf2a8613642b03dd",
-  "generatedAt": "2026-11-18T02:43:04.508Z",
+  "commit": "7e0338cb185e84afa3be5b1c85d0600b99d01d58",
+  "generatedAt": "2026-11-18T03:15:09.189Z",
   "note": "Shared estimator engine published from p5-home-co. Edit shared files there and run scripts/p5-sync.mjs; hash checks remain mandatory in every brand.",
   "files": {
     "app/admin/p5-estimators/page.tsx": "489c406a30e5aba809f6c603738d999c2e412f9b67968281a8ea16e748587b62",
@@ -391,7 +391,7 @@
     "tests/p5-compact-catalog.test.ts": "6bacb2b0b21001cc1fbf32e16695776eacbc6e79c0835c89fd521507ef8b09da",
     "tests/p5-consumable-coverage.test.ts": "45b3b379b1d0dcbcb0dc3519bd132bc5d8ec37034fa5543fba3d7be1f5a095e0",
     "tests/p5-crm-brand-payload.test.ts": "93e3b5d95db8f7d067e3b0d62cbba7819ee235232b4456e276bd394cca5c8975",
-    "tests/p5-crm-delivery.test.ts": "1d550523cf7b1068064b31538533fa3e4d0d5779f27d5efe0ecd0061fc6dbb0d",
+    "tests/p5-crm-delivery.test.ts": "3b67c38c061efa47d777eb6c19cb6a1e6f7c56ae71368db8f915d686cabc2162",
     "tests/p5-crm-payload.test.ts": "21c31060786e5499f046efa882c3e955d930d782fdd14fbbedf6a81a52e8eb2a",
     "tests/p5-customer-copy.test.ts": "491eae671053ca8df68a4837fdf2af7b2890f09729e48ca47c14542d9cafabe4",
     "tests/p5-customer-privacy.test.ts": "88952a234a5fa630d39762f58bdfa6c08a387c77cb0bb965c1086b343f09ac52",

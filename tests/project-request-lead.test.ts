@@ -29,6 +29,29 @@ const { siteEstimatesSettled } = await import("../app/lib/leads/site-estimate.ts
 
 type Json = Record<string, unknown>;
 const read = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
+
+/**
+ * Every module a lib/p5 file pulls in when it is LOADED (static imports and re-exports, followed
+ * through lib/p5) that lives outside lib/p5. Type-only imports and `import()` calls do not count.
+ * The files a harness replaces, or that each site owns for its own host, are not followed.
+ */
+function staticImportsOutsideLibP5(entry: string): string[] {
+  const replaced = new Set(["lib/p5/deliveryAdapter.ts", "lib/p5/database.ts", "lib/p5/adminAuth.ts", "lib/p5/progress.ts"]);
+  const seen = new Set<string>();
+  const outside: string[] = [];
+  const queue = [entry];
+  while (queue.length) {
+    const file = queue.pop()!;
+    if (seen.has(file) || replaced.has(file)) continue;
+    seen.add(file);
+    for (const match of read(file).matchAll(/^\s*(?:import|export)\s+(?!type\b)(?:[^'"]*?\sfrom\s+)?['"](\.{1,2}\/[^'"]+)['"]/gm)) {
+      const target = new URL(match[1], new URL(`https://repo.invalid/${file}`)).pathname.slice(1);
+      if (!target.startsWith("lib/p5/")) outside.push(`${file} imports ${match[1]}`);
+      else if (/\.(?:ts|tsx)$/.test(target)) queue.push(target);
+    }
+  }
+  return outside.sort();
+}
 const uuid = (n: number) => `${String(n).padStart(8, "0")}-1234-4234-8234-123456789abc`;
 
 function snapshot(n: number, service: string, extra: Json = {}) {
@@ -82,9 +105,24 @@ test("the CRM channel is this site's lead system, on only with the CRM setting a
   const runtime = read("lib/p5/intakeDeliveryRuntime.ts");
   assert.doesNotMatch(runtime, /canonicalReviewTransport|P5_CANONICAL_REVIEW_TOKEN/);
   assert.match(read("lib/p5/canonicalReviewTransport.ts"), /!config\.proof\?'crm-contract-pending'/);
+  // The isolated harnesses (scripts/test-p5-*.mts) copy lib/p5 somewhere else and replace the adapter, so nothing
+  // this runtime imports at load time may reach outside lib/p5: the lead system is loaded when it is needed.
+  assert.deepEqual(staticImportsOutsideLibP5("lib/p5/intakeDeliveryRuntime.ts"), []);
+  assert.doesNotMatch(runtime, /^import [^\n]*intakeCrmValidation/m);
+  assert.match(runtime, /await import\('\.\/intakeCrmValidation\.ts'\)\.catch\(\(\)=>null\)/);
   // Saving a lead in process sends no email: the request's own team channel is the one team email.
   assert.doesNotMatch(runtime, /notifyLead|lead-created/);
   for (const file of ["lib/p5/intakeDeliveryRuntime.ts", "lib/p5/intakeCrmValidation.ts", "lib/p5/deliveryAdapter.ts", "tests/project-request-lead.test.ts"]) assert.ok(!read(file).includes(String.fromCharCode(8212)), `${file} has an em dash`);
+});
+
+test("the import guard sees what it should: a static reach into app/ is reported, a lazy one is not", () => {
+  assert.deepEqual(staticImportsOutsideLibP5("lib/p5/intakeCrmValidation.ts"), [
+    "lib/p5/intakeCrmValidation.ts imports ../../app/lib/leads/attribution.ts",
+    "lib/p5/intakeCrmValidation.ts imports ../../app/lib/leads/normalize.ts",
+    "lib/p5/intakeCrmValidation.ts imports ../../app/lib/leads/types.ts",
+  ]);
+  // The shared files a brand site receives reach nothing outside lib/p5 either.
+  for (const shared of ["lib/p5/p5LeadIntake.ts", "lib/p5/documentEstimateFigures.ts", "lib/p5/driveEndpoint.ts"]) assert.deepEqual(staticImportsOutsideLibP5(shared), [], shared);
 });
 
 test("a project request becomes one lead under its primary team, with no price, and a repeat changes nothing", async () => {
