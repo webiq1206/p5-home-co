@@ -2,6 +2,7 @@
 
 /* eslint-disable @next/next/no-img-element */
 
+import { localAlt } from "./localAlt";
 import Link from "next/link";
 import Reveal from "@/components/Reveal";
 import { useEffect, useRef, useState } from "react";
@@ -118,6 +119,15 @@ const ESTIMATE_TILES = [
   { id: "handyman", label: "Handyman", hint: "Repairs and small jobs", image: "cat-handyman" },
 ] as const;
 
+/** What each estimate tile photograph shows, and the work it stands for (see app/localAlt.ts). */
+const ESTIMATE_TILE_ALT: Record<(typeof ESTIMATE_TILES)[number]["id"], { work: string; shows: string }> = {
+  remodel: { work: "home remodeling", shows: "Kitchen with oak cabinets, a long island with black stools and tall windows to the foothills" },
+  construction: { work: "custom home building", shows: "Wood-framed house with sheathed walls and stacked lumber below dry hills" },
+  adu: { work: "ADU construction", shows: "Small backyard building with grey vertical siding, a black-framed window and a glass door" },
+  cabinetry: { work: "custom cabinetry", shows: "Open oak cabinet drawer with dovetail joints and a black bar pull" },
+  handyman: { work: "home repairs", shows: "Open sink cabinet with new plumbing, a tool bag and a cordless drill on the floor" },
+};
+
 export default function Home() {
   const [matcherOpen, setMatcherOpen] = useState(false);
   const openMatcher = () => {
@@ -147,7 +157,7 @@ export default function Home() {
         <HeroWalkthrough>
           <HeroPhoto
             fit="viewport"
-            image={{ ...HERO_IMAGE, alt: "Modern home overlooking foothills at sunset", position: "50% 20%" }}
+            image={{ ...HERO_IMAGE, alt: localAlt("Modern home overlooking foothills at sunset", { subject: "custom home building" }), position: "50% 20%" }}
             phoneImage={{ ...HERO_IMAGE, position: "60% 50%" }}
             eyebrow="The Home Company"
             title="Boise’s"
@@ -284,7 +294,7 @@ export default function Home() {
           image={constructionImage}
           alt={
             SHOW_FAKE_STAFF_IMAGES
-              ? "Wood-framed house under construction with exposed roof trusses and a Boise Construction Co logo"
+              ? localAlt("Wood-framed house under construction with exposed roof trusses and a Boise Construction Co logo", { subject: "custom home building" })
               : FRAMING_FOOTHILLS.alt
           }
           headline={
@@ -329,7 +339,7 @@ export default function Home() {
           category="Custom cabinetry"
           logo="/brands/boise-cabinet-co-dark.svg"
           image="/images/p5-cabinet.webp"
-          alt="White oak cabinet drawers with slim black bar pulls under a white countertop"
+          alt={localAlt("White oak cabinet drawers with slim black bar pulls under a white countertop", { subject: "custom cabinetry" })}
           headline={
             <>
               Made to fit.
@@ -352,7 +362,7 @@ export default function Home() {
           image={SHOW_FAKE_STAFF_IMAGES ? handymanImage : CRAFT_TRIM_DETAIL.src}
           alt={
             SHOW_FAKE_STAFF_IMAGES
-              ? "White baseboard and door casing being installed, with a Boise Handyman Co logo"
+              ? localAlt("White baseboard and door casing being installed, with a Boise Handyman Co logo", { subject: "home repairs" })
               : CRAFT_TRIM_DETAIL.alt
           }
           headline={
@@ -426,7 +436,7 @@ export default function Home() {
                       href={`/estimator?trade=${tile.id}`}
                       onClick={() => track("estimate_click", { location: "request_entry_tile", project: tile.id })}
                     >
-                      <img src={`/estimator/img/${tile.image}.webp`} alt="" width={640} height={640} loading="lazy" decoding="async" />
+                      <img src={`/estimator/img/${tile.image}.webp`} alt={localAlt(ESTIMATE_TILE_ALT[tile.id].shows, { subject: ESTIMATE_TILE_ALT[tile.id].work })} width={640} height={640} loading="lazy" decoding="async" />
                       <span className="estimate-band-tile-text">
                         <span className="estimate-band-tile-label">{tile.label}</span>
                         <span className="estimate-band-tile-hint">{tile.hint}</span>
@@ -493,7 +503,7 @@ export default function Home() {
         <section id="featured-project" className="featured-project section-pad" aria-labelledby="featured-project-heading">
           <Reveal className="content-shell featured-project-intro">
             <div>
-              <p className="eyebrow">Ideas for your home</p>
+              <p className="eyebrow">Kitchens, living spaces and baths</p>
               <h2 id="featured-project-heading">
                 Spaces for everyday living.
               </h2>

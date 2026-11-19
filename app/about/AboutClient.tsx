@@ -214,7 +214,7 @@ export default function AboutClient({
             <figure className="about-beach">
               <img
                 src="/images/about/perkins-family-portrait.webp"
-                alt="The Perkins family, Nick, his wife and their five children, on a beach"
+                alt="The Perkins family of Meridian, Idaho: Nick, his wife and their five children, on a beach"
                 width={1365}
                 height={1365}
                 loading="lazy"
