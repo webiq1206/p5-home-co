@@ -1115,6 +1115,17 @@ main#main-content:focus { outline: none; }
 .contact-link-grid ul { display: grid; gap: 14px; margin: 0; padding: 0; list-style: none; }
 .contact-link-grid a { font-weight: 650; text-decoration: underline; text-underline-offset: 3px; }
 .contact-faq { padding-bottom: calc(var(--section-y) + 32px); }
+/* Contact page (19 November 2026): the heading block lines up with the panels
+   below it, and the questions use the homepage disclosure rows. */
+.contact-page .about-hero-inner { max-width: none; }
+.contact-page .about-hero-inner > * { max-width: 42rem; }
+.contact-faq .faq-item p { margin: -4px 0 29px; }
+.contact-faq .faq-item summary h3 { margin: 0; font: inherit; letter-spacing: inherit; }
+/* Tablets are touch screens too: the hero's text links keep a full-height target. */
+@media (max-width: 1023px) {
+  .about-page .text-link, .about-page .save-contact-button { display: inline-flex; align-items: center; min-height: var(--touch-min); }
+  .contact-faq .faq-layout { gap: var(--stack-heading); }
+}
 .contact-faq-list { display: grid; gap: 40px; margin-top: 8px; }
 .contact-faq h3 {
   margin: 0 0 12px;

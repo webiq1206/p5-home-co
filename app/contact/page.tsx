@@ -176,15 +176,21 @@ export default function ContactPage() {
             </div>
           </section>
 
+          {/* Same disclosure pattern as the homepage questions: one row per
+              question, opened on tap, every answer in the HTML. */}
           <section className="contact-faq" aria-labelledby="contact-questions">
-            <div className="content-shell">
-              <h2 id="contact-questions">Common questions</h2>
-              <div className="contact-faq-list">
-                {CONTACT_FAQS.map((item) => (
-                  <article key={item.q}>
-                    <h3>{item.q}</h3>
+            <div className="content-shell faq-layout">
+              <div>
+                <h2 id="contact-questions">Common questions</h2>
+              </div>
+              <div className="faq-list">
+                {CONTACT_FAQS.map((item, index) => (
+                  <details className="faq-item" key={item.q} open={index === 0}>
+                    <summary>
+                      <h3>{item.q}</h3>
+                    </summary>
                     <Answer text={item.a} />
-                  </article>
+                  </details>
                 ))}
               </div>
             </div>
