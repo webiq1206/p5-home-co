@@ -8,11 +8,24 @@ async function clearAction(button) {
  assert.ok(await button.evaluate(el=>{const r=el.getBoundingClientRect(),x=r.left+r.width/2,y=r.top+r.height/2;return r.width>0&&r.height>0&&x>=0&&x<innerWidth&&y>=0&&y<innerHeight&&el.contains(document.elementFromPoint(x,y));}),'Request action is visible and unobstructed');
 }
 
+/** Click a link and wait for its page. WebKit sometimes drops the first click, or
+ * never fires `load` on the page it opens, so the address is checked as soon as
+ * the navigation commits and the click is tried again. A retry is written to the
+ * log, and a link that never opens its page still fails. */
+async function followLink(page,selector,pathname) {
+ const arrived=()=>new URL(page.url()).pathname===pathname;
+ for(let attempt=1;attempt<=3&&!arrived();attempt++) {
+  if(attempt>1) console.warn(`[navigation] ${selector} did not open ${pathname}; click ${attempt} of 3`);
+  await page.locator(selector).first().click();
+  await page.waitForURL(url=>url.pathname===pathname,{waitUntil:'commit',timeout:10000}).catch(()=>{});
+ }
+ assert.ok(arrived(),`${selector} opens ${pathname}`);
+}
+
 /** Current public forms; callers block business APIs. Never press final Send. */
 export async function verifyCabinetEntry(page,path='/estimate') {
  if(path==='/') {
-  await page.locator('a[href="/estimate"]:visible').first().click();
-  await page.waitForURL(url=>url.pathname==='/estimate');
+  await followLink(page,'a[href="/estimate"]:visible','/estimate');
  }
  const form=page.locator('[data-c10-estimate-quote]');
  await form.getByLabel('Name',{exact:true}).waitFor();
@@ -98,8 +111,7 @@ export const isHandyman = brand => ['handyman','boise-handyman-co'].includes(bra
  * Same strength as the old wizard walk: empty-send errors and focus, bad phone, bad email, draft kept
  * on reload, unobstructed send, one h1, no overflow. Independent of the retained /estimate engine. */
 export async function verifyHandymanHomeEntry(page) {
- await page.locator('main a[href="/contact"]:visible').first().click();
- await page.waitForURL(url=>url.pathname==='/contact');
+ await followLink(page,'main a[href="/contact"]:visible','/contact');
  const form=page.getByTestId('consultation-wizard');await form.waitFor();
  assert.equal(await form.getAttribute('data-step'),'request');
  const focused=()=>page.evaluate(()=>document.activeElement?.getAttribute('data-testid'));
