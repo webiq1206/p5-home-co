@@ -251,6 +251,9 @@ a:hover .arrow-diagonal, a:focus-visible .arrow-diagonal { transform: translate(
 .service-area-grid { display: grid; grid-template-columns: .9fr 1.1fr; gap: 11vw; align-items: end; }
 .service-area-copy { max-width: 510px; margin: var(--stack-heading) 0; color: #676d66; font-size: var(--fs-body); line-height: var(--lh-body); letter-spacing: 0; }
 .area-list { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
+/* Seven cities in three columns left Star alone; when the count leaves one
+   over, the first city (Boise) takes the whole top row instead. */
+.area-list span:first-child:nth-last-child(3n+1) { grid-column: 1 / -1; }
 .area-list span { padding: 17px 22px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); font-family: var(--font-display); font-size: var(--fs-h3); font-weight: var(--weight-display); line-height: var(--lh-h3); letter-spacing: var(--tracking-heading); }
 
 .faq { background: var(--paper); }
@@ -1145,4 +1148,15 @@ main#main-content:focus { outline: none; }
 }
 @media (max-width: 420px) {
   .contact-actions .fam-btn { flex: 1 1 auto; }
+}
+/* Tablets are touch screens too: the stand-alone links that are 44px tall on phones stay 44px up to 1023px. */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .company-index a,
+  .brand-link,
+  .text-link,
+  .faq-item summary,
+  .sitemap-list a,
+  .save-contact-button {
+    min-height: 44px;
+  }
 }

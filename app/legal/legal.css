@@ -84,7 +84,9 @@
 .legal-page a { color: var(--bronze-ink); text-decoration: underline; text-underline-offset: 3px; }
 .legal-page .legal-back { min-height: 44px; display: inline-flex; align-items: center; text-decoration: none; }
 
-.legal-lead {
+/* `.legal-page p` above sets body size; the lead needs the extra class to
+   keep its display size, or the display face renders small and thin. */
+.legal-page .legal-lead {
   color: var(--ink);
   font-family: var(--font-display);
   font-size: var(--fs-h3);

@@ -1114,6 +1114,8 @@
   .quote-photo-row { grid-template-columns: 1fr; }
   .quote-photo-row img { height: 200px; }
   .quote-scroll-photo img { height: 220px; }
+  /* The band is as tall as its photograph: 240px left a 20px charcoal strip under a 220px picture. */
+  .quote-scroll-photo { min-height: 0; }
 }
 
 /* The service-area line, moved out of the old quote footer when the page took the shared family footer. */
