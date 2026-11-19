@@ -45,6 +45,17 @@ function ref(v: unknown): string | null {
   return v && typeof v === "object" ? str((v as QboRef).value) : null;
 }
 
+/**
+ * QuickBooks leaves inactive records out of a plain query. A customer, vendor,
+ * account or class that someone deleted in QuickBooks (QuickBooks makes it
+ * inactive) then never came back in the daily sync, so its copy here stayed
+ * active for good and the audit kept warning about a record that no longer
+ * exists. Asking for both states lets the sync see the change. Checked against
+ * the live company on 19 November 2026: 17 customers without the filter, 23
+ * with it.
+ */
+export const EVERY_RECORD = "Active IN (true, false)";
+
 export async function upsertAccount(r: QboRow): Promise<void> {
   await query(
       `INSERT INTO qbo_account (qbo_id, name, acct_num, account_type, sub_type, classification, current_balance, active, raw, synced_at)
@@ -69,7 +80,7 @@ export async function upsertAccount(r: QboRow): Promise<void> {
 }
 
 async function syncAccounts(): Promise<number> {
-  const rows = await qboQueryAll<QboRow>("Account");
+  const rows = await qboQueryAll<QboRow>("Account", EVERY_RECORD);
   for (const r of rows) await upsertAccount(r);
   return rows.length;
 }
@@ -85,7 +96,7 @@ export async function upsertClass(r: QboRow): Promise<void> {
 }
 
 async function syncClasses(): Promise<number> {
-  const rows = await qboQueryAll<QboRow>("Class");
+  const rows = await qboQueryAll<QboRow>("Class", EVERY_RECORD);
   for (const r of rows) await upsertClass(r);
   return rows.length;
 }
@@ -111,7 +122,7 @@ export async function upsertCustomer(r: QboRow): Promise<void> {
 }
 
 async function syncCustomers(): Promise<number> {
-  const rows = await qboQueryAll<QboRow>("Customer");
+  const rows = await qboQueryAll<QboRow>("Customer", EVERY_RECORD);
   for (const r of rows) await upsertCustomer(r);
   return rows.length;
 }
@@ -145,7 +156,7 @@ export async function upsertVendor(r: QboRow): Promise<void> {
 }
 
 async function syncVendors(): Promise<number> {
-  const rows = await qboQueryAll<QboRow>("Vendor");
+  const rows = await qboQueryAll<QboRow>("Vendor", EVERY_RECORD);
   for (const r of rows) await upsertVendor(r);
   return rows.length;
 }

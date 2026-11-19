@@ -13,7 +13,7 @@ import { query, queryOne } from "../db.ts";
 import { qboQueryAll, qboRequest } from "../finance/qbo/client.ts";
 import { customerPayload } from "../finance/qbo/map.ts";
 import { isQboConfigured, isQboConnected } from "../finance/qbo/oauth.ts";
-import { upsertCustomer, type QboRow } from "../finance/qbo/sync.ts";
+import { EVERY_RECORD, upsertCustomer, type QboRow } from "../finance/qbo/sync.ts";
 import { qboWrite } from "../finance/qbo/write.ts";
 import { DIVISIONS } from "./divisions.ts";
 import { buildEstimatePayload, compareEstimate, estimateStatus, type EstimatePayload } from "./estimate.ts";
@@ -191,7 +191,7 @@ const digits = (s: string | null | undefined) => (s ?? "").replace(/\D/g, "").sl
 async function refreshCustomersIfStale(): Promise<void> {
   const row = await queryOne<{ newest: Date | null }>("SELECT max(synced_at) AS newest FROM qbo_customer");
   if (row?.newest && Date.now() - new Date(row.newest).getTime() < 15 * 60_000) return;
-  const rows = await qboQueryAll<QboRow>("Customer");
+  const rows = await qboQueryAll<QboRow>("Customer", EVERY_RECORD);
   for (const r of rows) await upsertCustomer(r);
 }
 
@@ -610,7 +610,7 @@ export async function sendEstimate(p: ProjectRow, e: EstimateRow, userId: number
 
 export async function customerProjects(customerId: string, refresh: boolean): Promise<{ qboId: string; name: string; isProject: boolean }[]> {
   if (refresh) {
-    const rows = await qboQueryAll<QboRow>("Customer");
+    const rows = await qboQueryAll<QboRow>("Customer", EVERY_RECORD);
     for (const r of rows) await upsertCustomer(r);
   }
   const rows = await query<{ qbo_id: string; display_name: string; is_project: boolean }>(

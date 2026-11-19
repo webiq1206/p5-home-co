@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 
 import {
   allRules,
@@ -555,4 +556,33 @@ test("the summary counts each severity and the total", () => {
   assert.equal(counts.warning, 1);
   assert.equal(counts.info, 1);
   assert.equal(counts.total, findings.length);
+});
+
+// ---------------------------------------------------------------------------
+// Records deleted in QuickBooks. QuickBooks makes them inactive, and a plain
+// query leaves inactive records out, so the sync has to ask for both states or
+// its copy stays active for good and the audit warns about them every morning.
+// ---------------------------------------------------------------------------
+
+test("a job or customer deleted in QuickBooks raises nothing", () => {
+  const snap = snapshot({
+    customers: [
+      customer({ qboId: "gone-job", displayName: "ZZ TEST job", parentQboId: "gone", isProject: true, active: false }),
+      customer({ qboId: "gone", displayName: "Sample Customer", email: null, billingAddress: null, active: false }),
+    ],
+  });
+  assert.deepEqual(codes(snap), []);
+});
+
+test("the sync asks QuickBooks for inactive records too", () => {
+  const read = (file: string) => readFileSync(new URL(file, import.meta.url), "utf8");
+  const sync = read("../app/lib/finance/qbo/sync.ts");
+  assert.match(sync, /export const EVERY_RECORD = "Active IN \(true, false\)";/);
+  for (const entity of ["Account", "Class", "Customer", "Vendor"]) {
+    assert.ok(sync.includes(`qboQueryAll<QboRow>("${entity}", EVERY_RECORD)`), `${entity} is read in both states`);
+  }
+  // The scope platform refreshes customers before it offers one to link; a
+  // customer deleted since the last refresh must stop being offered.
+  const scopes = read("../app/lib/scopes/qbo.ts");
+  assert.equal(scopes.includes('qboQueryAll<QboRow>("Customer")'), false);
 });
