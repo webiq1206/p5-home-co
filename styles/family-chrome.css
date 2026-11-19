@@ -1102,6 +1102,88 @@ html {
   }
 }
 
+/* Folding sections (FooterFold). Phones and tablets: one closed row per section,
+   so the footer is the contact block, five rows and the legal lines. Desktop:
+   always open, the label is plain text and the columns and rows read as before. */
+.fam-footer[data-family-footer] .fam-footer-fold > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  min-height: 52px;
+  margin: 0;
+  cursor: pointer;
+  list-style: none;
+}
+.fam-footer[data-family-footer] .fam-footer-fold > summary::-webkit-details-marker {
+  display: none;
+}
+.fam-footer[data-family-footer] .fam-footer-fold > summary::after {
+  content: '+';
+  flex: none;
+  width: var(--space-6);
+  color: var(--color-on-dark-muted);
+  font: 300 22px / 1 var(--font-sans);
+  letter-spacing: 0;
+  text-align: center;
+}
+.fam-footer[data-family-footer] .fam-footer-fold[open] > summary::after {
+  content: '\2212';
+}
+.fam-footer[data-family-footer] .fam-footer-fold > summary:focus-visible {
+  outline: 2px solid var(--color-paper);
+  outline-offset: 2px;
+}
+@media (max-width: 1023px) {
+  .fam-footer[data-family-footer] .fam-footer-top {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+  .fam-footer[data-family-footer] .fam-footer-brand {
+    padding-bottom: var(--space-8);
+  }
+  .fam-footer[data-family-footer] .fam-footer-fold,
+  .fam-footer[data-family-footer] .fam-footer-fold.fam-footer-row {
+    display: block;
+    margin-top: 0;
+    padding-top: 0;
+    border-top: 1px solid var(--color-border-on-dark);
+  }
+  .fam-footer[data-family-footer] .fam-footer-fold > ul {
+    padding-bottom: var(--space-4);
+  }
+  .fam-footer[data-family-footer] .fam-footer-legal {
+    margin-top: 0;
+  }
+}
+@media (min-width: 1024px) {
+  .fam-footer[data-family-footer] .fam-footer-fold::details-content {
+    display: block;
+    content-visibility: visible;
+  }
+  .fam-footer[data-family-footer] .fam-footer-fold > summary {
+    display: block;
+    min-height: 0;
+    margin: 0 0 var(--space-2);
+    cursor: default;
+    pointer-events: none;
+  }
+  .fam-footer[data-family-footer] .fam-footer-fold > summary::after,
+  .fam-footer[data-family-footer] .fam-footer-fold[open] > summary::after {
+    content: none;
+  }
+  .fam-footer[data-family-footer] .fam-footer-fold.fam-footer-row {
+    display: block;
+  }
+  .fam-footer[data-family-footer] .fam-footer-fold.fam-footer-row > summary {
+    float: left;
+    display: inline-flex;
+    align-items: center;
+    min-height: 32px;
+    margin: 0 var(--space-6) 0 0;
+  }
+}
+
 /* Existing desktop assistant launchers must not cover the final legal link. */
 @media (min-width: 1180px) {
   .fam-footer[data-family-footer] .fam-footer-legal-bottom {

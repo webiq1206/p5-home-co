@@ -157,6 +157,28 @@ Two rules for every estimate and invoice in QuickBooks, whoever creates it: this
 * No connected tool can edit an estimate: there is no estimate update action, and the batch action answers 500 for an Estimate. Estimate wording is corrected by a person in QuickBooks, or on each invoice after it is created.
 * Open, owner's call: an estimate this platform creates carries its division as a heading row and uses cost-type items (`P5_ITEMS`), so QuickBooks cannot report those jobs by division. The cost book divisions (00 to 33 and 90, `divisions.ts`) and the QuickBooks "Div 00" to "Div 23" items are different lists. Mapping one to the other needs the owner's crosswalk; do not invent it.
 
+## Image alt text is local (owner, 19 November 2026)
+
+Every content image on a public page carries an alt in the form
+"<work> in <city>, Idaho: <what the picture shows>", built by `localAlt()` in
+`app/localAlt.ts`. The served photographs get it in `app/imageVariants.ts`
+(each with its own work: custom home building, kitchen remodeling, home
+repairs, ADU construction and so on), the quote pages read those, and the
+homepage tiles, brand panels and hero pass their own. Boise is the default
+place; an alt that already names its place ("in Meridian, Idaho") is left as
+written.
+
+* No qualifier word (idea, concept, representative, inspiration, possibilities,
+  rendering) in an alt or in a label beside a photograph. The homepage rooms row
+  is labelled "Kitchens, living spaces and baths". Never claim a photograph is a
+  completed customer job either: labels name the subject and nothing more.
+* New content images go through `localAlt()`, never a bare string.
+* Brand marks keep an empty alt where their written name sits beside them.
+* The guided estimator's option photographs take "<option>, home project
+  estimate in Boise, Idaho". That is an alt only: no estimator logic changed.
+* Guard: `tests/local-alt.test.ts`. `tests/image-variants.test.ts` pins one alt
+  in the new form.
+
 ## Publishing to Replit: never approve a DROP
 
 Replit's Republish compares the development database with production and

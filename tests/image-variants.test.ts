@@ -27,7 +27,7 @@ test("Sam r1 images match the staged sha256 and are served through srcset", () =
   }
   assert.equal(
     BASEBOARD_TRIM_FIT.alt,
-    "New white baseboard with a loose piece, a hammer, a nail set and a coping saw on an oak floor",
+    "Home repairs in Boise, Idaho: new white baseboard with a loose piece, a hammer, a nail set and a coping saw on an oak floor",
   );
 });
 

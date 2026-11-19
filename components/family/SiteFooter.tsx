@@ -7,6 +7,9 @@
  * company on every site, and the legal row: NAP with hours, the registration
  * link, copyright, disclosure and legal links. Group
  * labels are text, not headings, so the footer stays out of the page outline.
+ * Below the desktop breakpoint the link groups, the service-area row and the
+ * family row fold (FooterFold) so the footer stays short; the brand column with
+ * the contact actions, Save contact and the social links is always visible.
  * Family links carry rel="noopener" without noreferrer so referral data reaches
  * the sibling sites.
  */
@@ -17,6 +20,7 @@ import { isExternal, type FamilyLink } from '@/lib/family/types';
 import { brandStyle } from './brandStyle';
 import { ContactCardIcon } from './Icons';
 import { ContactActions } from './ContactActions';
+import { FooterFold } from './FooterFold';
 
 function FooterAnchor({ link, className }: { link: FamilyLink; className?: string }) {
   if (isExternal(link.href)) {
@@ -107,8 +111,7 @@ export function SiteFooter({ hideRegistration = false, brandExtra }: SiteFooterP
           </div>
 
           {footer.groups.map((group) => (
-            <div className="fam-footer-group" key={group.title}>
-              <p className="fam-footer-label">{group.title}</p>
+            <FooterFold className="fam-footer-group" label={group.title} key={group.title}>
               <ul>
                 {group.links.map((link) => (
                   <li key={link.href}>
@@ -116,25 +119,24 @@ export function SiteFooter({ hideRegistration = false, brandExtra }: SiteFooterP
                   </li>
                 ))}
               </ul>
-            </div>
+            </FooterFold>
           ))}
         </div>
 
-        <div className="fam-footer-row fam-footer-areas">
-          <Link href={footer.areas.href} className="fam-footer-label fam-footer-row-label">
-            {footer.areas.label}
-          </Link>
+        <FooterFold className="fam-footer-row fam-footer-areas" label={footer.areas.label}>
           <ul>
             {footer.areas.links.map((link) => (
               <li key={link.href}>
                 <FooterAnchor link={link} />
               </li>
             ))}
+            <li>
+              <Link href={footer.areas.href}>View all</Link>
+            </li>
           </ul>
-        </div>
+        </FooterFold>
 
-        <div className="fam-footer-row fam-footer-family" data-family-row="">
-          <p className="fam-footer-label fam-footer-row-label">{brand.family.label}</p>
+        <FooterFold className="fam-footer-row fam-footer-family" label={brand.family.label} familyRow>
           <ul>
             {brand.family.companies.map((company) =>
               sameSite(company.href, brand.domain) ? (
@@ -152,7 +154,7 @@ export function SiteFooter({ hideRegistration = false, brandExtra }: SiteFooterP
               ),
             )}
           </ul>
-        </div>
+        </FooterFold>
 
         <div className="fam-footer-legal">
           <p className="fam-footer-nap">

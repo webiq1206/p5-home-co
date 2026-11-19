@@ -161,7 +161,7 @@ export default function QuoteLanding({ service }: { service: QuoteService | null
           )}
 
           <section className="quote-scroll-photo" aria-hidden="true">
-            <img src={FEATURED_BOISE_EXTERIOR.src} alt="" width={FEATURED_BOISE_EXTERIOR.width} height={FEATURED_BOISE_EXTERIOR.height} loading="lazy" decoding="async" />
+            <img src={FEATURED_BOISE_EXTERIOR.src} alt={FEATURED_BOISE_EXTERIOR.alt} width={FEATURED_BOISE_EXTERIOR.width} height={FEATURED_BOISE_EXTERIOR.height} loading="lazy" decoding="async" />
           </section>
 
           <section className="quote-steps" aria-labelledby="what-happens">

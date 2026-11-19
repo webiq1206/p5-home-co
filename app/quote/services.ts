@@ -1,3 +1,4 @@
+import { localAlt } from "../localAlt.ts";
 import {
   BASEBOARD_TRIM_FIT,
   FRAMING_FOOTHILLS,
@@ -151,7 +152,7 @@ export const QUOTE_SERVICES: readonly QuoteService[] = [
     metaDescription:
       "Free custom cabinetry quotes across the Treasure Valley. Frameless kitchen cabinets, vanities, and built-ins, designed and built to order. No obligation.",
     image: "/images/p5-cabinet.webp",
-    imageAlt: "White oak cabinet drawers with slim black bar pulls under a white countertop.",
+    imageAlt: localAlt("White oak cabinet drawers with slim black bar pulls under a white countertop", { subject: "custom cabinetry" }),
     project: "Custom cabinets or built-ins",
     brand: "Boise Cabinet Co",
     covers: [

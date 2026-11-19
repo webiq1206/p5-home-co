@@ -119,7 +119,7 @@ function Cards({
           >
             {/* Small, fixed-size option photos served as static WebP: the image optimizer adds nothing here. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            {src ? <img className={styles.cardImage} src={src} alt="" loading="lazy" decoding="async" width={480} height={360} /> : null}
+            {src ? <img className={styles.cardImage} src={src} alt={`${option.label}, home project estimate in Boise, Idaho`} loading="lazy" decoding="async" width={480} height={360} /> : null}
             <span className={styles.cardText}>
               <span className={styles.cardLabel}>{option.label}</span>
               {option.hint ? <span className={styles.cardHint}>{option.hint}</span> : null}
