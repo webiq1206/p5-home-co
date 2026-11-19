@@ -7,14 +7,8 @@ import { QUOTE_SERVICES, type QuoteService } from "./services";
 import { serializeJsonLd } from "../structuredData";
 import SiteChrome from "@/components/SiteChrome";
 import { ShortRequestForm } from "@/components/ShortRequestForm";
-import {
-  imageVariantFor,
-  FEATURED_BOISE_EXTERIOR,
-  FEATURED_BOISE_GREAT_ROOM,
-  FEATURED_BOISE_KITCHEN,
-  FEATURED_BOISE_BATHROOM,
-  FEATURED_BOISE_ADU,
-} from "../imageVariants.ts";
+import { imageVariantFor, FEATURED_BOISE_EXTERIOR } from "../imageVariants.ts";
+import { quotePhotos } from "./photos.ts";
 import { ADU_D3_LINE } from "../publicIdentity";
 import { cityList } from "../serviceArea";
 
@@ -49,6 +43,8 @@ export default function QuoteLanding({ service }: { service: QuoteService | null
   const heroImage = service ? service.image : FEATURED_BOISE_EXTERIOR.src;
   const heroAlt = service ? service.imageAlt : FEATURED_BOISE_EXTERIOR.alt;
   const heroVariant = imageVariantFor(heroImage);
+  // No picture twice on the page: the row, the band and the picture beside the questions step aside for the hero.
+  const photos = quotePhotos(heroImage);
   const others = QUOTE_SERVICES.filter((s) => !service || s.slug !== service.slug);
 
   return (
@@ -128,10 +124,9 @@ export default function QuoteLanding({ service }: { service: QuoteService | null
               <h2 id="quote-featured-heading" className="quote-photos-heading">Kitchens, living spaces, baths and ADUs</h2>
               <p className="quote-photos-lead">Explore kitchen, great-room, bathroom and ADU layouts, materials and finishes.</p>
               <div className="quote-photo-row">
-                <img src={FEATURED_BOISE_KITCHEN.src} alt={FEATURED_BOISE_KITCHEN.alt} width={FEATURED_BOISE_KITCHEN.width} height={FEATURED_BOISE_KITCHEN.height} loading="lazy" decoding="async" />
-                <img src={FEATURED_BOISE_GREAT_ROOM.src} alt={FEATURED_BOISE_GREAT_ROOM.alt} width={FEATURED_BOISE_GREAT_ROOM.width} height={FEATURED_BOISE_GREAT_ROOM.height} loading="lazy" decoding="async" />
-                <img src={FEATURED_BOISE_BATHROOM.src} alt={FEATURED_BOISE_BATHROOM.alt} width={FEATURED_BOISE_BATHROOM.width} height={FEATURED_BOISE_BATHROOM.height} loading="lazy" decoding="async" />
-                <img src={FEATURED_BOISE_ADU.src} alt={FEATURED_BOISE_ADU.alt} width={FEATURED_BOISE_ADU.width} height={FEATURED_BOISE_ADU.height} loading="lazy" decoding="async" />
+                {photos.row.map((image) => (
+                  <img key={image.src} src={image.src} alt={image.alt} width={image.width} height={image.height} loading="lazy" decoding="async" />
+                ))}
               </div>
             </div>
           </section>
@@ -161,7 +156,7 @@ export default function QuoteLanding({ service }: { service: QuoteService | null
           )}
 
           <section className="quote-scroll-photo" aria-hidden="true">
-            <img src={FEATURED_BOISE_EXTERIOR.src} alt={FEATURED_BOISE_EXTERIOR.alt} width={FEATURED_BOISE_EXTERIOR.width} height={FEATURED_BOISE_EXTERIOR.height} loading="lazy" decoding="async" />
+            <img src={photos.band.src} alt={photos.band.alt} width={photos.band.width} height={photos.band.height} loading="lazy" decoding="async" />
           </section>
 
           <section className="quote-steps" aria-labelledby="what-happens">
@@ -222,7 +217,7 @@ export default function QuoteLanding({ service }: { service: QuoteService | null
                   ))}
                 </dl>
               </div>
-              <img className="quote-faq-photo" src={FEATURED_BOISE_GREAT_ROOM.src} alt={FEATURED_BOISE_GREAT_ROOM.alt} width={FEATURED_BOISE_GREAT_ROOM.width} height={FEATURED_BOISE_GREAT_ROOM.height} loading="lazy" decoding="async" />
+              <img className="quote-faq-photo" src={photos.besideQuestions.src} alt={photos.besideQuestions.alt} width={photos.besideQuestions.width} height={photos.besideQuestions.height} loading="lazy" decoding="async" />
             </div>
           </section>
 
