@@ -865,3 +865,16 @@ test("a framed estimator sizes itself from the framing page and reports back", (
   assert.equal((estimator.match(/trackAcceptedInquiry\(/g) ?? []).length, 1);
   assert.match(store, /"consultation_requested"/);
 });
+
+test("the estimator page has one server-rendered H1, a plain sentence and a description under 160 characters", async () => {
+  const source = readFileSync(path.join(import.meta.dirname, "../app/estimator/page.tsx"), "utf8");
+  assert.equal((source.match(/<h1>/g) ?? []).length, 1);
+  assert.match(source, /<h1>Get an instant estimate for your home project<\/h1>/);
+  // The wording rules: never a quote, a bid, a number of minutes or a reply promise.
+  const copy = source.slice(source.indexOf("<h1>"), source.indexOf("<GuidedEstimator"));
+  assert.doesNotMatch(copy, /\bquote\b|\bbid\b|minute|second|reply|respond/i);
+  const description = /description: "([^"]+)"/.exec(source)?.[1] ?? "";
+  assert.ok(description.length > 0 && description.length <= 160, String(description.length));
+  // The embed keeps its own layout and gains no H1.
+  assert.doesNotMatch(readFileSync(path.join(import.meta.dirname, "../app/estimator/embed/page.tsx"), "utf8"), /<h1/);
+});
