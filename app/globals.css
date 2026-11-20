@@ -245,7 +245,7 @@ a:hover .arrow-diagonal, a:focus-visible .arrow-diagonal { transform: translate(
 .handoff-step b { display: grid; width: 35px; height: 35px; place-items: center; border: 1px solid var(--line); border-radius: 50%; color: #70766f; font-size: 8px; }
 .handoff-step strong, .handoff-step small { display: block; }
 .handoff-step strong { font-family: var(--font-display); font-size: var(--fs-h3); font-weight: var(--weight-display); line-height: var(--lh-h3); letter-spacing: var(--tracking-heading); }
-.handoff-step small { margin-top: 4px; color: #747a73; font-size: var(--fs-small); line-height: var(--lh-small); letter-spacing: 0; }
+.handoff-step small { margin-top: 4px; color: #5f655e; font-size: var(--fs-small); line-height: var(--lh-small); letter-spacing: 0; }
 
 .service-area { background: var(--bone); }
 .service-area-grid { display: grid; grid-template-columns: .9fr 1.1fr; gap: 11vw; align-items: end; }
@@ -777,7 +777,7 @@ h1, h2, h3 { text-wrap:balance; }
 .featured-project-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
 .featured-project-shot { margin: 0; }
 .featured-project-shot img { display: block; width: 100%; height: 200px; object-fit: cover; }
-.featured-project-shot > span { display: block; margin-top: 8px; color: #747a73; font-size: var(--fs-small); font-weight: 700; letter-spacing: 0; text-transform: uppercase; line-height: var(--lh-small); }
+.featured-project-shot > span { display: block; margin-top: 8px; color: #5f655e; font-size: var(--fs-small); font-weight: 700; letter-spacing: 0; text-transform: uppercase; line-height: var(--lh-small); }
 .featured-project-wide { grid-column: 1 / -1; }
 .featured-project-wide img { height: 280px; }
 .featured-project-grid-3 { grid-template-columns: repeat(3, 1fr); }
@@ -1164,4 +1164,39 @@ main#main-content:focus { outline: none; }
   .save-contact-button {
     min-height: 44px;
   }
+}
+/* Stand-alone links on the About, Contact and Warranty pages (audit P5-T1):
+   the breadcrumb, the company list and the contact link lists are 44px tall
+   below 1024px. The list gaps shrink by about the same amount, so the rows
+   keep their rhythm. Links inside a sentence are exempt. */
+@media (max-width: 1023px) {
+  .about-breadcrumb a,
+  .about-company-list li > a:first-child,
+  .contact-link-grid li > a {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--touch-min, 44px);
+  }
+  .about-breadcrumb ol { align-items: center; margin-bottom: 8px; }
+  .about-company-list { gap: 4px; }
+  .contact-link-grid ul { gap: 0; }
+}
+/* Google reviews on the homepage (owner, 20 November 2026). Cards in the trust
+   strip's bone and line; the text is charcoal, never an accent. */
+.google-reviews { border-bottom: 1px solid var(--line); background: var(--paper); font-size: var(--fs-body); line-height: var(--lh-body); }
+.google-reviews-intro h2 { margin: 0 0 28px; font-family: var(--font-display); font-size: clamp(32px, 4vw, 48px); font-weight: 400; letter-spacing: -0.03em; line-height: 1.1; }
+.google-reviews-list { display: grid; grid-template-columns: 1fr; gap: 16px; margin: 0 0 28px; padding: 0; list-style: none; }
+.google-review { display: flex; flex-direction: column; justify-content: space-between; gap: 20px; padding: 28px 25px; border: 1px solid var(--line); border-radius: 4px; background: var(--bone); color: var(--charcoal, #383837); }
+.google-review blockquote { margin: 0; }
+.google-review blockquote p { margin: 0; font-size: var(--fs-body); line-height: var(--lh-body); }
+.google-review-by { margin: 0; }
+.google-review-by strong, .google-review-by span { display: block; }
+.google-review-by strong { font-weight: 700; }
+.google-review-by span { margin-top: 4px; color: #5f665f; font-size: var(--fs-small); line-height: var(--lh-small); }
+.google-reviews .text-link { font-size: var(--fs-button); line-height: 1; letter-spacing: 0; color: var(--charcoal, #383837); }
+@media (min-width: 800px) {
+  .google-reviews-list { grid-template-columns: 1fr 1fr; gap: 24px; }
+}
+@media (max-width: 1023px) {
+  .google-reviews .text-link { min-height: var(--touch-min, 44px); }
 }

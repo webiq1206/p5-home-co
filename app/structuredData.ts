@@ -7,6 +7,7 @@ import {
   SCHEMA_TELEPHONE,
   CONTRACTOR_REGISTRATION,
   P5_FACEBOOK_URL,
+  P5_INSTAGRAM_URL,
   P5_GOOGLE_BUSINESS_PROFILE_URL,
   P5_GBP_MAPS_URL,
   PUBLIC_ADDRESS_LOCALITY,
@@ -16,7 +17,9 @@ import {
 import { SHOW_FOUNDING_YEAR } from "./publicClaims.ts";
 import { citiesServed, companies, faqs, siteUrl } from "./site.ts";
 
-export const siteTitle = "Boise Builders, Remodelers, Cabinets & Repairs | P5 Home Co";
+// Parent-brand title (owner, 20 November 2026): the trade searches belong to
+// the four brand homepages, so this one names P5 and its role.
+export const siteTitle = "P5 Home Co | Five Treasure Valley home companies";
 export const siteDescription =
   "Parent company of Boise Construction Co, Boise Remodeling Co, Boise Cabinet Co and Boise Handyman Co in Idaho's Treasure Valley.";
 
@@ -39,7 +42,7 @@ export const siteSchema = {
       image: `${siteUrl}/images/p5-og.jpg`,
       logo: { "@type": "ImageObject", url: `${siteUrl}/android-chrome-512x512.png` },
       // Confirmed profiles only: the P5 Facebook page and the P5 Google Business Profile.
-      sameAs: [P5_FACEBOOK_URL, P5_GOOGLE_BUSINESS_PROFILE_URL, P5_GBP_MAPS_URL],
+      sameAs: [P5_FACEBOOK_URL, P5_INSTAGRAM_URL, P5_GOOGLE_BUSINESS_PROFILE_URL, P5_GBP_MAPS_URL],
       employee: {
         "@type": "Person",
         "@id": NICK_PERKINS_ID,
@@ -143,4 +146,22 @@ export const homePageSchema = {
 
 export function serializeJsonLd(value: unknown): string {
   return JSON.stringify(value).replace(/</g, "\\u003c");
+}
+
+/** Home > page, for a page with no visible breadcrumb trail of its own (document pages; audit P5-T3). */
+export function breadcrumbSchema(name: string, path: string) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "@id": `${siteUrl}${path}#breadcrumb`,
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Home", item: siteUrl },
+      { "@type": "ListItem", position: 2, name, item: `${siteUrl}${path}` },
+    ],
+  };
+}
+
+/** The breadcrumb as a JSON-LD script body. */
+export function breadcrumbJsonLd(name: string, path: string): string {
+  return serializeJsonLd(breadcrumbSchema(name, path));
 }

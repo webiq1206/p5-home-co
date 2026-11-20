@@ -59,15 +59,17 @@ test("all five operating companies are reachable from the form", () => {
 
 // --- Service area -----------------------------------------------------------
 
-test("the city list covers the seven towns P5 publishes, in that order", () => {
+test("the city list covers the nine towns P5 publishes, in that order", () => {
   assert.deepEqual([...QUOTE_CITIES], [
     "Boise",
     "Meridian",
-    "Nampa",
     "Eagle",
+    "Garden City",
+    "Nampa",
     "Kuna",
-    "Caldwell",
     "Star",
+    "Middleton",
+    "Caldwell",
     "Somewhere else in the Treasure Valley",
   ]);
 });

@@ -120,12 +120,14 @@ export default function HeroWalkthrough({ children }: { children: ReactNode }) {
   return (
     <div className="p5-home-hero" ref={containerRef}>
       {children}
+      {/* No poster attribute: the video stays transparent until it plays, and the
+          hero photograph underneath already shows the same picture, sized for the
+          screen. A poster made every phone download the 1920px JPEG as well. */}
       <video
         ref={videoRef}
         id="p5-hero-video"
         className="p5-hero-video"
         data-ready={ready}
-        poster="/videos/p5-home-co-poster.jpg"
         width={1920}
         height={1080}
         muted

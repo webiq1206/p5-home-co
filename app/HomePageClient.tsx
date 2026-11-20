@@ -5,6 +5,7 @@
 import { localAlt } from "./localAlt";
 import Link from "next/link";
 import Reveal from "@/components/Reveal";
+import { GOOGLE_REVIEWS, GOOGLE_REVIEWS_URL } from "./reviews";
 import { useEffect, useRef, useState } from "react";
 import {
   SHOW_UNPROVEN_SELF_PERFORM,
@@ -45,6 +46,17 @@ const HERO_IMAGE = {
   src: "/videos/p5-home-co-poster.jpg",
   width: 1920,
   height: 1080,
+  unoptimized: true,
+};
+
+/**
+ * The same poster at 1080px for phones and tablets (audit P5-S4): the 1920px
+ * JPEG was the phone LCP. Below 1024px HeroPhoto serves this file instead.
+ */
+const HERO_IMAGE_PHONE = {
+  src: "/videos/p5-home-co-poster-1080.webp",
+  width: 1080,
+  height: 608,
   unoptimized: true,
 };
 
@@ -158,7 +170,7 @@ export default function Home() {
           <HeroPhoto
             fit="viewport"
             image={{ ...HERO_IMAGE, alt: localAlt("Modern home overlooking foothills at sunset", { subject: "custom home building" }), position: "50% 20%" }}
-            phoneImage={{ ...HERO_IMAGE, position: "60% 50%" }}
+            phoneImage={{ ...HERO_IMAGE_PHONE, position: "60% 50%" }}
             eyebrow="The Home Company"
             title="Boise’s"
             titleAccent="home specialists"
@@ -171,7 +183,7 @@ export default function Home() {
           Stat row (C14). Every figure is already published on this site and is the
           owner's own statement; none is new:
           - 5: the five companies in the stack below ("One standard across five companies").
-          - citiesServed.length (7): the cities listed in the service-area section and the /quote footer.
+          - citiesServed.length (9): the cities listed in the service-area section and the /quote footer.
           The former reply-time figure was removed on owner instruction: say that we answer,
           never a response window.
           Add a figure here only with the same kind of source. Project counts, years and
@@ -210,6 +222,33 @@ export default function Home() {
           </div>
         </section>
 
+        {/* Google reviews (owner, 20 November 2026): both reviews on the P5 Home Co
+            profile, verbatim, beside the first call to action. No rating markup. */}
+        <section className="google-reviews section-pad" aria-labelledby="google-reviews-heading">
+          <div className="content-shell">
+            <div className="google-reviews-intro">
+              <p className="eyebrow">Google reviews</p>
+              <h2 id="google-reviews-heading">What homeowners say</h2>
+            </div>
+            <ul className="google-reviews-list">
+              {GOOGLE_REVIEWS.map((review) => (
+                <li key={review.name} className="google-review">
+                  <blockquote>
+                    <p>{review.text}</p>
+                  </blockquote>
+                  <p className="google-review-by">
+                    <strong>{review.name}</strong>
+                    <span>Google review</span>
+                  </p>
+                </li>
+              ))}
+            </ul>
+            <a className="text-link google-reviews-link" href={GOOGLE_REVIEWS_URL} target="_blank" rel="noopener">
+              See our Google reviews
+            </a>
+          </div>
+        </section>
+
         <CompanyFinder />
 
         <section id="companies" className="companies section-pad">
@@ -218,7 +257,7 @@ export default function Home() {
               <div>
                 <p className="eyebrow eyebrow-light">The P5 family</p>
                 <h2>
-                  The right company
+                  The right company{" "}
                   <br />
                   for your project.
                 </h2>
@@ -299,7 +338,7 @@ export default function Home() {
           }
           headline={
             <>
-              From bare lot
+              From bare lot{" "}
               <br />
               to the keys.
             </>
@@ -320,7 +359,7 @@ export default function Home() {
           alt={REMODEL_KITCHEN_LIVING.alt}
           headline={
             <>
-              Reimagine the
+              Reimagine the{" "}
               <br />
               home you love.
             </>
@@ -342,7 +381,7 @@ export default function Home() {
           alt={localAlt("White oak cabinet drawers with slim black bar pulls under a white countertop", { subject: "custom cabinetry" })}
           headline={
             <>
-              Made to fit.
+              Made to fit.{" "}
               <br />
               Built to order.
             </>
@@ -367,7 +406,7 @@ export default function Home() {
           }
           headline={
             <>
-              Your list.
+              Your list.{" "}
               <br />
               Handled right.
             </>
@@ -389,7 +428,7 @@ export default function Home() {
           alt={BACKYARD_ADU.alt}
           headline={
             <>
-              More home.
+              More home.{" "}
               <br />
               Same lot.
             </>
@@ -471,7 +510,7 @@ export default function Home() {
                 <p className="eyebrow">A clear place to start</p>
                 <h2 id="how-p5-heading">{HOW_P5_WORKS_TITLE}</h2>
                 <p>
-                  Start with your project.
+                  Start with your project.{" "}
                   <br />
                   We will help you find the right team.
                 </p>
@@ -599,6 +638,8 @@ export default function Home() {
             <img
               className="who-hire-photo"
               src="/images/about/perkins-family-meridian-idaho-1x1.webp"
+              srcSet="/images/about/perkins-family-meridian-idaho-1x1-700.webp 700w, /images/about/perkins-family-meridian-idaho-1x1-1400.webp 1400w, /images/about/perkins-family-meridian-idaho-1x1.webp 2048w"
+              sizes="(max-width: 700px) calc(100vw - 40px), 420px"
               alt="Nick Perkins with his wife and five children at a pumpkin patch in Meridian, Idaho"
               width={2048}
               height={2048}
@@ -626,7 +667,7 @@ export default function Home() {
             <div>
               <p className="eyebrow">Our home is the Treasure Valley</p>
               <h2>
-                Local teams.
+                Local teams.{" "}
                 <br />
                 Valley-wide reach.
               </h2>
@@ -661,7 +702,7 @@ export default function Home() {
             <div>
               <p className="eyebrow">Common questions</p>
               <h2 id="faq-heading">
-                Answers before
+                Answers before{" "}
                 <br />
                 you commit.
               </h2>

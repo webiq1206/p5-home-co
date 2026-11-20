@@ -88,7 +88,8 @@ export default function CompanyFinder() {
         </div>
 
         {!company && (
-          <div className="choice-cards company-finder-cards" role="list">
+          <div className="choice-cards company-finder-cards">
+            {/* A plain group of buttons, not role="list": a list may hold only list items (axe aria-required-children). */}
             {(Object.keys(DETAILS) as CompanyKey[]).map((key) => (
               <button
                 key={key}

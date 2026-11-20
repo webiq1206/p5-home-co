@@ -82,10 +82,11 @@ export default function AboutClient({
         <figure className="about-family-photo content-shell">
           <img
             src="/images/about/perkins-family-meridian-idaho-1x1.webp"
+            srcSet="/images/about/perkins-family-meridian-idaho-1x1-700.webp 700w, /images/about/perkins-family-meridian-idaho-1x1-1400.webp 1400w, /images/about/perkins-family-meridian-idaho-1x1.webp 2048w"
+            sizes="(max-width: 960px) calc(100vw - 40px), 920px"
             alt="Nick Perkins with his wife and five children at a pumpkin patch in Meridian, Idaho"
             width={2048}
             height={2048}
-            fetchPriority="high"
             decoding="async"
           />
         </figure>

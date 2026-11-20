@@ -11,20 +11,22 @@ const root = join(import.meta.dirname, "..");
 const llms = readFileSync(join(root, "public", "llms.txt"), "utf8");
 
 /**
- * The published town list is the Google Business Profile list, in that order.
- * Middleton and Garden City pages stay where they already exist. They are not
- * in this list. The lists can only be wrong together, never separately.
+ * The published town list (owner, 20 November 2026): the eight Google Business
+ * Profile cities, Middleton included, plus Garden City. The lists can only be
+ * wrong together, never separately.
  */
 
-test("the seven service-area towns are named in profile order", () => {
+test("the nine service-area towns are named in order", () => {
   assert.deepEqual([...citiesServed], [
     "Boise",
     "Meridian",
-    "Nampa",
     "Eagle",
+    "Garden City",
+    "Nampa",
     "Kuna",
-    "Caldwell",
     "Star",
+    "Middleton",
+    "Caldwell",
   ]);
 });
 
@@ -64,8 +66,14 @@ test("every crawler is allowed the public site and refused the private areas", (
   assert.ok(Array.isArray(rules));
   for (const rule of rules) {
     assert.equal(rule.allow, "/");
-    assert.deepEqual(rule.disallow, ["/admin", "/portal", "/scopes", "/api/", "/estimate/qa-saved", "/estimator/e"]);
+    assert.deepEqual(rule.disallow, ["/admin", "/portal", "/scopes", "/api/", "/estimate/qa-saved", "/estimator/e/"]);
   }
+  // The saved-estimate rule must not also block the framed estimator.
+  const wildcard = (rules as { userAgent: string; disallow: string[] }[]).find((r) => r.userAgent === "*")!;
+  const blocked = (path: string) => wildcard.disallow.some((prefix) => path.startsWith(prefix));
+  assert.equal(blocked("/estimator/embed"), false);
+  assert.equal(blocked("/estimator"), false);
+  assert.equal(blocked("/estimator/e/abc123"), true);
 });
 
 test("the wildcard rule is present, so an unnamed crawler is still allowed", () => {

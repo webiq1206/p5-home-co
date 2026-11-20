@@ -1,5 +1,6 @@
 import {withBrandPageMetadata} from '@/lib/brand-page-metadata';
 import type { Metadata } from "next";
+import { breadcrumbJsonLd } from "../../structuredData";
 
 export const metadata: Metadata = withBrandPageMetadata(({
   title: "Terms of Use | P5 Home Co",
@@ -11,6 +12,7 @@ export const metadata: Metadata = withBrandPageMetadata(({
 export default function TermsPage() {
   return (
     <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: breadcrumbJsonLd("Terms of use", "/legal/terms") }} />
       <h1>Terms of use</h1>
       <p className="legal-updated">Last updated 23 August 2026</p>
 

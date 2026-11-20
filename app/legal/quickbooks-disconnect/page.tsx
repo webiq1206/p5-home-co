@@ -1,5 +1,6 @@
 import {withBrandPageMetadata} from '@/lib/brand-page-metadata';
 import type { Metadata } from "next";
+import { breadcrumbJsonLd } from "../../structuredData";
 
 export const metadata: Metadata = withBrandPageMetadata(({
   title: "Disconnecting QuickBooks | P5 Home Co",
@@ -11,6 +12,7 @@ export const metadata: Metadata = withBrandPageMetadata(({
 export default function DisconnectPage() {
   return (
     <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: breadcrumbJsonLd("Disconnecting QuickBooks", "/legal/quickbooks-disconnect") }} />
       <h1>Disconnecting QuickBooks</h1>
       <p className="legal-updated">Last updated 23 August 2026</p>
 

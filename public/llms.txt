@@ -56,8 +56,8 @@ through the existing P5 intake.
 
 ## Service area
 
-Boise, Meridian, Nampa, Eagle, Kuna, Caldwell and Star, across Ada and
-Canyon counties in Idaho's Treasure Valley.
+Boise, Meridian, Eagle, Garden City, Nampa, Kuna, Star, Middleton and
+Caldwell, across Ada and Canyon counties in Idaho's Treasure Valley.
 
 ## Starting a project
 
@@ -86,6 +86,8 @@ notification and CRM delivery have separate status. Urgent work should go to
 
 Serving Boise and the Treasure Valley. Phone (208) 477-1169. Email hello@p5homeco.com. Hours: Mon-Fri 9 AM-6 PM and Sat 9 AM-4 PM Mountain (Sunday closed). Address: Meridian, ID 83646. Contact page: https://p5homeco.com/contact
 
+Profiles: Facebook https://www.facebook.com/p5homeco. Instagram https://www.instagram.com/p5_home_co. Google Business Profile https://maps.google.com/?cid=11869148461693849141
+
 ## Key pages
 
 - [P5 Home Co](https://p5homeco.com): Five available specialist teams, the shared operating standard, and the service area.
@@ -109,4 +111,4 @@ Serving Boise and the Treasure Valley. Phone (208) 477-1169. Email hello@p5homec
 - [Full text for LLMs](https://p5homeco.com/llms-full.txt): this fact sheet
   plus the homepage questions and answers.
 
-Last updated: 2026-11-08.
+Last updated: 2026-11-20.

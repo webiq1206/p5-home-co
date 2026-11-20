@@ -70,7 +70,14 @@ const aiCrawlers = [
 // They carry noindex headers as well; this keeps them out of the crawl in the
 // first place. The list lives in app/lib/privacy.ts so robots.txt and the
 // X-Robots-Tag header cannot drift apart, and a test fails if they do.
-const privatePaths = PRIVATE_PREFIXES.map((p) => (p === "/api" ? "/api/" : p));
+//
+// robots.txt rules are prefix matches. "/api" and "/estimator/e" take a
+// trailing slash: a bare "/estimator/e" would also block "/estimator/embed"
+// (the framed estimator, which carries its own noindex) and any later public
+// path that starts with those letters. The saved-estimate links all live
+// under "/estimator/e/<token>".
+const SLASHED = new Set<string>(["/api", "/estimator/e"]);
+const privatePaths = PRIVATE_PREFIXES.map((p) => (SLASHED.has(p) ? `${p}/` : p));
 
 export default function robots(): MetadataRoute.Robots {
   return {

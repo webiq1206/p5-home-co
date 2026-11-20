@@ -16,7 +16,7 @@ import { P5_GBP_MAP_EMBED_URL, P5_GBP_PLACE_ID, PUBLIC_ADDRESS, PUBLIC_EMAIL, PU
 import sitemap from "../app/sitemap.ts";
 
 test("the contact page answers in 40 to 60 words and keeps the title and description in range", () => {
-  assert.equal(CONTACT_TITLE, "Contact P5 Home Co | Boise and Treasure Valley Contractor");
+  assert.equal(CONTACT_TITLE, "Contact P5 Home Co | Meridian, Idaho home companies");
   assert.ok(CONTACT_TITLE.length <= 60, String(CONTACT_TITLE.length));
   assert.ok(CONTACT_DESCRIPTION.length > 0 && CONTACT_DESCRIPTION.length <= 155, String(CONTACT_DESCRIPTION.length));
   const words = contactLeadWordCount();
@@ -45,7 +45,9 @@ test("the contact FAQPage matches the visible answers word for word", () => {
   }
   const questions = new Set(CONTACT_FAQS.map((item) => item.q));
   assert.equal(questions.size, CONTACT_FAQS.length);
-  assert.equal(CONTACT_FAQS.some((item) => item.a.includes("Middleton") || item.a.includes("Garden City")), false);
+  // The nine service-area cities, Middleton and Garden City included (owner, 20 November 2026).
+  assert.equal(CONTACT_FAQS.some((item) => item.a.includes("Garden City")), true);
+  assert.equal(CONTACT_FAQS.some((item) => item.a.includes("Middleton")), true);
   assert.equal(JSON.stringify(contactPageSchema).includes("boiseadu.co"), false);
 });
 

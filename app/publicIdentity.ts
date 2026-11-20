@@ -16,6 +16,9 @@ export const PUBLIC_PHONE_SMS = "sms:+12084771169";
 /** P5 Home Co's Facebook page. The vanity URL is the same Page (page id 61591579240451). */
 export const P5_FACEBOOK_URL = "https://www.facebook.com/p5homeco";
 
+/** P5 Home Co's Instagram, the one account for every family site (owner, 20 November 2026). */
+export const P5_INSTAGRAM_URL = "https://www.instagram.com/p5_home_co";
+
 /** P5 Home Co Google Business Profile (category General contractor), knowledge graph id /g/11ntl1t7dc.
  * The brands have no profiles of their own, so this belongs in P5 sameAs only (owner call A, 1 November). */
 export const P5_GOOGLE_BUSINESS_PROFILE_URL = "https://www.google.com/search?kgmid=/g/11ntl1t7dc";
@@ -52,6 +55,16 @@ export const PUBLIC_NAP =
   "Serving Boise and the Treasure Valley · (208) 477-1169 · hello@p5homeco.com";
 
 export const PUBLIC_REGISTRATION = "Idaho Registered Contractor #8381215";
+
+/**
+ * The footer's registration line, tied to the legal entity (family audit XS-05:
+ * one line in every family footer). The homepage credential strip keeps the
+ * shorter PUBLIC_REGISTRATION.
+ */
+export const FOOTER_REGISTRATION = `${SCHEMA_LEGAL_NAME}, ${PUBLIC_REGISTRATION}`;
+
+/** Accessible name for the registration link: the visible text first, then the new-tab note (P5-T2). */
+export const REGISTRATION_LINK_LABEL = `${FOOTER_REGISTRATION}, opens in a new tab`;
 
 /** Idaho DOPL public registration search. Footer links use this. Estimator pages do not. */
 export const IDAHO_DOPL_LICENSE_SEARCH = "https://edopl.idaho.gov/OnlineServices/?link=PubSearch";
