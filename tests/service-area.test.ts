@@ -64,8 +64,14 @@ test("every crawler is allowed the public site and refused the private areas", (
   assert.ok(Array.isArray(rules));
   for (const rule of rules) {
     assert.equal(rule.allow, "/");
-    assert.deepEqual(rule.disallow, ["/admin", "/portal", "/scopes", "/api/", "/estimate/qa-saved", "/estimator/e"]);
+    assert.deepEqual(rule.disallow, ["/admin", "/portal", "/scopes", "/api/", "/estimate/qa-saved", "/estimator/e/"]);
   }
+  // The saved-estimate rule must not also block the framed estimator.
+  const wildcard = (rules as { userAgent: string; disallow: string[] }[]).find((r) => r.userAgent === "*")!;
+  const blocked = (path: string) => wildcard.disallow.some((prefix) => path.startsWith(prefix));
+  assert.equal(blocked("/estimator/embed"), false);
+  assert.equal(blocked("/estimator"), false);
+  assert.equal(blocked("/estimator/e/abc123"), true);
 });
 
 test("the wildcard rule is present, so an unnamed crawler is still allowed", () => {
