@@ -43,7 +43,7 @@ export const BRAND_CONFIGS: Record<BrandId, BrandConfig> = {
     name: "P5 Home Co",
     site: "https://p5homeco.com",
     live: true,
-    accent: "#ceb391",
+    accent: "#a58c72",
     accentInk: "#705a45",
     ...PHONE,
     heading: "Get your instant estimate",
@@ -123,7 +123,7 @@ export const BRAND_CONFIGS: Record<BrandId, BrandConfig> = {
     // until the site is live and this is set to true.
     site: "",
     live: false,
-    accent: "#ceb391",
+    accent: "#a58c72",
     accentInk: "#705a45",
     ...PHONE,
     heading: "Get an instant budget for your ADU",

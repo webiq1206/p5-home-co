@@ -72,7 +72,7 @@ function safeHref(value: string): string {
 }
 
 function safeAccent(value: string | undefined): string {
-  return /^#[0-9a-fA-F]{6}$/.test(value ?? "") ? (value as string) : "#ceb391";
+  return /^#[0-9a-fA-F]{6}$/.test(value ?? "") ? (value as string) : "#a58c72";
 }
 
 function greetingName(firstName: string | null | undefined): string {

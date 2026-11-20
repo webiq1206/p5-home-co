@@ -37,8 +37,8 @@ export const FAMILY_BRAND: FamilyBrand = {
     onDark: { src: '/brands/p5-home-co-lockup-light.svg', ...LOCKUP },
     onLight: { src: '/brands/p5-home-co-lockup-dark.svg', ...LOCKUP },
   },
-  // Tan retains the existing control details; heading emphasis uses the exact logo bronze role.
-  accent: '#ceb391',
+  // Warm tan #A58C72 (approved brand system, 4 November 2026; owner, 20 November 2026) for control details and heading emphasis alike.
+  accent: '#a58c72',
   accentInk: '#705a45',
   header: {
     // The homepage opens on the full-bleed landscape photograph; every other page opens on paper.

@@ -10,7 +10,7 @@ import { normalizeEmail } from "./normalize.ts";
 import { requestConfirmation, type ScheduleIntent } from "./scheduleEmail.ts";
 
 export function accentForBrandName(name: string): string {
-  return Object.values(BRAND_CONFIGS).find((brand) => brand.name === name)?.accent ?? "#ceb391";
+  return Object.values(BRAND_CONFIGS).find((brand) => brand.name === name)?.accent ?? "#a58c72";
 }
 
 export async function sendRequestConfirmation(input: {
