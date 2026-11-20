@@ -1,7 +1,7 @@
 /**
  * Contact page copy and JSON-LD. The FAQ answers are the visible text, so the
- * FAQPage node cannot drift from the page. Question 1 drops the old line about
- * Middleton and Garden City: those towns are no longer in the service area.
+ * FAQPage node cannot drift from the page. The service-area answer names the
+ * nine service-area cities (owner, 20 November 2026).
  */
 
 import { BUSINESS_HOURS } from "../../lib/businessHours.ts";

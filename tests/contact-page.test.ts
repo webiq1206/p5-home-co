@@ -45,7 +45,9 @@ test("the contact FAQPage matches the visible answers word for word", () => {
   }
   const questions = new Set(CONTACT_FAQS.map((item) => item.q));
   assert.equal(questions.size, CONTACT_FAQS.length);
-  assert.equal(CONTACT_FAQS.some((item) => item.a.includes("Middleton") || item.a.includes("Garden City")), false);
+  // The nine service-area cities, Middleton and Garden City included (owner, 20 November 2026).
+  assert.equal(CONTACT_FAQS.some((item) => item.a.includes("Garden City")), true);
+  assert.equal(CONTACT_FAQS.some((item) => item.a.includes("Middleton")), true);
   assert.equal(JSON.stringify(contactPageSchema).includes("boiseadu.co"), false);
 });
 

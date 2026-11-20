@@ -7,6 +7,7 @@ import {
   SCHEMA_TELEPHONE,
   CONTRACTOR_REGISTRATION,
   P5_FACEBOOK_URL,
+  P5_INSTAGRAM_URL,
   P5_GOOGLE_BUSINESS_PROFILE_URL,
   P5_GBP_MAPS_URL,
   PUBLIC_ADDRESS_LOCALITY,
@@ -41,7 +42,7 @@ export const siteSchema = {
       image: `${siteUrl}/images/p5-og.jpg`,
       logo: { "@type": "ImageObject", url: `${siteUrl}/android-chrome-512x512.png` },
       // Confirmed profiles only: the P5 Facebook page and the P5 Google Business Profile.
-      sameAs: [P5_FACEBOOK_URL, P5_GOOGLE_BUSINESS_PROFILE_URL, P5_GBP_MAPS_URL],
+      sameAs: [P5_FACEBOOK_URL, P5_INSTAGRAM_URL, P5_GOOGLE_BUSINESS_PROFILE_URL, P5_GBP_MAPS_URL],
       employee: {
         "@type": "Person",
         "@id": NICK_PERKINS_ID,

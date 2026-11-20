@@ -11,20 +11,22 @@ const root = join(import.meta.dirname, "..");
 const llms = readFileSync(join(root, "public", "llms.txt"), "utf8");
 
 /**
- * The published town list is the Google Business Profile list, in that order.
- * Middleton and Garden City pages stay where they already exist. They are not
- * in this list. The lists can only be wrong together, never separately.
+ * The published town list (owner, 20 November 2026): the eight Google Business
+ * Profile cities, Middleton included, plus Garden City. The lists can only be
+ * wrong together, never separately.
  */
 
-test("the seven service-area towns are named in profile order", () => {
+test("the nine service-area towns are named in order", () => {
   assert.deepEqual([...citiesServed], [
     "Boise",
     "Meridian",
-    "Nampa",
     "Eagle",
+    "Garden City",
+    "Nampa",
     "Kuna",
-    "Caldwell",
     "Star",
+    "Middleton",
+    "Caldwell",
   ]);
 });
 

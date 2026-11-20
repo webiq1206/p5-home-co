@@ -182,7 +182,7 @@ export default function Home() {
           Stat row (C14). Every figure is already published on this site and is the
           owner's own statement; none is new:
           - 5: the five companies in the stack below ("One standard across five companies").
-          - citiesServed.length (7): the cities listed in the service-area section and the /quote footer.
+          - citiesServed.length (9): the cities listed in the service-area section and the /quote footer.
           The former reply-time figure was removed on owner instruction: say that we answer,
           never a response window.
           Add a figure here only with the same kind of source. Project counts, years and

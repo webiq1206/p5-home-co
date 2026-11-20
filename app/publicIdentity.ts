@@ -16,6 +16,9 @@ export const PUBLIC_PHONE_SMS = "sms:+12084771169";
 /** P5 Home Co's Facebook page. The vanity URL is the same Page (page id 61591579240451). */
 export const P5_FACEBOOK_URL = "https://www.facebook.com/p5homeco";
 
+/** P5 Home Co's Instagram, the one account for every family site (owner, 20 November 2026). */
+export const P5_INSTAGRAM_URL = "https://www.instagram.com/p5_home_co";
+
 /** P5 Home Co Google Business Profile (category General contractor), knowledge graph id /g/11ntl1t7dc.
  * The brands have no profiles of their own, so this belongs in P5 sameAs only (owner call A, 1 November). */
 export const P5_GOOGLE_BUSINESS_PROFILE_URL = "https://www.google.com/search?kgmid=/g/11ntl1t7dc";

@@ -68,7 +68,7 @@ test("llms-full.txt is the fact sheet plus the homepage FAQ and nothing invented
   assert.equal(full.includes("Established 2020"), false);
   assert.equal(full.includes("since 2020"), false);
   assert.equal(full.includes("does the work itself"), false);
-  assert.match(full, /Boise, Meridian, Nampa, Eagle, Kuna, Caldwell and Star/);
+  assert.match(full, /Boise, Meridian, Eagle, Garden City, Nampa, Kuna, Star, Middleton and Caldwell/);
   for (const item of faqs) {
     assert.ok(full.includes(item.q), item.q);
     assert.ok(full.includes(item.a), item.q);

@@ -77,6 +77,7 @@ test("public schema publishes the locality, rounded geo and the seven service ar
   assert.equal(JSON.stringify(organization).includes("Jared"), false);
   assert.deepEqual(organization.sameAs, [
     "https://www.facebook.com/p5homeco",
+    "https://www.instagram.com/p5_home_co",
     "https://www.google.com/search?kgmid=/g/11ntl1t7dc",
     P5_GBP_MAPS_URL,
   ]);
@@ -92,11 +93,13 @@ test("public schema publishes the locality, rounded geo and the seven service ar
     "Canyon County, Idaho",
     "Boise",
     "Meridian",
-    "Nampa",
     "Eagle",
+    "Garden City",
+    "Nampa",
     "Kuna",
-    "Caldwell",
     "Star",
+    "Middleton",
+    "Caldwell",
   ]);
   for (const city of ["Boise", "Eagle", "Nampa", "Meridian"]) {
     const area = organization.areaServed.find((entry) => entry.name === city);
@@ -104,7 +107,8 @@ test("public schema publishes the locality, rounded geo and the seven service ar
     assert.equal(area["@type"], "City");
     assert.equal("address" in area, false);
   }
-  assert.equal(organization.areaServed.some((entry) => entry.name === "Garden City" || entry.name === "Middleton"), false);
+  // Middleton and Garden City are both served (owner, 20 November 2026).
+  for (const city of ["Middleton", "Garden City"]) assert.ok(organization.areaServed.some((entry) => entry.name === city), city);
 
   const siteJson = serializeJsonLd(siteSchema);
   const elsewhere = serializeJsonLd(homePageSchema) + serializeJsonLd(schemaFor(null));
