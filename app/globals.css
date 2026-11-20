@@ -1165,3 +1165,19 @@ main#main-content:focus { outline: none; }
     min-height: 44px;
   }
 }
+/* Stand-alone links on the About, Contact and Warranty pages (audit P5-T1):
+   the breadcrumb, the company list and the contact link lists are 44px tall
+   below 1024px. The list gaps shrink by about the same amount, so the rows
+   keep their rhythm. Links inside a sentence are exempt. */
+@media (max-width: 1023px) {
+  .about-breadcrumb a,
+  .about-company-list li > a:first-child,
+  .contact-link-grid li > a {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--touch-min, 44px);
+  }
+  .about-breadcrumb ol { align-items: center; margin-bottom: 8px; }
+  .about-company-list { gap: 4px; }
+  .contact-link-grid ul { gap: 0; }
+}
