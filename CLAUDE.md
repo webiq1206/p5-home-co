@@ -198,3 +198,13 @@ Every time, in this order, in the Replit workspace:
 This applies whoever does the pull: a person, Replit's assistant or Claude.
 Never run a schema command against the live database. The same checklist is in
 `replit.md`, which Replit's assistant reads.
+
+## SEO audit fixes (20 November 2026)
+
+* Titles name the parent company: the homepage is "P5 Home Co | Five Treasure Valley home companies" (`siteTitle` and the `/` entry in `lib/brand-page-metadata.ts`, which may set `absolute: true`), and the contact page "Contact P5 Home Co | Meridian, Idaho home companies". The four trade searches belong to the brand homepages.
+* `/estimator` has a visually hidden H1 and one sentence in its server HTML (`app/estimator/page.tsx`); each question screen keeps its own visible H2 and the embed is unchanged.
+* robots.txt disallows `/estimator/e/` (with the slash), so the framed `/estimator/embed` is not blocked.
+* The footer registration line is "P5 Home Co LLC, Idaho Registered Contractor #8381215" (`FOOTER_REGISTRATION`), and the link's aria-label starts with that text.
+* Service area (owner, 20 November 2026): Boise, Meridian, Eagle, Garden City, Nampa, Kuna, Star, Middleton and Caldwell, in `app/serviceArea.ts`. Everything that lists cities reads it; llms.txt says the same.
+* Google reviews (owner, 20 November 2026): the homepage shows the two reviews on the P5 Home Co profile (`app/reviews.ts`), verbatim. An excerpt leaves out whole sentences only and never edits a word. Never add a review, a rating count, star markup, AggregateRating or Review JSON-LD. Guard: `tests/google-reviews.test.ts`.
+* Estimator option photos have 320px copies in `public/estimator/img/320`; a new option image needs its copy too. The homepage hero uses `/videos/p5-home-co-poster-1080.webp` below 1024px.
