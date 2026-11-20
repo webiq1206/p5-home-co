@@ -136,11 +136,13 @@ export function bulletproofButton(options: {
 </table>`;
 }
 
-function wrapHtml(inner: string): string {
+/** The family email column: Arial, charcoal, 560px. Shared by every customer email built here. */
+export function wrapHtml(inner: string): string {
   return `<div style="font-family:Arial,Helvetica,sans-serif;color:${BUTTON_CHARCOAL};max-width:560px;font-size:16px;line-height:1.6;">${inner}</div>`;
 }
 
-function paragraph(text: string): string {
+/** One escaped paragraph in that column. */
+export function paragraph(text: string): string {
   return `<p style="margin:0 0 16px;">${esc(text)}</p>`;
 }
 

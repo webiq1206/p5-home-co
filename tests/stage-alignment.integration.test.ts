@@ -44,7 +44,7 @@ describe("stage alignment between QuickBooks, the lead and HubSpot", { skip: TES
   let query: typeof import("../app/lib/db.ts").query;
   let getPool: typeof import("../app/lib/db.ts").getPool;
   const originalFetch = globalThis.fetch;
-  const ENV = ["HUBSPOT_TOKEN", "QBO_TOKEN_KEY", "QBO_ENV", "STAGE_ALIGNMENT", "STAGE_ALIGNMENT_QUICKBOOKS_WRITE", "CROSS_SYSTEM_DELETE"] as const;
+  const ENV = ["HUBSPOT_TOKEN", "QBO_TOKEN_KEY", "QBO_ENV", "STAGE_ALIGNMENT", "STAGE_ALIGNMENT_QUICKBOOKS_WRITE", "CROSS_SYSTEM_DELETE", "REVIEW_REQUEST", "REVIEW_REQUEST_DELAY_HOURS"] as const;
   const saved = Object.fromEntries(ENV.map((name) => [name, process.env[name]]));
 
   let hubDeals: Map<string, Hub>;
@@ -254,7 +254,7 @@ describe("stage alignment between QuickBooks, the lead and HubSpot", { skip: TES
     invoices = new Map();
     hubWrites = []; qboWrites = []; qboReads = []; unexpected = []; qboRefused = [];
     qboDown = false; beforeEstimateWrite = null; ignoreStatus = false; qboGate = null; nextId = 5000;
-    for (const name of ["STAGE_ALIGNMENT", "STAGE_ALIGNMENT_QUICKBOOKS_WRITE", "CROSS_SYSTEM_DELETE"]) delete process.env[name];
+    for (const name of ["STAGE_ALIGNMENT", "STAGE_ALIGNMENT_QUICKBOOKS_WRITE", "CROSS_SYSTEM_DELETE", "REVIEW_REQUEST", "REVIEW_REQUEST_DELAY_HOURS"]) delete process.env[name];
     alignment.resetStageAlignmentCache();
     await query("TRUNCATE guided_estimate,scope_event,scope_estimate,scope_version,scope_project,qbo_connection,qbo_txn,qbo_customer,qbo_write_intent,hubspot_lead_review,lead_hubspot_retry,hubspot_archive_review,integration_health,lead_intake_submission,deal,contact,app_user,alert,lead_alert_incident,task,activity,audit_log,job_run,job_lock,setting RESTART IDENTITY CASCADE");
     await query("INSERT INTO setting (key,value) VALUES ('lead_manager',$1::jsonb)", [JSON.stringify({ featureFlags: { hubspotIntegrationEnabled: true } })]);
@@ -687,6 +687,57 @@ describe("stage alignment between QuickBooks, the lead and HubSpot", { skip: TES
     assert.equal((await lead()).stage, "Closed Won");
     assert.equal(hubStage(), "closedwon");
     assert.deepEqual(await audits("hubspot_deal_job_complete"), []);
+  });
+
+  // ---- The Google review request rides on the same moment (owner, 20 November 2026) ----
+
+  test("a job paid in full queues the customer's Google review request once, when REVIEW_REQUEST is on", async () => {
+    process.env.REVIEW_REQUEST = "on";
+    await query("UPDATE contact SET email='jordan@homeowner.test' WHERE id=1");
+    await estimateFor(1, "90");
+    await invoiceFor("90", "500", { total: 1000, balance: 1000 });
+    assert.deepEqual(await audits("review_request_queued"), [], "invoiced and won is not finished");
+    invoices.get("500")!.Balance = 0;
+    await sync.upsertTxn("Invoice", invoices.get("500") as never);
+    await alignment.stageAlignmentSettled();
+    assert.equal(hubStage(), JOB_COMPLETE);
+    const [queued, ...more] = await audits("review_request_queued");
+    assert.deepEqual(more, []);
+    assert.equal(queued.new_value.delayHours, 24);
+    assert.equal(queued.new_value.brand, "Boise Cabinet Co");
+    assert.deepEqual(queued.new_value.docNumbers, ["1090"]);
+    // The daily sync stores the same invoice and estimate again: nothing more is queued.
+    await sync.upsertTxn("Invoice", invoices.get("500") as never);
+    await store.applyEstimateStatus((await p5Estimate("90")).id, { raw: estimates.get("90") as never, source: "refresh", drift: null });
+    await alignment.stageAlignmentSettled();
+    assert.equal((await audits("review_request_queued")).length, 1);
+    assert.deepEqual(await audits("review_request_sent"), [], "nothing is sent before it is due");
+  });
+
+  test("the review request does not wait on HubSpot: a pipeline with no Job Complete stage still queues it", async () => {
+    process.env.REVIEW_REQUEST = "on";
+    await query("UPDATE contact SET email='jordan@homeowner.test' WHERE id=1");
+    pipeline = [...P5_STAGES];
+    await estimateFor(1, "90");
+    await invoiceFor("90", "500", { total: 1000, balance: 0 });
+    assert.equal(hubStage(), "closedwon");
+    assert.equal((await audits("review_request_queued")).length, 1);
+  });
+
+  test("with REVIEW_REQUEST off (the default) a paid job queues and sends nothing", async () => {
+    await query("UPDATE contact SET email='jordan@homeowner.test' WHERE id=1");
+    await estimateFor(1, "90");
+    await invoiceFor("90", "500", { total: 1000, balance: 0 });
+    assert.equal(hubStage(), JOB_COMPLETE);
+    assert.equal((await query("SELECT 1 FROM audit_log WHERE action LIKE 'review_request%'")).length, 0);
+  });
+
+  test("a part payment asks for no review", async () => {
+    process.env.REVIEW_REQUEST = "on";
+    await query("UPDATE contact SET email='jordan@homeowner.test' WHERE id=1");
+    await estimateFor(1, "90");
+    await invoiceFor("90", "500", { total: 400, balance: 0 });
+    assert.equal((await query("SELECT 1 FROM audit_log WHERE action LIKE 'review_request%'")).length, 0);
   });
 
   test("a pipeline with no Job Complete stage is left alone, and says so once", async () => {

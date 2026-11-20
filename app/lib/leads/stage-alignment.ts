@@ -15,6 +15,8 @@
  *      Closed Won.
  *   C. A lead is closed (in HubSpot or in the P5 admin)  ->  its open
  *      QuickBooks estimate is marked accepted (won) or rejected (lost).
+ *   The paid in full moment of B also queues the customer's Google review
+ *   request (`askForReviewWhenComplete`, off unless `REVIEW_REQUEST=on`).
  *
  * QuickBooks is the accounting record, so the rules are narrow:
  *   - Only estimates that came from the websites are linked to a lead
@@ -277,7 +279,10 @@ export async function alignLeadsWithProject(projectId: number, options: { estima
     if (!changed && status !== "paid") continue;
     const followUp = async () => {
       if (changed) await pushLeadToHubSpot(dealId);
-      if (status === "paid") await completeJobInHubSpot(dealId);
+      if (status === "paid") {
+        await completeJobInHubSpot(dealId);
+        await askForReviewWhenComplete(dealId);
+      }
     };
     if (options.wait) await inBackground(followUp);
     else void inBackground(followUp);
@@ -569,6 +574,28 @@ async function moveToJobComplete(dealId: number): Promise<JobOutcome> {
     return "moved";
   } finally {
     await query("UPDATE deal SET hubspot_sync_lease_until = NULL WHERE id = $1", [dealId]).catch(() => undefined);
+  }
+}
+
+/**
+ * The job is complete: the lead is Closed Won and its work is paid in full
+ * (the same test that moves the HubSpot deal to "Job Complete", but not
+ * waiting on HubSpot, which may be off or have no such stage). Queues the
+ * customer's Google review request (reviewRequestSend.ts), once per lead.
+ * With `REVIEW_REQUEST` off this reads nothing and queues nothing. Never throws.
+ */
+export async function askForReviewWhenComplete(dealId: number): Promise<void> {
+  try {
+    const { reviewRequestEnabled } = await import("./reviewRequest.ts");
+    if (!reviewRequestEnabled()) return;
+    const lead = await leadForJob(dealId);
+    if (!lead || lead.stage !== "Closed Won") return;
+    const job = await leadJobPaid(dealId);
+    if (!job.paid) return;
+    const { scheduleReviewRequest } = await import("./reviewRequestSend.ts");
+    await scheduleReviewRequest(dealId, { docNumbers: job.docNumbers });
+  } catch (error) {
+    console.error("[stage-alignment] the review request was not queued:", (error as Error).message);
   }
 }
 
