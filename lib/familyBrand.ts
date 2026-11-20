@@ -16,6 +16,7 @@ import {
   ADU_REQUEST_PATH,
   IDAHO_DOPL_LICENSE_SEARCH,
   P5_FACEBOOK_URL,
+  P5_INSTAGRAM_URL,
   P5_GOOGLE_BUSINESS_PROFILE_URL,
   PUBLIC_EMAIL,
   PUBLIC_PHONE_DISPLAY,
@@ -143,6 +144,8 @@ export const FAMILY_BRAND: FamilyBrand = {
     rel: 'noopener noreferrer',
   },
   parentFacebook: { href: P5_FACEBOOK_URL, label: 'P5 Home Co on Facebook' },
+  // The one Instagram for every family site (owner, 20 November 2026).
+  parentInstagram: { href: P5_INSTAGRAM_URL, label: 'P5 Home Co on Instagram' },
   // P5 Home Co's one Google Business Profile (owner call A, 1 November), beside its Facebook page.
   parentGoogle: { href: P5_GOOGLE_BUSINESS_PROFILE_URL, label: 'P5 Home Co on Google' },
 };
