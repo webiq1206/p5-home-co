@@ -4,6 +4,7 @@ import Link from "next/link";
 import { siteUrl } from "../site.ts";
 import { childSites, legalPages, ownPages } from "../siteUrls.ts";
 import SiteChrome from "@/components/SiteChrome";
+import { breadcrumbJsonLd } from "../structuredData.ts";
 
 const DESCRIPTION = "Every page on p5homeco.com, and a direct link to each of the five P5 Home Co companies.";
 
@@ -21,6 +22,7 @@ export const metadata: Metadata = withBrandPageMetadata(({
 export default function SitemapPage() {
   return (
     <SiteChrome main>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: breadcrumbJsonLd("Site map", "/sitemap") }} />
       <div className="content-shell sitemap-main">
         <p className="eyebrow">Site map</p>
         <h1 className="sitemap-title">Everything on this site, in one place.</h1>

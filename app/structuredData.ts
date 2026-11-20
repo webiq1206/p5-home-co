@@ -146,3 +146,21 @@ export const homePageSchema = {
 export function serializeJsonLd(value: unknown): string {
   return JSON.stringify(value).replace(/</g, "\\u003c");
 }
+
+/** Home > page, for a page with no visible breadcrumb trail of its own (document pages; audit P5-T3). */
+export function breadcrumbSchema(name: string, path: string) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "@id": `${siteUrl}${path}#breadcrumb`,
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Home", item: siteUrl },
+      { "@type": "ListItem", position: 2, name, item: `${siteUrl}${path}` },
+    ],
+  };
+}
+
+/** The breadcrumb as a JSON-LD script body. */
+export function breadcrumbJsonLd(name: string, path: string): string {
+  return serializeJsonLd(breadcrumbSchema(name, path));
+}

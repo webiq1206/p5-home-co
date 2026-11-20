@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { schemaFor } from "../app/quote/schema.ts";
 import { QUOTE_SERVICES } from "../app/quote/services.ts";
 import { NICK_PERKINS_ID, P5_GBP_MAPS_URL, SCHEMA_LEGAL_NAME, SCHEMA_TELEPHONE } from "../app/publicIdentity.ts";
-import { homePageSchema, serializeJsonLd, siteSchema, siteTitle } from "../app/structuredData.ts";
+import { breadcrumbSchema, homePageSchema, serializeJsonLd, siteSchema, siteTitle } from "../app/structuredData.ts";
 import { ESTIMATOR_BRAND } from "../lib/p5/brand.ts";
 
 function types(value: unknown): string[] {
@@ -157,4 +157,19 @@ test("each subOrganization has its own @id and url", () => {
   const adu = organization.subOrganization.find((node) => node.name === "Boise ADU Co");
   assert.equal(adu?.url, "https://p5homeco.com/quote/adu");
   assert.equal(JSON.stringify(organization).includes("boiseadu.co"), false);
+});
+
+test("document pages carry a Home > page BreadcrumbList (audit P5-T3)", () => {
+  const crumb = breadcrumbSchema("Site map", "/sitemap");
+  assert.equal(crumb["@type"], "BreadcrumbList");
+  assert.deepEqual(crumb.itemListElement.map((item) => item.item), ["https://p5homeco.com", "https://p5homeco.com/sitemap"]);
+  for (const [file, name, path] of [
+    ["app/sitemap/page.tsx", "Site map", "/sitemap"],
+    ["app/legal/privacy/page.tsx", "Privacy policy", "/legal/privacy"],
+    ["app/legal/terms/page.tsx", "Terms of use", "/legal/terms"],
+    ["app/legal/quickbooks-disconnect/page.tsx", "Disconnecting QuickBooks", "/legal/quickbooks-disconnect"],
+  ]) {
+    const source = readFileSync(new URL(`../${file}`, import.meta.url), "utf8");
+    assert.ok(source.includes(`breadcrumbJsonLd("${name}", "${path}")`), file);
+  }
 });
