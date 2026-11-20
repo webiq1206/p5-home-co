@@ -83,11 +83,15 @@ test("the contact page, vCard and llms files use that same citation", () => {
     phone: VISIBLE_PHONE,
     email: SCHEMA_EMAIL,
   });
-  assert.equal(CONTACT_LEAD.includes(PUBLIC_LOCALITY), true);
-  assert.equal(CONTACT_LEAD.includes(VISIBLE_PHONE), true);
+  // The hero paragraph carries neither the address nor the phone (owner copy rule); the NAP card
+  // below and the line under the call button do, from the same constants.
+  assert.equal(CONTACT_LEAD.includes(PUBLIC_LOCALITY), false);
+  assert.equal(CONTACT_LEAD.includes(VISIBLE_PHONE), false);
   assert.equal(CONTACT_LEAD.includes(SCHEMA_EMAIL), true);
 
   const page = readFileSync("app/contact/page.tsx", "utf8");
+  assert.match(page, /<p>\{PUBLIC_ADDRESS\}<\/p>/);
+  assert.match(page, /className="contact-actions-phone">\s*<a href=\{PUBLIC_PHONE_TEL\}>\{PUBLIC_PHONE_DISPLAY\}<\/a>/);
   assert.match(page, /className="contact-nap"/);
   assert.match(page, /className="contact-nap-name">P5 Home Co</);
   assert.match(page, /\{PUBLIC_ADDRESS\}/);

@@ -7,7 +7,7 @@ export function LandingContactBar() {
     <nav className="estimator-contact" aria-label="Call or text">
       <a href={PUBLIC_PHONE_TEL}>Call {PUBLIC_PHONE_DISPLAY}</a>
       <OpenChatButton location="estimate">Chat</OpenChatButton>
-      <a href={PUBLIC_PHONE_SMS}>Text {PUBLIC_PHONE_DISPLAY}</a>
+      <a href={PUBLIC_PHONE_SMS} aria-label={`Text ${PUBLIC_PHONE_DISPLAY}`}>Text<span className="estimator-contact-num"> {PUBLIC_PHONE_DISPLAY}</span></a>
     </nav>
   );
 }

@@ -21,8 +21,9 @@ test("the contact page answers in 40 to 60 words and keeps the title and descrip
   assert.ok(CONTACT_DESCRIPTION.length > 0 && CONTACT_DESCRIPTION.length <= 155, String(CONTACT_DESCRIPTION.length));
   const words = contactLeadWordCount();
   assert.ok(words >= 40 && words <= 60, String(words));
-  assert.ok(CONTACT_LEAD.includes(PUBLIC_ADDRESS));
-  assert.ok(CONTACT_LEAD.includes(PUBLIC_PHONE_DISPLAY));
+  // Owner copy rule: no phone number or address in a hero paragraph. Both stay on the page.
+  assert.equal(CONTACT_LEAD.includes(PUBLIC_ADDRESS), false);
+  assert.equal(CONTACT_LEAD.includes(PUBLIC_PHONE_DISPLAY), false);
   assert.ok(CONTACT_LEAD.includes(PUBLIC_EMAIL));
   assert.equal(CONTACT_LEAD.includes("\u2014") || CONTACT_LEAD.includes("\u2013"), false);
 });

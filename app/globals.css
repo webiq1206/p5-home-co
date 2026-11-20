@@ -417,6 +417,9 @@ a:hover .arrow-diagonal, a:focus-visible .arrow-diagonal { transform: translate(
 .estimator-contact{position:fixed;z-index:130;top:0;left:0;right:0;display:flex;align-items:center;justify-content:flex-end;gap:8px;height:48px;padding:0 12px;background:#fbfaf6;border-bottom:1px solid rgba(32,35,31,.12)}
 .estimator-contact a{display:inline-flex;align-items:center;min-height:36px;padding:0 10px;color:#20231f;font:750 14px var(--font-sans);text-decoration:none}
 .estimator-contact a:focus-visible{outline:3px solid #20231f;outline-offset:2px}
+/* Phones: the number is printed once, on Call, so "Call (208) ..." never wraps onto two lines. Text keeps it in its accessible name. */
+.estimator-contact a{white-space:nowrap}
+@media (max-width:479px){.estimator-contact-num{display:none}}
 
 /* While the conversational estimator owns the screen, the mobile action bar steps aside. */
 
@@ -1060,6 +1063,8 @@ main#main-content:focus { outline: none; }
 
 /* Contact page. Reuses the about hero. The map box is reserved before the iframe loads. */
 .contact-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+.contact-actions-phone { margin: 16px 0 0; font-size: 17px; }
+.contact-actions-phone a { display: inline-flex; align-items: center; min-height: 44px; color: inherit; font-weight: 700; text-decoration: underline; text-underline-offset: 4px; }
 .contact-panel { padding: 8px 0 var(--section-y); }
 .contact-grid { display: grid; gap: 40px; }
 .contact-card {
