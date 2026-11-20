@@ -150,7 +150,13 @@ export const isConstruction = brand => ['construction','boise-construction-co'].
  * project type and address moved to Step 2. Separate from the retained typed estimator. */
 export async function verifyConstructionEntry(page, path) {
   if(path==='/' || path==='/#calculator'){
-    await page.locator('a[href="/estimate"]:visible').first().click();
+    const link=page.locator('a[href="/estimate"]:visible').first();
+    // A tap that lands while React is still hydrating the page can be dropped, which left this
+    // check waiting 30 seconds for a navigation that never started (intermittent in CI, 19 November
+    // 2026). Wait until React has attached to the link itself, then tap it once.
+    await link.waitFor();
+    await page.waitForFunction(el=>Object.keys(el).some(key=>key.startsWith('__reactProps$')),await link.elementHandle());
+    await link.click();
     await page.waitForURL(url=>url.pathname==='/estimate');
   }
   const form=page.getByTestId('consultation-wizard');
