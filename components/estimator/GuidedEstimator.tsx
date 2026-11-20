@@ -87,6 +87,7 @@ function Cards({
   label: string;
   images: Set<string>;
 }) {
+  const layout = options.length <= 3 ? "stack" : options.length === 4 ? "grid" : "rows";
   return (
     <div
       className={styles.cards}
@@ -95,7 +96,7 @@ function Cards({
       data-count={options.length}
       // Up to three options stack as full-width photo tiles, four make a 2 x 2 grid, and five
       // or more become compact rows with a thumbnail, so every screen fits without scrolling.
-      data-layout={options.length <= 3 ? "stack" : options.length === 4 ? "grid" : "rows"}
+      data-layout={layout}
       style={
         {
           "--ge-count": options.length,
@@ -106,6 +107,8 @@ function Cards({
     >
       {options.map((option) => {
         const src = option.image && images.has(option.image) ? `/estimator/img/${option.image}.webp` : null;
+        // The same photograph at 320px (public/estimator/img/320) for the small row thumbnails and phones.
+        const srcSet = src ? `/estimator/img/320/${option.image}.webp 320w, ${src} 640w` : undefined;
         return (
           <button
             key={option.id}
@@ -119,7 +122,7 @@ function Cards({
           >
             {/* Small, fixed-size option photos served as static WebP: the image optimizer adds nothing here. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            {src ? <img className={styles.cardImage} src={src} alt={`${option.label}, home project estimate in Boise, Idaho`} loading="lazy" decoding="async" width={480} height={360} /> : null}
+            {src ? <img className={styles.cardImage} src={src} srcSet={srcSet} sizes={layout === "rows" ? "104px" : layout === "grid" ? "(min-width: 768px) 430px, 50vw" : "(min-width: 768px) 290px, 100vw"} alt={`${option.label}, home project estimate in Boise, Idaho`} loading="lazy" decoding="async" width={480} height={360} /> : null}
             <span className={styles.cardText}>
               <span className={styles.cardLabel}>{option.label}</span>
               {option.hint ? <span className={styles.cardHint}>{option.hint}</span> : null}

@@ -48,6 +48,17 @@ const HERO_IMAGE = {
   unoptimized: true,
 };
 
+/**
+ * The same poster at 1080px for phones and tablets (audit P5-S4): the 1920px
+ * JPEG was the phone LCP. Below 1024px HeroPhoto serves this file instead.
+ */
+const HERO_IMAGE_PHONE = {
+  src: "/videos/p5-home-co-poster-1080.webp",
+  width: 1080,
+  height: 608,
+  unoptimized: true,
+};
+
 type CompanyKey = "construction" | "remodeling" | "cabinetry" | "handyman" | "adu";
 
 /** The quote page that matches each company, so the matcher can end in a request, not only a link out. */
@@ -158,7 +169,7 @@ export default function Home() {
           <HeroPhoto
             fit="viewport"
             image={{ ...HERO_IMAGE, alt: localAlt("Modern home overlooking foothills at sunset", { subject: "custom home building" }), position: "50% 20%" }}
-            phoneImage={{ ...HERO_IMAGE, position: "60% 50%" }}
+            phoneImage={{ ...HERO_IMAGE_PHONE, position: "60% 50%" }}
             eyebrow="The Home Company"
             title="Boise’s"
             titleAccent="home specialists"
@@ -599,6 +610,8 @@ export default function Home() {
             <img
               className="who-hire-photo"
               src="/images/about/perkins-family-meridian-idaho-1x1.webp"
+              srcSet="/images/about/perkins-family-meridian-idaho-1x1-700.webp 700w, /images/about/perkins-family-meridian-idaho-1x1-1400.webp 1400w, /images/about/perkins-family-meridian-idaho-1x1.webp 2048w"
+              sizes="(max-width: 700px) calc(100vw - 40px), 420px"
               alt="Nick Perkins with his wife and five children at a pumpkin patch in Meridian, Idaho"
               width={2048}
               height={2048}
