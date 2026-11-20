@@ -1063,6 +1063,8 @@ main#main-content:focus { outline: none; }
 
 /* Contact page. Reuses the about hero. The map box is reserved before the iframe loads. */
 .contact-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+.contact-actions-phone { margin: 16px 0 0; font-size: 17px; }
+.contact-actions-phone a { display: inline-flex; align-items: center; min-height: 44px; color: inherit; font-weight: 700; text-decoration: underline; text-underline-offset: 4px; }
 .contact-panel { padding: 8px 0 var(--section-y); }
 .contact-grid { display: grid; gap: 40px; }
 .contact-card {

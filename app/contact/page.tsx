@@ -99,6 +99,9 @@ export default function ContactPage() {
                 </FamilyButton>
                 <ContactChat />
               </div>
+              <p className="contact-actions-phone">
+                <a href={PUBLIC_PHONE_TEL}>{PUBLIC_PHONE_DISPLAY}</a>
+              </p>
             </div>
           </section>
 
