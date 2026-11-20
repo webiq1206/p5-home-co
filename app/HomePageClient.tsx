@@ -218,7 +218,7 @@ export default function Home() {
               <div>
                 <p className="eyebrow eyebrow-light">The P5 family</p>
                 <h2>
-                  The right company
+                  The right company{" "}
                   <br />
                   for your project.
                 </h2>
@@ -299,7 +299,7 @@ export default function Home() {
           }
           headline={
             <>
-              From bare lot
+              From bare lot{" "}
               <br />
               to the keys.
             </>
@@ -320,7 +320,7 @@ export default function Home() {
           alt={REMODEL_KITCHEN_LIVING.alt}
           headline={
             <>
-              Reimagine the
+              Reimagine the{" "}
               <br />
               home you love.
             </>
@@ -342,7 +342,7 @@ export default function Home() {
           alt={localAlt("White oak cabinet drawers with slim black bar pulls under a white countertop", { subject: "custom cabinetry" })}
           headline={
             <>
-              Made to fit.
+              Made to fit.{" "}
               <br />
               Built to order.
             </>
@@ -367,7 +367,7 @@ export default function Home() {
           }
           headline={
             <>
-              Your list.
+              Your list.{" "}
               <br />
               Handled right.
             </>
@@ -389,7 +389,7 @@ export default function Home() {
           alt={BACKYARD_ADU.alt}
           headline={
             <>
-              More home.
+              More home.{" "}
               <br />
               Same lot.
             </>
@@ -471,7 +471,7 @@ export default function Home() {
                 <p className="eyebrow">A clear place to start</p>
                 <h2 id="how-p5-heading">{HOW_P5_WORKS_TITLE}</h2>
                 <p>
-                  Start with your project.
+                  Start with your project.{" "}
                   <br />
                   We will help you find the right team.
                 </p>
@@ -626,7 +626,7 @@ export default function Home() {
             <div>
               <p className="eyebrow">Our home is the Treasure Valley</p>
               <h2>
-                Local teams.
+                Local teams.{" "}
                 <br />
                 Valley-wide reach.
               </h2>
@@ -661,7 +661,7 @@ export default function Home() {
             <div>
               <p className="eyebrow">Common questions</p>
               <h2 id="faq-heading">
-                Answers before
+                Answers before{" "}
                 <br />
                 you commit.
               </h2>
