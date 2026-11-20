@@ -16,7 +16,9 @@ import {
 import { SHOW_FOUNDING_YEAR } from "./publicClaims.ts";
 import { citiesServed, companies, faqs, siteUrl } from "./site.ts";
 
-export const siteTitle = "Boise Builders, Remodelers, Cabinets & Repairs | P5 Home Co";
+// Parent-brand title (owner, 20 November 2026): the trade searches belong to
+// the four brand homepages, so this one names P5 and its role.
+export const siteTitle = "P5 Home Co | Five Treasure Valley home companies";
 export const siteDescription =
   "Parent company of Boise Construction Co, Boise Remodeling Co, Boise Cabinet Co and Boise Handyman Co in Idaho's Treasure Valley.";
 

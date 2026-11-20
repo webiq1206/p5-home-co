@@ -80,7 +80,9 @@ test("public schema publishes the locality, rounded geo and the seven service ar
     "https://www.google.com/search?kgmid=/g/11ntl1t7dc",
     P5_GBP_MAPS_URL,
   ]);
-  assert.equal(siteTitle, "Boise Builders, Remodelers, Cabinets & Repairs | P5 Home Co");
+  // Parent-brand title (owner, 20 November 2026; SEO audit P5-S1): no trade head terms.
+  assert.equal(siteTitle, "P5 Home Co | Five Treasure Valley home companies");
+  assert.doesNotMatch(siteTitle, /builder|remodel|cabinet|handyman|repair/i);
   assert.ok(siteTitle.length <= 60);
 
   const addresses = records(siteSchema).filter((record) => record["@type"] === "PostalAddress");

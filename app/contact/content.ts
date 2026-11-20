@@ -14,7 +14,7 @@ import { cityList } from "../serviceArea.ts";
 import { siteUrl } from "../site.ts";
 
 export const CONTACT_PATH = "/contact";
-export const CONTACT_TITLE = "Contact P5 Home Co | Boise and Treasure Valley Contractor";
+export const CONTACT_TITLE = "Contact P5 Home Co | Meridian, Idaho home companies";
 export const CONTACT_DESCRIPTION =
   "Call, text or email P5 Home Co for a free quote on your Treasure Valley home project. Mon to Sat hours, instant estimates online and a written scope first.";
 
