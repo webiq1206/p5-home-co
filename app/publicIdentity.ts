@@ -53,6 +53,16 @@ export const PUBLIC_NAP =
 
 export const PUBLIC_REGISTRATION = "Idaho Registered Contractor #8381215";
 
+/**
+ * The footer's registration line, tied to the legal entity (family audit XS-05:
+ * one line in every family footer). The homepage credential strip keeps the
+ * shorter PUBLIC_REGISTRATION.
+ */
+export const FOOTER_REGISTRATION = `${SCHEMA_LEGAL_NAME}, ${PUBLIC_REGISTRATION}`;
+
+/** Accessible name for the registration link: the visible text first, then the new-tab note (P5-T2). */
+export const REGISTRATION_LINK_LABEL = `${FOOTER_REGISTRATION}, opens in a new tab`;
+
 /** Idaho DOPL public registration search. Footer links use this. Estimator pages do not. */
 export const IDAHO_DOPL_LICENSE_SEARCH = "https://edopl.idaho.gov/OnlineServices/?link=PubSearch";
 

@@ -6,7 +6,8 @@ import {
   PUBLIC_NAP,
   PUBLIC_PHONE_DISPLAY,
   PUBLIC_PHONE_TEL,
-  PUBLIC_REGISTRATION,
+  FOOTER_REGISTRATION,
+  REGISTRATION_LINK_LABEL,
   SISTER_LINE,
   SISTER_LINKS,
 } from "@/app/publicIdentity";
@@ -69,12 +70,12 @@ export default function PublicIdentity({
             target="_blank"
             rel="noopener noreferrer"
             title="Idaho contractor registration"
-            aria-label="Idaho contractor registration 8381215, opens in a new tab"
+            aria-label={REGISTRATION_LINK_LABEL}
           >
-            {PUBLIC_REGISTRATION}
+            {FOOTER_REGISTRATION}
           </a>
         ) : (
-          PUBLIC_REGISTRATION
+          FOOTER_REGISTRATION
         )}
       </p>
       <p className="sister-sites">{withLinks(SISTER_LINE, SISTER_LINKS)}</p>

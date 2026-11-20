@@ -21,7 +21,8 @@ import {
   PUBLIC_PHONE_DISPLAY,
   PUBLIC_PHONE_SMS,
   PUBLIC_PHONE_TEL,
-  PUBLIC_REGISTRATION,
+  FOOTER_REGISTRATION,
+  REGISTRATION_LINK_LABEL,
 } from '@/app/publicIdentity';
 
 /** The P5 lockup artwork is 251.24 x 50; the header and footer cap its height. */
@@ -135,10 +136,10 @@ export const FAMILY_BRAND: FamilyBrand = {
   nap: { line: 'Serving Boise and the Treasure Valley' },
   hours: BUSINESS_HOURS_LABEL,
   registration: {
-    text: PUBLIC_REGISTRATION,
+    text: FOOTER_REGISTRATION,
     href: IDAHO_DOPL_LICENSE_SEARCH,
     title: 'Idaho contractor registration',
-    ariaLabel: 'Idaho contractor registration 8381215, opens in a new tab',
+    ariaLabel: REGISTRATION_LINK_LABEL,
     rel: 'noopener noreferrer',
   },
   parentFacebook: { href: P5_FACEBOOK_URL, label: 'P5 Home Co on Facebook' },

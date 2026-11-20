@@ -14,6 +14,8 @@ import {
   LLMS_CONTACT,
   PUBLIC_NAP,
   PUBLIC_REGISTRATION,
+  FOOTER_REGISTRATION,
+  REGISTRATION_LINK_LABEL,
   SISTER_LINE,
 } from "../app/publicIdentity.ts";
 import { TRUSTED_H1 } from "../app/publicClaims.ts";
@@ -48,6 +50,10 @@ test("public contact copy keeps useful details without street or administrative 
   );
   assert.equal(PUBLIC_REGISTRATION, "Idaho Registered Contractor #8381215");
   assert.equal(PUBLIC_REGISTRATION.includes("("), false);
+  // One footer line across the family (audit XS-05), and a link name that starts with the visible text (P5-T2).
+  assert.equal(FOOTER_REGISTRATION, "P5 Home Co LLC, Idaho Registered Contractor #8381215");
+  assert.equal(REGISTRATION_LINK_LABEL, "P5 Home Co LLC, Idaho Registered Contractor #8381215, opens in a new tab");
+  assert.ok(REGISTRATION_LINK_LABEL.startsWith(FOOTER_REGISTRATION));
   assert.equal(IDAHO_DOPL_LICENSE_SEARCH, "https://edopl.idaho.gov/OnlineServices/?link=PubSearch");
   assert.match(LLMS_CONTACT, /Serving Boise and the Treasure Valley/);
   assert.doesNotMatch(PUBLIC_NAP + LLMS_CONTACT, new RegExp(`${["Wa", "poot"].join("")}|public representative|staffed storefront`, "i"));
@@ -99,13 +105,13 @@ test("the registration number renders in both modes and estimator pages omit the
   const linked = renderToStaticMarkup(React.createElement(PublicIdentity, {}));
   const plain = renderToStaticMarkup(React.createElement(PublicIdentity, { linkRegistration: false }));
   const registration = linked.slice(linked.indexOf('class="public-registration"'));
-  assert.match(registration, new RegExp(`>${PUBLIC_REGISTRATION}</a>`));
+  assert.match(registration, new RegExp(`>${FOOTER_REGISTRATION}</a>`));
   assert.equal(linked.includes(`href="${IDAHO_DOPL_LICENSE_SEARCH}" target="_blank" rel="noopener noreferrer"`), true);
   assert.match(linked, /title="Idaho contractor registration"/);
-  assert.match(linked, /aria-label="Idaho contractor registration 8381215, opens in a new tab"/);
+  assert.ok(linked.includes(`aria-label="${REGISTRATION_LINK_LABEL}"`));
   assert.doesNotMatch(linked, new RegExp(`look it up|look up registration|public representative|staffed storefront|${["Wa", "poot"].join("")}`, "i"));
   assert.equal(plain.includes(IDAHO_DOPL_LICENSE_SEARCH), false);
-  assert.match(plain, new RegExp(`class="public-registration">${PUBLIC_REGISTRATION}</p>`));
+  assert.match(plain, new RegExp(`class="public-registration">${FOOTER_REGISTRATION}</p>`));
 
   const falseFiles = [
     "app/estimate/scope/page.tsx",
@@ -171,10 +177,10 @@ test("the family footer prints the approved NAP, hours, registration and family 
     assert.ok(text.includes(part), part);
   }
   assert.ok(text.includes(BUSINESS_HOURS_LABEL));
-  assert.match(html, new RegExp(`>${PUBLIC_REGISTRATION}</a>`));
+  assert.match(html, new RegExp(`>${FOOTER_REGISTRATION}</a>`));
   assert.ok(html.includes(`href="${IDAHO_DOPL_LICENSE_SEARCH}" target="_blank" rel="noopener noreferrer"`));
   assert.match(html, /title="Idaho contractor registration"/);
-  assert.match(html, /aria-label="Idaho contractor registration 8381215, opens in a new tab"/);
+  assert.ok(html.includes(`aria-label="${REGISTRATION_LINK_LABEL}"`));
   assert.doesNotMatch(html, new RegExp(`look it up|look up registration|public representative|staffed storefront|${["Wa", "poot"].join("")}`, "i"));
   // SISTER_LINE: every sibling linked with rel="noopener" (no noreferrer), and the ADU line.
   for (const site of ["boiseconstruction.co", "boiseremodeling.co", "boisecabinet.co", "boisehandyman.co"]) {
@@ -195,9 +201,9 @@ test("the registration line is linked in the footer and plain text on funnel pag
   assert.match(identity, /target="_blank"/);
   assert.match(identity, /rel="noopener noreferrer"/);
   assert.match(identity, /title="Idaho contractor registration"/);
-  assert.match(identity, /aria-label="Idaho contractor registration 8381215, opens in a new tab"/);
+  assert.match(identity, /aria-label=\{REGISTRATION_LINK_LABEL\}/);
   assert.equal(identity.includes("process.env"), false);
-  assert.match(identity, /\{PUBLIC_REGISTRATION\}/);
+  assert.match(identity, /\{FOOTER_REGISTRATION\}/);
   assert.equal(identity.includes("Idaho contractor registration"), true);
   const plain = [
     "app/estimate/p5-preview/page.tsx",
@@ -209,7 +215,8 @@ test("the registration line is linked in the footer and plain text on funnel pag
   assert.match(readFileSync("app/estimate/page.tsx", "utf8"), /redirect\("\/quote"\)/);
   // The family footer links the registration through the brand config (rendered in the footer test above).
   const brand = readFileSync("lib/familyBrand.ts", "utf8");
-  assert.match(brand, /text: PUBLIC_REGISTRATION/);
+  assert.match(brand, /text: FOOTER_REGISTRATION/);
+  assert.match(brand, /ariaLabel: REGISTRATION_LINK_LABEL/);
   assert.match(brand, /href: IDAHO_DOPL_LICENSE_SEARCH/);
   for (const file of ["components/SiteChrome.tsx", "app/sitemap/page.tsx", "app/quote/QuoteLanding.tsx", "app/quote/thanks/page.tsx"]) {
     const source = readFileSync(file, "utf8");
