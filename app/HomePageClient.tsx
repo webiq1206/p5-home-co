@@ -5,6 +5,7 @@
 import { localAlt } from "./localAlt";
 import Link from "next/link";
 import Reveal from "@/components/Reveal";
+import { GOOGLE_REVIEWS, GOOGLE_REVIEWS_URL } from "./reviews";
 import { useEffect, useRef, useState } from "react";
 import {
   SHOW_UNPROVEN_SELF_PERFORM,
@@ -218,6 +219,33 @@ export default function Home() {
               <strong>Ada and Canyon</strong>
               <span>Treasure Valley service area</span>
             </div>
+          </div>
+        </section>
+
+        {/* Google reviews (owner, 20 November 2026): both reviews on the P5 Home Co
+            profile, verbatim, beside the first call to action. No rating markup. */}
+        <section className="google-reviews section-pad" aria-labelledby="google-reviews-heading">
+          <div className="content-shell">
+            <div className="google-reviews-intro">
+              <p className="eyebrow">Google reviews</p>
+              <h2 id="google-reviews-heading">What homeowners say</h2>
+            </div>
+            <ul className="google-reviews-list">
+              {GOOGLE_REVIEWS.map((review) => (
+                <li key={review.name} className="google-review">
+                  <blockquote>
+                    <p>{review.text}</p>
+                  </blockquote>
+                  <p className="google-review-by">
+                    <strong>{review.name}</strong>
+                    <span>Google review</span>
+                  </p>
+                </li>
+              ))}
+            </ul>
+            <a className="text-link google-reviews-link" href={GOOGLE_REVIEWS_URL} target="_blank" rel="noopener">
+              See our Google reviews
+            </a>
           </div>
         </section>
 

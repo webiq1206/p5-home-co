@@ -1181,3 +1181,22 @@ main#main-content:focus { outline: none; }
   .about-company-list { gap: 4px; }
   .contact-link-grid ul { gap: 0; }
 }
+/* Google reviews on the homepage (owner, 20 November 2026). Cards in the trust
+   strip's bone and line; the text is charcoal, never an accent. */
+.google-reviews { border-bottom: 1px solid var(--line); background: var(--paper); font-size: var(--fs-body); line-height: var(--lh-body); }
+.google-reviews-intro h2 { margin: 0 0 28px; font-family: var(--font-display); font-size: clamp(32px, 4vw, 48px); font-weight: 400; letter-spacing: -0.03em; line-height: 1.1; }
+.google-reviews-list { display: grid; grid-template-columns: 1fr; gap: 16px; margin: 0 0 28px; padding: 0; list-style: none; }
+.google-review { display: flex; flex-direction: column; justify-content: space-between; gap: 20px; padding: 28px 25px; border: 1px solid var(--line); border-radius: 4px; background: var(--bone); color: var(--charcoal, #383837); }
+.google-review blockquote { margin: 0; }
+.google-review blockquote p { margin: 0; font-size: var(--fs-body); line-height: var(--lh-body); }
+.google-review-by { margin: 0; }
+.google-review-by strong, .google-review-by span { display: block; }
+.google-review-by strong { font-weight: 700; }
+.google-review-by span { margin-top: 4px; color: #5f665f; font-size: var(--fs-small); line-height: var(--lh-small); }
+.google-reviews .text-link { font-size: var(--fs-button); line-height: 1; letter-spacing: 0; color: var(--charcoal, #383837); }
+@media (min-width: 800px) {
+  .google-reviews-list { grid-template-columns: 1fr 1fr; gap: 24px; }
+}
+@media (max-width: 1023px) {
+  .google-reviews .text-link { min-height: var(--touch-min, 44px); }
+}
