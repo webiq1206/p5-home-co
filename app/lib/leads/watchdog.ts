@@ -327,6 +327,14 @@ export async function runWatchdog(now: Date = new Date()): Promise<WatchdogSumma
     } catch (error) {
       console.error("[watchdog] site estimate retry failed", error instanceof Error ? error.message : error);
     }
+    // Google review requests that are due (a job recorded complete a day ago,
+    // REVIEW_REQUEST_DELAY_HOURS). Off unless REVIEW_REQUEST=on. Never stops the watchdog.
+    try {
+      const { settleReviewRequests } = await import("./reviewRequestSend.ts");
+      await settleReviewRequests({ now });
+    } catch (error) {
+      console.error("[watchdog] review request pass failed", error instanceof Error ? error.message : error);
+    }
 
     // Tell people. Last, because raising the alert correctly matters more
     // than delivering it quickly, and a mail outage must not stop the rules
