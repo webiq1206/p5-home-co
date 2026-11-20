@@ -42,7 +42,7 @@ test("the estimator confirmation uses the approved copy and a primary schedule b
     brandName: "P5 Home Co",
     project: "Kitchen remodel",
     viewUrl: "https://p5homeco.com/estimator/e/token",
-    accent: "#ceb391",
+    accent: "#a58c72",
   });
   assert.equal(message.subject, "Your kitchen remodel estimate from P5 Home Co");
   assert.match(message.text, /^Hey Jared,/);
@@ -66,7 +66,7 @@ test("the estimator confirmation uses the approved copy and a primary schedule b
   assert.match(message.html, /v:roundrect/);
   assert.match(message.html, /width="100%"/);
   assert.ok(message.html.indexOf(">Schedule now<") < message.html.indexOf(">View your estimate<"));
-  assert.match(message.html, /#ceb391/);
+  assert.match(message.html, /#a58c72/);
 });
 
 test("a short request names the 1 hour walkthrough, and a callback names the 15 minute consult", () => {

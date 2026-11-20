@@ -35,7 +35,7 @@ These values come from `app/globals.css`, `styles/family-tokens.css` and `lib/fa
 | Muted text / ink-2 | `#343934` |
 | Border | `rgba(32, 35, 31, 0.15)` |
 | Primary page accent / bronze | `#a58c72` |
-| Brand accent / tan | `#ceb391`; existing parent control details |
+| Brand accent / tan | `#a58c72` (approved brand system, owner 20 November 2026; was `#ceb391`); control details such as the button accent bar |
 | Heading accent | `#a58c72`; exact approved logo/icon bronze, through `--color-heading-accent` |
 | Accent ink / secondary accent | `#705a45`; readable bronze ink |
 | Standard header/menu/footer chrome | `#383837`, selected by the later explicit charcoal PR instruction |
@@ -43,7 +43,7 @@ These values come from `app/globals.css`, `styles/family-tokens.css` and `lib/fa
 | On-dark foreground | `#fbfaf6`; muted `rgba(251, 250, 246, 0.8)`; border `rgba(251, 250, 246, 0.18)` |
 | Success / warning / error | `#2f5d45` / `#8a6a2f` / `#8a3b2f` from P5 globals |
 
-`--terracotta` is a legacy P5 variable name whose value is tan `#ceb391`; it does not authorize a terracotta parent palette. Child accent colors identify their own company panels only: Construction `#c48d3f`, Remodeling `#7d9479`, Cabinet `#659b9a`, Handyman `#c56b4a`, ADU `#c97c99`. Do not substitute a child accent for the parent CTA or general P5 identity. Final contrast and all open/focus/menu states require rendered checks.
+`--terracotta` is a legacy P5 variable name whose value is warm tan `#a58c72` (owner, 20 November 2026; it was `#ceb391`); it does not authorize a terracotta parent palette. Child accent colors identify their own company panels only: Construction `#c48d3f`, Remodeling `#7d9479`, Cabinet `#659b9a`, Handyman `#c56b4a`, ADU `#c97c99`. Do not substitute a child accent for the parent CTA or general P5 identity. Final contrast and all open/focus/menu states require rendered checks.
 
 ## Typography, spacing and layout
 

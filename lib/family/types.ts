@@ -105,7 +105,9 @@ export interface FamilyBrand {
   registration: { text: string; href: string; title: string; ariaLabel: string; rel: string };
   /** Parent company Facebook page; an empty href renders nothing. */
   parentFacebook: { href: string; label: string };
-  /** Parent company Google Business Profile, listed right after the Facebook page; absent or an empty href renders nothing. */
+  /** Parent company Instagram, listed right after the Facebook page; absent or an empty href renders nothing. */
+  parentInstagram?: { href: string; label: string };
+  /** Parent company Google Business Profile, listed after the social pages; absent or an empty href renders nothing. */
   parentGoogle?: { href: string; label: string };
 }
 

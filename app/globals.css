@@ -10,7 +10,7 @@
   /* Heading emphasis matches the approved P5 logo and icon fill. */
   --color-heading-accent: var(--bronze);
   --bronze-ink: #705a45;
-  --terracotta: #ceb391;
+  --terracotta: #a58c72;
   --charcoal: #383837;
   --charcoal-rgb: 56, 56, 55;
   /* Hover stays a charcoal step, above the 10% lightness floor. */
@@ -1032,7 +1032,7 @@ main#main-content:focus { outline: none; }
 .estimate-band-tile-all a::after { content: none; }
 .estimate-band-points { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 40px; margin: 64px 0 0; padding: 0; list-style: none; border-top: 1px solid rgba(255,255,255,.2); }
 .estimate-band-points li { position: relative; padding: 26px 0 0; color: #fff; font-size: var(--fs-body); line-height: var(--lh-body); letter-spacing: 0; }
-.estimate-band-points li::before { content: ""; position: absolute; left: 0; top: -1px; width: 44px; height: 2px; background: var(--tan, #ceb391); }
+.estimate-band-points li::before { content: ""; position: absolute; left: 0; top: -1px; width: 44px; height: 2px; background: var(--tan, #a58c72); }
 .estimate-band-talk { max-width: 78ch; margin: 34px 0 0; color: rgba(255,255,255,.78); font-size: var(--fs-small); line-height: var(--lh-small); letter-spacing: 0; }
 .estimate-band-talk a { color: #fff; text-decoration: underline; text-underline-offset: 3px; }
 @media (hover: hover) {
