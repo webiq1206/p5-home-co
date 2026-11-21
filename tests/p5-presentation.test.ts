@@ -236,21 +236,28 @@ test('One house described four ways is not four buildings',()=>{
 
 test('Every customer document says which company stands behind the brand',async()=>{
  const {legalIdentityLine,documentFooterLine,tradesAsDba}=await import('../lib/p5/brandIdentity.ts');
+ const {ESTIMATOR_BRAND}=await import('../lib/p5/brand.ts');
  const {estimateEmail}=await import('../lib/p5/estimateEmail.ts');
  const {customerPdf}=await import('../lib/p5/pdf.ts');
  const {pdfTextLayers}=await import('../lib/p5/pdfText.ts');
- // Customer documents name the company with no legal suffix.
- assert.equal(legalIdentityLine(),'P5 Home Co is operated by P5 Home Co.');
- assert.equal(tradesAsDba(),false);
- assert.equal(documentFooterLine(new Date('2026-09-20T00:00:00Z')),'© 2026 P5 Home Co. P5 Home Co is operated by P5 Home Co.');
+ // The same file is copied to every brand. A child trades under its own name
+ // (legalName is null, so tradesAsDba() is true). The parent does not.
+ const line=tradesAsDba()
+  ? `${ESTIMATOR_BRAND.name} is a DBA of P5 Home Co.`
+  : `${ESTIMATOR_BRAND.name} is operated by P5 Home Co.`;
+ assert.doesNotMatch(line,/LLC/);
+ assert.equal(legalIdentityLine(),line);
+ assert.doesNotMatch(legalIdentityLine(),/LLC/);
+ assert.equal(documentFooterLine(new Date('2026-09-20T00:00:00Z')),`© 2026 P5 Home Co. ${line}`);
  const result={summary:'Repair work.',includedCategories:['Electrical'],range:{low:500,high:700},
   categoryRanges:[{category:'Electrical',low:500,high:700}],
   lineItems:[{id:'a',category:'Electrical',description:'Replace one receptacle',quantity:1,unit:'EA',low:500,high:700,unitLow:500,unitHigh:700}],
   assumptions:[],exclusions:[],allowances:[],factors:[],message:'m',nextStep:'n',disclaimer:'d'};
  const mail=estimateEmail('dba-check',{customer:result,contact:{name:'A B'}},false);
  const pdf=(await pdfTextLayers(await customerPdf('dba-check',result))).join('\n');
+ const pattern=new RegExp(line.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'));
  for(const output of [mail.html,mail.text,pdf]){
-  assert.match(output,/P5 Home Co is operated by P5 Home Co\./,'the company is named on what the customer keeps');
+  assert.match(output,pattern,'the company is named on what the customer keeps');
   assert.doesNotMatch(output,/LLC/,'a customer document does not carry the legal suffix');
  }
 });
