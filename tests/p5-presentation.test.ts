@@ -239,17 +239,17 @@ test('Every customer document says which company stands behind the brand',async(
  const {estimateEmail}=await import('../lib/p5/estimateEmail.ts');
  const {customerPdf}=await import('../lib/p5/pdf.ts');
  const {pdfTextLayers}=await import('../lib/p5/pdfText.ts');
- // Four of the five sites trade under their own name; all of them are P5 Home Co LLC.
- assert.match(legalIdentityLine(),/P5 Home Co LLC/);
- if(tradesAsDba())assert.match(legalIdentityLine(),/is a DBA of P5 Home Co LLC\./);
- assert.match(documentFooterLine(new Date('2026-09-20T00:00:00Z')),/^© 2026 P5 Home Co LLC\./);
+ // Four of the five sites trade under their own name; all of them are P5 Home Co, LLC.
+ assert.match(legalIdentityLine(),/P5 Home Co, LLC/);
+ if(tradesAsDba())assert.match(legalIdentityLine(),/is a DBA of P5 Home Co, LLC\./);
+ assert.match(documentFooterLine(new Date('2026-09-20T00:00:00Z')),/^© 2026 P5 Home Co, LLC\./);
  const result={summary:'Repair work.',includedCategories:['Electrical'],range:{low:500,high:700},
   categoryRanges:[{category:'Electrical',low:500,high:700}],
   lineItems:[{id:'a',category:'Electrical',description:'Replace one receptacle',quantity:1,unit:'EA',low:500,high:700,unitLow:500,unitHigh:700}],
   assumptions:[],exclusions:[],allowances:[],factors:[],message:'m',nextStep:'n',disclaimer:'d'};
  const mail=estimateEmail('dba-check',{customer:result,contact:{name:'A B'}},false);
  const pdf=(await pdfTextLayers(await customerPdf('dba-check',result))).join('\n');
- for(const output of [mail.html,mail.text,pdf])assert.match(output,/P5 Home Co LLC/,'the company is named on what the customer keeps');
+ for(const output of [mail.html,mail.text,pdf])assert.match(output,/P5 Home Co, LLC/,'the company is named on what the customer keeps');
 });
 // Owner report 2026-09-22, from a live Handyman estimate: allowance rows read
 // "FLOOR ROOF / Clean the bottom of the chimney.: General laborer." - the location was glued to the

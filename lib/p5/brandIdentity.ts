@@ -5,7 +5,7 @@ import {ESTIMATOR_BRAND} from './brand.ts';
  *
  * Four of the five sites trade under their own name but are the same company:
  * Boise Remodeling Co, Boise Construction Co, Boise Handyman Co and Boise
- * Cabinet Co are DBAs of P5 Home Co LLC. Anything a customer keeps - an
+ * Cabinet Co are DBAs of P5 Home Co, LLC. Anything a customer keeps - an
  * estimate email, the PDF they forward to a spouse or an agent - has to say so
  * plainly, once, where they will see it rather than buried in small print.
  *
