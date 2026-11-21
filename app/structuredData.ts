@@ -32,7 +32,6 @@ export const siteSchema = {
       "@id": `${siteUrl}/#organization`,
       name: "P5 Home Co",
       legalName: SCHEMA_LEGAL_NAME,
-      alternateName: "P5 Home Company",
       url: siteUrl,
       description: siteDescription,
       slogan: "One home. Five specialized teams.",
