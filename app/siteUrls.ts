@@ -59,7 +59,9 @@ export const ownPages: SiteUrlEntry[] = [
 export const legalPages: SiteUrlEntry[] = [
   { href: "/legal/terms", label: "Terms of service", changeFrequency: "yearly", priority: 0.2 },
   { href: "/legal/privacy", label: "Privacy policy", changeFrequency: "yearly", priority: 0.2 },
-  { href: "/legal/quickbooks-disconnect", label: "QuickBooks disconnect", changeFrequency: "yearly", priority: 0.1 },
+  // Reachable from the HTML sitemap and from the terms page. Left out of
+  // sitemap.xml on purpose: no changeFrequency, so getIndexableEntries skips it.
+  { href: "/legal/quickbooks-disconnect", label: "QuickBooks disconnect" },
 ];
 
 export const childSites: SiteUrlEntry[] = companies.map((c) => ({

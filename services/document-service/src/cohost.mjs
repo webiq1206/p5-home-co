@@ -5,6 +5,7 @@ import {setPriority} from 'node:os';
 import {fileURLToPath} from 'node:url';
 import path from 'node:path';
 import {readConfig} from './core.mjs';
+import {scheduleIndexNowPostDeploy} from '../../../tools/indexnow-deploy.mjs';
 export const PREFIX='/api/p5-documents';
 const root=fileURLToPath(new URL('../../../',import.meta.url));
 const integer=(env,key,fallback,min,max)=>{const n=Number(env[key]||fallback);if(!Number.isInteger(n)||n<min||n>max)throw Error('invalid-'+key);return n;};
@@ -106,4 +107,10 @@ export async function runHost(env=process.env,{spawnProcess=spawn,readRss=worker
  log({event:'p5-host-start',documentsEnabled:config.enabled,port:config.port});
  return {config,web,gateway,close:async()=>{process.removeListener('SIGTERM',stop);process.removeListener('SIGINT',stop);await close();}};
 }
-if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url))runHost().catch(()=>{console.error(JSON.stringify({event:'p5-host',code:'startup-failed'}));process.exitCode=1;});
+if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){
+ runHost().then((host)=>{
+  const port=host.config.enabled?host.config.webPort:host.config.port;
+  // After this process is the one serving the new build. CI never sets the flag.
+  void scheduleIndexNowPostDeploy({port,env:process.env,root}).catch(()=>{console.error('[IndexNow] post-deploy hook failed');});
+ }).catch(()=>{console.error(JSON.stringify({event:'p5-host',code:'startup-failed'}));process.exitCode=1;});
+}

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 import { citiesServed, faqs } from "../app/site.ts";
@@ -44,6 +44,39 @@ test("the service-area FAQ answer names every city", () => {
   for (const city of citiesServed) {
     assert.ok(answer.includes(city), `the FAQ answer omits ${city}`);
   }
+});
+
+test("a we-serve sentence that names several cities names all nine", () => {
+  const skip = new Set(["admin", "portal", "api", "lib", "node_modules"]);
+  const files: string[] = [];
+  const walk = (dir: string) => {
+    for (const name of readdirSync(dir)) {
+      if (skip.has(name) || name.startsWith(".")) continue;
+      const path = join(dir, name);
+      const info = statSync(path);
+      if (info.isDirectory()) walk(path);
+      else if (/\.(ts|tsx|txt)$/.test(name)) files.push(path);
+    }
+  };
+  for (const name of ["app", "components", "public"]) walk(join(root, name));
+  const problems: string[] = [];
+  for (const file of files) {
+    const flat = readFileSync(file, "utf8").replace(/\s+/g, " ");
+    for (const sentence of flat.split(/[.?!]/)) {
+      if (!/\b(serve|serves|serving|service area)\b/i.test(sentence)) continue;
+      const named = citiesServed.filter((city) => new RegExp(`\\b${city}\\b`).test(sentence));
+      if (named.length >= 4 && named.length < citiesServed.length) {
+        problems.push(`${file}: ${named.join(", ")}`);
+      }
+    }
+  }
+  assert.deepEqual(problems, []);
+});
+
+test("the HubSpot service-area options include every published city", () => {
+  const source = readFileSync(join(root, "tools", "hubspot-setup.ts"), "utf8");
+  const block = source.slice(source.indexOf("const SERVICE_AREAS"), source.indexOf("const PROPERTIES"));
+  for (const city of citiesServed) assert.ok(block.includes(`"${city}"`), city);
 });
 
 test("the quote form offers every city the site serves", () => {

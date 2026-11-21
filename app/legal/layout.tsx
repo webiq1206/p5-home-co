@@ -23,7 +23,7 @@ export default function LegalLayout({ children }: { children: ReactNode }) {
         </Link>
         {children}
         <div className="legal-contact">
-          <p><strong>P5 Home Co. LLC</strong></p>
+          <p><strong>P5 Home Co LLC</strong></p>
           <p>
             <a href="mailto:accounting@p5homeco.com">accounting@p5homeco.com</a>
           </p>

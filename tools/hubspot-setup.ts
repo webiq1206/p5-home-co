@@ -90,10 +90,10 @@ const PROJECT_TYPES = opts(
   "Whole-home cabinetry",
 );
 
-// The eight cities the approved website claims. The Google Business Profile
-// appears to list nine; this stays at eight until the owner reconciles them.
+// The nine cities the site publishes (owner, 20 November 2026). Garden City
+// is included with the rest. Options are only added, never removed.
 const SERVICE_AREAS = opts(
-  "Boise", "Meridian", "Eagle", "Nampa", "Kuna", "Star", "Middleton", "Caldwell",
+  "Boise", "Meridian", "Eagle", "Nampa", "Kuna", "Star", "Middleton", "Caldwell", "Garden City",
 );
 
 const PROPERTIES: PropDef[] = [

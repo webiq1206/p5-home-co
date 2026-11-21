@@ -30,6 +30,10 @@ export const P5_GOOGLE_BUSINESS_PROFILE_URL = "https://www.google.com/search?kgm
  * for this listing, not a pin on the street. */
 export const P5_GBP_MAPS_URL = "https://maps.google.com/?cid=11869148461693849141";
 export const P5_GBP_PLACE_ID = "ChIJzxMoavs6P6IRNc6i9aOvt6Q";
+
+/** BBB profile for the parent company in Meridian. A link only: no rating, grade or accreditation. */
+export const P5_BBB_URL =
+  "https://www.bbb.org/us/id/meridian/profile/general-contractor/p5-home-co-llc-1296-1000203624";
 export const P5_GBP_MAP_EMBED_URL =
   "https://www.google.com/maps/embed?origin=mfe&pb=!1m2!2m1!1splace_id:ChIJzxMoavs6P6IRNc6i9aOvt6Q";
 

@@ -118,8 +118,18 @@ test("the contact page, vCard and llms files use that same citation", () => {
 });
 
 test("legal, terms and contractor registration lines keep the legal name", () => {
+  for (const file of [
+    "app/legal/layout.tsx",
+    "app/legal/privacy/page.tsx",
+    "app/legal/terms/page.tsx",
+    "app/legal/quickbooks-disconnect/page.tsx",
+  ]) {
+    const text = readFileSync(file, "utf8");
+    assert.equal(text.includes("P5 Home Co. LLC"), false, file);
+    assert.equal(text.includes("P5 Home Co, LLC"), false, file);
+  }
   for (const file of ["app/legal/layout.tsx", "app/legal/privacy/page.tsx", "app/legal/terms/page.tsx"]) {
-    assert.equal(readFileSync(file, "utf8").includes("P5 Home Co. LLC"), true, file);
+    assert.equal(readFileSync(file, "utf8").includes("P5 Home Co LLC"), true, file);
   }
   const about = readFileSync("app/about/AboutClient.tsx", "utf8");
   assert.equal(about.includes("P5 Home Co LLC · Idaho Registered Contractor"), true);

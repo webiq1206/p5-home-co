@@ -69,6 +69,15 @@ test("llms-full.txt is the fact sheet plus the homepage FAQ and nothing invented
   assert.equal(full.includes("since 2020"), false);
   assert.equal(full.includes("does the work itself"), false);
   assert.match(full, /Boise, Meridian, Eagle, Garden City, Nampa, Kuna, Star, Middleton and Caldwell/);
+  const nap = "P5 Home Co, Meridian, ID 83646 (service-area business, no public street). Phone (208) 477-1169. Web https://p5homeco.com.";
+  const profiles = "Profiles: Facebook https://www.facebook.com/p5homeco. Instagram https://www.instagram.com/p5_home_co. Google https://www.google.com/search?kgmid=/g/11ntl1t7dc. Maps https://maps.google.com/?cid=11869148461693849141. BBB https://www.bbb.org/us/id/meridian/profile/general-contractor/p5-home-co-llc-1296-1000203624";
+  assert.ok(flat(llms).includes(nap), "llms.txt NAP");
+  assert.ok(flat(full).includes(nap), "llms-full.txt NAP");
+  assert.ok(flat(llms).includes(profiles), "llms.txt profiles");
+  assert.ok(flat(full).includes(profiles), "llms-full.txt profiles");
+  assert.match(llms, /Last updated: 2026-11-21\./);
+  assert.match(full, /Last updated: 2026-11-21\./);
+  assert.doesNotMatch(`${llms}\n${full}`, /BBB[^.\n]*(rating|grade|accredit)/i);
   for (const item of faqs) {
     assert.ok(full.includes(item.q), item.q);
     assert.ok(full.includes(item.a), item.q);
@@ -77,7 +86,16 @@ test("llms-full.txt is the fact sheet plus the homepage FAQ and nothing invented
   assert.ok(questions.includes("Which company does what?"));
   assert.ok(questions.includes("How do I start an ADU project?"));
   assert.ok(questions.includes("Who is my contract with?"));
-  assert.equal(full.toLowerCase().includes("facebook.com"), false);
+  assert.equal(full.toLowerCase().includes("facebook.com/p5homeco"), true);
+});
+
+test("sitemap.xml leaves out QuickBooks disconnect and the page stays public", () => {
+  const urls = sitemap().map((entry) => entry.url);
+  assert.equal(urls.some((url) => url.endsWith("/legal/quickbooks-disconnect")), false);
+  assert.match(readFileSync("app/siteUrls.ts", "utf8"), /href: "\/legal\/quickbooks-disconnect"/);
+  const page = readFileSync("app/legal/quickbooks-disconnect/page.tsx", "utf8");
+  assert.equal(page.includes("index: false"), false);
+  assert.equal(page.includes("notFound("), false);
 });
 
 test("/quote has a server-rendered H1 and /estimate redirects to the short request form", () => {

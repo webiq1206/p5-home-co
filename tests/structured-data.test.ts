@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 
 import { schemaFor } from "../app/quote/schema.ts";
 import { QUOTE_SERVICES } from "../app/quote/services.ts";
-import { NICK_PERKINS_ID, P5_GBP_MAPS_URL, SCHEMA_LEGAL_NAME, SCHEMA_TELEPHONE } from "../app/publicIdentity.ts";
+import { NICK_PERKINS_ID, SCHEMA_LEGAL_NAME, SCHEMA_TELEPHONE } from "../app/publicIdentity.ts";
 import { breadcrumbSchema, homePageSchema, serializeJsonLd, siteSchema, siteTitle } from "../app/structuredData.ts";
 import { ESTIMATOR_BRAND } from "../lib/p5/brand.ts";
 
@@ -79,8 +79,12 @@ test("public schema publishes the locality, rounded geo and the seven service ar
     "https://www.facebook.com/p5homeco",
     "https://www.instagram.com/p5_home_co",
     "https://www.google.com/search?kgmid=/g/11ntl1t7dc",
-    P5_GBP_MAPS_URL,
+    "https://maps.google.com/?cid=11869148461693849141",
+    "https://www.bbb.org/us/id/meridian/profile/general-contractor/p5-home-co-llc-1296-1000203624",
   ]);
+  assert.equal(JSON.stringify(organization).includes("aggregateRating"), false);
+  assert.equal(/accreditation|bbbRating|"rating"/i.test(JSON.stringify(organization)), false);
+  for (const node of organization.subOrganization) assert.equal("sameAs" in node, false, node.name);
   // Parent-brand title (owner, 20 November 2026; SEO audit P5-S1): no trade head terms.
   assert.equal(siteTitle, "P5 Home Co | Five Treasure Valley home companies");
   assert.doesNotMatch(siteTitle, /builder|remodel|cabinet|handyman|repair/i);
