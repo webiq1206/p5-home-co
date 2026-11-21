@@ -19,7 +19,7 @@ export default function TermsPage() {
       <p className="legal-lead">
         These terms govern access to the P5 Home Co finance platform and the
         vendor and client portals operated at p5homeco.com. They are an
-        agreement between you and P5 Home Co. LLC, an Idaho limited liability
+        agreement between you and P5 Home Co LLC, an Idaho limited liability
         company (&ldquo;P5&rdquo;, &ldquo;we&rdquo;, &ldquo;us&rdquo;).
       </p>
 

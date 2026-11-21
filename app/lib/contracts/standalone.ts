@@ -66,7 +66,7 @@ export const handymanAgreement: DocumentTemplate = {
     {
       heading: "1. Parties and property",
       body:
-        "This Agreement is made {{agreement_date}} between P5 Home Co. LLC, Idaho contractor registration " +
+        "This Agreement is made {{agreement_date}} between P5 Home Co LLC, Idaho contractor registration " +
         "number {{p5_registration}} (\"P5\"), and {{client_name}} (\"Client\"), a {{client_type}}, for work at " +
         "{{property_address}}. Job reference {{job_reference}}.",
     },
@@ -157,7 +157,7 @@ export const handymanAgreement: DocumentTemplate = {
     },
   ],
   signatures: [
-    { role: "P5 Home Co. LLC, by" },
+    { role: "P5 Home Co LLC, by" },
     { role: "Client", nameField: "client_name" },
   ],
   issuingNotes: [
@@ -220,7 +220,7 @@ export const cabinetAgreement: DocumentTemplate = {
     {
       heading: "1. Parties and property",
       body:
-        "This Agreement is made {{agreement_date}} between P5 Home Co. LLC trading as Boise Cabinet Co, " +
+        "This Agreement is made {{agreement_date}} between P5 Home Co LLC trading as Boise Cabinet Co, " +
         "Idaho contractor registration number {{p5_registration}} (\"P5\"), and {{client_name}} " +
         "(\"Client\"), a {{client_type}}, for the property at {{property_address}}. Job reference " +
         "{{job_reference}}.",
@@ -320,7 +320,7 @@ export const cabinetAgreement: DocumentTemplate = {
     },
   ],
   signatures: [
-    { role: "P5 Home Co. LLC, by" },
+    { role: "P5 Home Co LLC, by" },
     { role: "Client", nameField: "client_name" },
   ],
   issuingNotes: [

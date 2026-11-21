@@ -138,7 +138,7 @@ export const howP5Works: Article[] = [
       {
         t: "p",
         text:
-          "Legally there is one company: P5 Home Co. LLC, in Meridian, Idaho. It has one QuickBooks file, one bank relationship, and one tax return. The five Boise companies are brands (DBAs - names the one company does business under), not separate legal companies.",
+          "Legally there is one company: P5 Home Co LLC, in Meridian, Idaho. It has one QuickBooks file, one bank relationship, and one tax return. The five Boise companies are brands (DBAs - names the one company does business under), not separate legal companies.",
       },
       {
         t: "p",

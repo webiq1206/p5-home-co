@@ -1,5 +1,5 @@
 /**
- * Idaho SOS shows P5 Home Co. LLC filed 09/25/2025. Nothing backs a 2020
+ * Idaho SOS shows P5 Home Co LLC filed 09/25/2025. Nothing backs a 2020
  * founding year, so every public use of that year stays in source and is
  * hidden unless this flag is turned on. Do not delete the sentences below.
  */

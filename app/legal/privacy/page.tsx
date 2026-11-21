@@ -17,14 +17,14 @@ export default function PrivacyPage() {
       <p className="legal-updated">Last updated 13 November 2026</p>
 
       <p className="legal-lead">
-        P5 Home Co. LLC operates p5homeco.com and the private finance platform
+        P5 Home Co LLC operates p5homeco.com and the private finance platform
         and portals hosted on it. This policy explains what information we
         collect, why, who we share it with, and how you can reach us about it.
       </p>
 
       <h2>1. Who we are</h2>
       <p>
-        P5 Home Co. LLC is an Idaho limited liability company and the parent of
+        P5 Home Co LLC is an Idaho limited liability company and the parent of
         Boise Construction Co, Boise Remodeling Co, Boise ADU Co, Boise Handyman
         Co, and Boise Cabinet Co. We are the controller of the information
         described here. Our contact details are at the bottom of this page.

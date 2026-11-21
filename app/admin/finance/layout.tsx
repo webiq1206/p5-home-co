@@ -37,7 +37,7 @@ export default async function FinanceLayout({
       {/* The documents Intuit requires an app to publish, reachable from the
           software they govern rather than only by direct URL. */}
       <footer className="fin-legal">
-        <span>P5 Home Co. LLC</span>
+        <span>P5 Home Co</span>
         {/* Intuit asks that an app give users a way to reach support from
             inside it, rather than only on a marketing page. */}
         <a href="mailto:accounting@p5homeco.com?subject=P5%20Finance%20support">
