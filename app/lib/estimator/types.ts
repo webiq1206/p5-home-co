@@ -153,6 +153,12 @@ export type CustomerDivision = {
  * work the estimate does not contain.
  */
 export type EstimateGuide = {
+  /**
+   * Short notes shown under the range: what the price assumes about design,
+   * engineering and permits, and how handyman labor is billed. Absent on
+   * estimates saved before 21 November 2026.
+   */
+  rangeNotes?: string[];
   overview: string[];
   included: { division: string; items: string[] }[];
   outcome: string[];
@@ -211,7 +217,11 @@ export function publicEstimate(view: CustomerEstimate): CustomerEstimate {
   // The note on older estimates described "division amounts", which are no longer shown.
   const divisionNote = view.divisionNote ? WHOLE_PROJECT_NOTE : null;
   const guide = view.guide
-    ? { ...view.guide, overview: view.guide.overview.map((s) => (/division amounts/i.test(s) ? WHOLE_PROJECT_NOTE : s)) }
+    ? {
+        ...view.guide,
+        rangeNotes: Array.isArray(view.guide.rangeNotes) ? view.guide.rangeNotes.map(String) : [],
+        overview: view.guide.overview.map((s) => (/division amounts/i.test(s) ? WHOLE_PROJECT_NOTE : s)),
+      }
     : view.guide;
   const range = view.range ? { low: Number(view.range.low), high: Number(view.range.high) } : null;
   return { ...view, range, divisions, divisionNote, guide };

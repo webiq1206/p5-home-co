@@ -97,6 +97,8 @@ function Cards({
       // Up to three options stack as full-width photo tiles, four make a 2 x 2 grid, and five
       // or more become compact rows with a thumbnail, so every screen fits without scrolling.
       data-layout={layout}
+      // Options with no photograph (the plans question) are words only, so their cards stay compact.
+      data-photos={options.some((o) => o.image && images.has(o.image)) ? undefined : "none"}
       style={
         {
           "--ge-count": options.length,

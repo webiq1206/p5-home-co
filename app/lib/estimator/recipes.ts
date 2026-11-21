@@ -633,11 +633,59 @@ const handyman: Builder = ({ answers: a }) => {
 // Budgetary projects, priced from the book's own project assemblies
 // ---------------------------------------------------------------------------
 
-const PRECON_EXCLUSIONS = [
-  "Design, engineering and surveys",
-  "Permits, impact fees and utility connection fees",
-  "Unusual site conditions, such as rock, high groundwater or long utility runs",
-];
+const PRECON_EXCLUSIONS = ["Surveys and soils reports", "Unusual site conditions, such as rock, high groundwater or long utility runs"];
+
+// ---------------------------------------------------------------------------
+// Design, engineering and permits (owner decision, 21 November 2026)
+//
+// The owner's construction contracts include design, engineering and
+// permits. Projects that need permit drawings ask whether the customer has
+// plans (flows.ts, question "plans"); when they do not, the matching cost
+// book design and engineering lines are added here. Permit fees are always
+// priced for these projects. Every line is a cost book code and a quantity:
+// the rates are the book's. Where the book has no item for a piece of work
+// (structural engineering for a detached garage or shop), nothing is added
+// and narrative.ts lists it as not yet determined.
+// ---------------------------------------------------------------------------
+
+export type PlansAnswer = "complete" | "design" | "none";
+
+/** Unknown or missing answers mean no plans yet, so design and engineering are priced. */
+export function plansAnswer(a: Answers): PlansAnswer {
+  const value = str(a, "plans");
+  return value === "complete" || value === "design" ? value : "none";
+}
+
+type Item = { code: string; qty: number; text: string; estimated?: boolean };
+
+/** Design lines: priced only when the customer has no design yet. */
+export const DESIGN_CODES = new Set(["00-10-03", "00-10-04", "00-10-08"]);
+/** Engineering lines: priced when the customer has no engineered plans. 00-10-08 is both. */
+export const ENGINEERING_CODES = new Set(["00-10-02", "00-10-06", "00-10-07", "00-10-08", "00-10-18"]);
+
+const ENERGY: Item = { code: "00-10-12", qty: 1, text: "Energy code calculations for the permit" };
+
+function plansAndPermits(
+  l: Lines,
+  a: Answers,
+  work: { none: Item[]; design: Item[]; permits: Item[] },
+  assumptions: string[],
+) {
+  const plans = plansAnswer(a);
+  const items = plans === "none" ? work.none : plans === "design" ? work.design : [];
+  for (const item of [...items, ...work.permits]) {
+    if (item.estimated) l.est(item.code, item.qty, item.text, PRE);
+    else l.add(item.code, item.qty, item.text, PRE);
+  }
+  if (plans === "complete") assumptions.push("You provide complete design and engineered plans, ready to submit for permit.");
+  if (plans === "design") assumptions.push("You provide the design drawings.");
+}
+
+const tradePermits = (count: number): Item => ({
+  code: "00-20-06",
+  qty: count,
+  text: count === 1 ? "Electrical permit" : count === 2 ? "Electrical and mechanical permits" : "Plumbing, electrical and mechanical permits",
+});
 
 const basementFinish: Builder = ({ answers: a }) => {
   const sqft = num(a, "sqft");
@@ -677,18 +725,35 @@ const customHome: Builder = ({ answers: a }) => {
   const garage = { two: 576, three: 864 }[str(a, "garage")] ?? 0;
   const basement = str(a, "basement");
   const l = new Lines();
+  const below = Math.round(sqft / 2);
+  const assumptions = [
+    `About ${sqft.toLocaleString("en-US")} sq ft of heated living area`,
+    "A buildable lot you already own, with utilities available at the street",
+    ...(basement !== "none" ? [`A basement of about ${below.toLocaleString("en-US")} sq ft, under roughly half of the home`] : []),
+  ];
+  const engineering: Item[] = [{ code: "00-10-06", qty: 1, text: "Structural engineering for the home" }, ENERGY];
+  plansAndPermits(
+    l,
+    a,
+    {
+      none: [{ code: "00-10-04", qty: sqft, text: "Design and construction drawings for the home" }, ...engineering],
+      design: engineering,
+      permits: [
+        { code: "00-20-01", qty: 1, text: "Building permit and plan review" },
+        tradePermits(3),
+        { code: "00-20-04", qty: 1, text: "City impact fees for a new home" },
+        { code: "00-20-05", qty: 1, text: "Road impact fee for a new home" },
+      ],
+    },
+    assumptions,
+  );
   l.add("90-10-01", sqft, "New home construction, complete, on your lot");
   l.add("90-10-03", garage, garage === 864 ? "Attached 3-car garage" : "Attached 2-car garage");
-  const below = Math.round(sqft / 2);
   if (basement === "unfinished") l.est("90-10-04", below, "Unfinished basement");
   if (basement === "finished") l.est("90-10-05", below, "Finished basement");
   return {
     lines: l.lines,
-    assumptions: [
-      `About ${sqft.toLocaleString("en-US")} sq ft of heated living area`,
-      "A buildable lot you already own, with utilities available at the street",
-      ...(basement !== "none" ? [`A basement of about ${below.toLocaleString("en-US")} sq ft, under roughly half of the home`] : []),
-    ],
+    assumptions,
     exclusions: ["The land", ...PRECON_EXCLUSIONS, "Landscaping, fencing and window coverings"],
     crossCheck: null,
   };
@@ -709,13 +774,28 @@ const addition: Builder = ({ answers: a }) => {
     second: { code: "90-50-06", text: "Second-story addition" },
   };
   const assumptions: string[] = [];
+  // An attached garage is not heated living space, so it needs no energy code calculations.
+  const energy = type === "garage" ? [] : [ENERGY];
+  plansAndPermits(
+    l,
+    a,
+    {
+      none: [{ code: "00-10-08", qty: 1, text: "Design drawings and structural engineering for the addition" }, ...energy],
+      design: [{ code: "00-10-18", qty: 1, text: "Structural engineering for the addition" }, ...energy],
+      permits: [
+        { code: "00-20-03", qty: 1, text: "Building permit for the addition" },
+        tradePermits(type === "garage" ? 1 : type === "room" || type === "sunroom" ? 2 : 3),
+      ],
+    },
+    assumptions,
+  );
   if (perSf[type]) {
     l.add(perSf[type].code, sqft, perSf[type].text);
-    assumptions.push(`About ${sqft.toLocaleString("en-US")} sq ft, as you entered`);
+    assumptions.unshift(`About ${sqft.toLocaleString("en-US")} sq ft, as you entered`);
   } else {
     const pick = each[type] ?? each.suite;
     l.add(pick.code, 1, pick.text);
-    assumptions.push("A typical size for this kind of addition. Your design sets the final size and price.");
+    assumptions.unshift("A typical size for this kind of addition. Your design sets the final size and price.");
   }
   return {
     lines: l.lines,
@@ -728,10 +808,23 @@ const addition: Builder = ({ answers: a }) => {
 const garageShop: Builder = ({ answers: a }) => {
   const sqft = num(a, "sqft");
   const l = new Lines();
+  const assumptions = [`About ${sqft.toLocaleString("en-US")} sq ft, as you entered`, "A level, accessible building site with power available nearby"];
+  // The cost book has no structural engineering item for a detached garage or
+  // shop, so none is priced; narrative.ts lists it as not yet determined.
+  plansAndPermits(
+    l,
+    a,
+    {
+      none: [{ code: "00-10-04", qty: sqft, text: "Design and construction drawings for the building" }],
+      design: [],
+      permits: [{ code: "00-20-03", qty: 1, text: "Building permit for the garage or shop" }, tradePermits(1)],
+    },
+    assumptions,
+  );
   l.add("90-50-13", sqft, "Detached garage or shop, complete");
   return {
     lines: l.lines,
-    assumptions: [`About ${sqft.toLocaleString("en-US")} sq ft, as you entered`, "A level, accessible building site with power available nearby"],
+    assumptions,
     exclusions: [...PRECON_EXCLUSIONS, "Driveway, plumbing and heating unless added in design"],
     crossCheck: null,
   };
@@ -743,12 +836,36 @@ const adu: Builder = ({ answers: a }) => {
     attached: { code: "90-50-11", text: "Attached ADU, complete", assume: "An attached unit of typical size" },
     garage: { code: "90-50-09", text: "Garage conversion to an ADU, complete", assume: "An existing garage in sound condition" },
   };
-  const pick = map[str(a, "type")] ?? map.detached;
+  const type = str(a, "type") in map ? str(a, "type") : "detached";
+  const pick = map[type];
   const l = new Lines();
+  const assumptions = [pick.assume, "Your lot and zoning allow an ADU, and water, sewer and power can be extended from the main home."];
+  // A detached unit is a small new home; an attached one is an addition; a
+  // conversion is a remodel of the garage. Each takes the cost book's own item.
+  const work: Record<string, { none: Item[]; design: Item[]; permit: Item }> = {
+    detached: {
+      none: [{ code: "00-10-04", qty: 600, text: "Design and construction drawings for the ADU" }, { code: "00-10-06", qty: 1, text: "Structural engineering for the ADU" }, ENERGY],
+      design: [{ code: "00-10-06", qty: 1, text: "Structural engineering for the ADU" }, ENERGY],
+      permit: { code: "00-20-03", qty: 1, text: "Building permit for the ADU" },
+    },
+    attached: {
+      none: [{ code: "00-10-08", qty: 1, text: "Design drawings and structural engineering for the ADU" }, ENERGY],
+      design: [{ code: "00-10-18", qty: 1, text: "Structural engineering for the ADU" }, ENERGY],
+      permit: { code: "00-20-03", qty: 1, text: "Building permit for the ADU" },
+    },
+    garage: {
+      // A two-car garage of about 480 sq ft, the size the division shares use (shares.ts).
+      none: [{ code: "00-10-04", qty: 480, text: "Design and construction drawings for the conversion", estimated: true }, { code: "00-10-07", qty: 1, text: "Structural engineering for the conversion" }, ENERGY],
+      design: [{ code: "00-10-07", qty: 1, text: "Structural engineering for the conversion" }, ENERGY],
+      permit: { code: "00-20-02", qty: 1, text: "Building permit for the conversion" },
+    },
+  };
+  const w = work[type];
+  plansAndPermits(l, a, { none: w.none, design: w.design, permits: [w.permit, tradePermits(3)] }, assumptions);
   l.add(pick.code, 1, pick.text);
   return {
     lines: l.lines,
-    assumptions: [pick.assume, "Your lot and zoning allow an ADU, and water, sewer and power can be extended from the main home."],
+    assumptions,
     exclusions: PRECON_EXCLUSIONS,
     crossCheck: null,
   };
