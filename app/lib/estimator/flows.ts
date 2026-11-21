@@ -11,7 +11,27 @@
  * able to see them.
  */
 
-import type { ProjectFlow, TaskOption } from "./types.ts";
+import type { ChoiceQuestion, ProjectFlow, TaskOption } from "./types.ts";
+
+/**
+ * Design and engineered plans (owner decision, 21 November 2026). The owner's
+ * construction contracts include design, engineering and permits, so every
+ * project that needs permit drawings asks whether the customer already has
+ * them. recipes.ts adds the matching cost book design and engineering lines
+ * when they do not. The default is the common case: no plans yet.
+ */
+const plansQuestion = (subject: string): ChoiceQuestion => ({
+  id: "plans",
+  kind: "choice",
+  prompt: `Do you already have design and engineered plans for the ${subject}?`,
+  help: "Our construction contracts include design, engineering and permits. Your answer tells us what to include in your estimate.",
+  default: "none",
+  options: [
+    { id: "complete", label: "Yes, I have complete plans", hint: "Designed and engineered, ready for permit" },
+    { id: "design", label: "I have a design but not engineered plans", hint: "Drawings or a floor plan that still need engineering" },
+    { id: "none", label: "No, I need design and engineering", hint: "Our team handles the design and engineering" },
+  ],
+});
 
 const HANDYMAN_TASKS: TaskOption[] = [
   { id: "faucet", group: "Plumbing", label: "Replace a faucet", hint: "You supply the faucet", max: 6 },
@@ -622,6 +642,7 @@ export const FLOWS: ProjectFlow[] = [
           { id: "finished", label: "Finished basement", hint: "Under about half of the home", image: "basement-finished" },
         ],
       },
+      plansQuestion("home"),
     ],
   },
   {
@@ -660,6 +681,7 @@ export const FLOWS: ProjectFlow[] = [
         presets: [150, 200, 300, 400, 600, 800],
         showIf: [{ q: "type", in: ["room", "sunroom", "garage"] }],
       },
+      plansQuestion("addition"),
     ],
   },
   {
@@ -684,6 +706,7 @@ export const FLOWS: ProjectFlow[] = [
         default: 576,
         presets: [576, 864, 1200, 1500, 2400],
       },
+      plansQuestion("garage or shop"),
     ],
   },
   {
@@ -707,6 +730,7 @@ export const FLOWS: ProjectFlow[] = [
           { id: "garage", label: "Garage conversion", hint: "Your existing garage becomes living space", image: "adu-garage" },
         ],
       },
+      plansQuestion("ADU"),
     ],
   },
 ];

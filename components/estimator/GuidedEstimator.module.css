@@ -193,6 +193,10 @@
   gap: 8px;
   --ge-row-max: 104px;
 }
+/* Words-only options do not need the height a photograph does. */
+.cards[data-photos="none"] {
+  --ge-row-max: 112px;
+}
 .card {
   appearance: none;
   position: relative;
@@ -680,6 +684,14 @@
   color: rgba(251, 250, 246, 0.86);
   margin-bottom: 0;
 }
+/* What the range assumes about plans, permits or hourly billing (narrative.ts rangeNotes). */
+.rangeNote {
+  font-size: 15px;
+  line-height: 1.45;
+  font-weight: 600;
+  color: var(--ge-paper);
+  margin: 10px 0 0;
+}
 .totalLabel {
   font-size: 14px;
   font-weight: 700;
@@ -903,6 +915,9 @@
   .totalCard .fine {
     color: var(--ge-ink-soft);
   }
+  .totalCard .rangeNote {
+    color: var(--ge-ink);
+  }
   .result a.primary {
     display: none;
   }
@@ -929,6 +944,9 @@
   }
   .cards[data-layout="grid"] {
     max-height: 520px;
+  }
+  .cards[data-layout="stack"][data-photos="none"] {
+    max-height: 150px;
   }
   .cards[data-layout="rows"] {
     grid-template-columns: 1fr 1fr;

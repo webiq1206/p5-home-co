@@ -113,6 +113,11 @@ export default function EstimateView({
             <p className={styles.total}>
               {money(estimate.range!.low)} <span className={styles.to}>to</span> {money(estimate.range!.high)}
             </p>
+            {(guide.rangeNotes ?? []).map((note) => (
+              <p key={note} className={styles.rangeNote}>
+                {note}
+              </p>
+            ))}
             <p className={styles.fine}>{estimate.classStatement}</p>
           </>
         )}

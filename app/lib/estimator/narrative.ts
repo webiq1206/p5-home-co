@@ -29,6 +29,7 @@ import type { RiskFactor } from "../../../lib/p5/pricing.ts";
 import { divisionName } from "../scopes/divisions.ts";
 import type { EstimateLine, ScopeTask } from "../scopes/types.ts";
 import type { BrandConfig } from "./brands.ts";
+import { DESIGN_CODES, ENGINEERING_CODES } from "./recipes.ts";
 import { WHOLE_PROJECT_NOTE, type Answers, type CustomerDivision, type EstimateClass, type EstimateGuide, type PropertyFacts } from "./types.ts";
 
 /**
@@ -230,7 +231,45 @@ function undetermined(input: NarrativeInput, risks: RiskFactor[]): string[] {
   if (input.answers.scope === "redesign" || input.answers.scope === "relocate") out.push("An electrical panel or service upgrade, if the existing service cannot carry the new layout.");
   if (input.project === "basement-finish") out.push("Egress windows, moisture control or added ceiling height, if the basement needs them to become living space.");
   if (GROUND_UP.has(input.service) || input.project === "garage-shop") out.push("Site work beyond a typical lot, such as rock, poor soils, a steep grade or long utility runs.");
+  // Fees the cost book prices per dwelling are in a new home; the rest depend on the lot and the city.
+  if (input.project === "custom-home") out.push("Utility connection and capacity fees, which depend on the services already at your lot.");
+  else if (hasPermit && ["addition", "garage-shop", "adu"].includes(input.project)) out.push("Impact fees and utility connection fees, if your jurisdiction charges them for this work.");
+  // Plans are asked about, and engineering is needed, but the cost book has no item for it here.
+  if (typeof input.answers.plans === "string" && input.answers.plans !== "complete" && !hasCode(input, ENGINEERING_CODES)) {
+    out.push("Structural engineering, if your building department requires it for this building.");
+  }
   return out;
+}
+
+const codesOf = (input: Pick<NarrativeInput, "tasks">) => input.tasks.map((t) => String(t.costCode ?? ""));
+const hasCode = (input: Pick<NarrativeInput, "tasks">, codes: Set<string>) => codesOf(input).some((c) => codes.has(c));
+
+/** Said under a handyman range. The pricing path holds every visit to at least one hour at the labor rate (price.ts). */
+export const HOURLY_MINIMUM_NOTE = "Labor is billed by the hour with a one-hour minimum.";
+
+/**
+ * The short notes under the range: what the price assumes about plans and
+ * permits, and how handyman labor is billed. Chosen by the cost book lines in
+ * the scope and the customer's answer, never written per estimate, and
+ * checked against the scope by narrativeProblems.
+ */
+export function rangeNotes(input: Pick<NarrativeInput, "project" | "answers" | "tasks">): string[] {
+  const notes: string[] = [];
+  if (input.project === "handyman") notes.push(HOURLY_MINIMUM_NOTE);
+  // Only projects that ask about plans carry a plans note.
+  if (typeof input.answers.plans === "string") {
+    const design = hasCode(input, DESIGN_CODES);
+    const engineering = hasCode(input, ENGINEERING_CODES);
+    const permits = codesOf(input).some((c) => c.startsWith("00-20"));
+    const fees = permits ? " and permit fees" : "";
+    const undetermined = "Engineering, if your building needs it, is not yet determined.";
+    if (design && engineering) notes.push(permits ? "Includes design, engineered plans and permit fees." : "Includes design and engineered plans.");
+    else if (design) notes.push(`Includes design drawings${fees}. ${undetermined}`);
+    else if (engineering) notes.push(`Includes engineering${fees}. Assumes you provide the design drawings.`);
+    else if (input.answers.plans === "complete") notes.push(`${permits ? "Includes permit fees. " : ""}Assumes you provide complete design and engineered plans.`);
+    else notes.push(`${permits ? "Includes permit fees. " : ""}Assumes you provide the design drawings. ${undetermined}`);
+  }
+  return notes;
 }
 
 function verification(input: NarrativeInput, risks: RiskFactor[]): string[] {
@@ -279,6 +318,7 @@ export function buildGuide(input: NarrativeInput, divisions: CustomerDivision[],
   const costDrivers = risks.map((r) => DRIVER[r]).filter((d): d is string => Boolean(d));
   if (allowances) costDrivers.push("The materials and fixtures you choose. Selections above or below the allowance move the price with them.");
   return {
+    rangeNotes: rangeNotes(input),
     overview,
     // A whole-project line is what was priced; its shares only describe where the money goes.
     included: shares.length
@@ -309,8 +349,30 @@ export const BANNED_WORDING = /\b(down there|up there|over here|over there|that 
  * Check the customer's words against the priced scope before they are shown.
  * Returns every problem found; an empty list means the estimate is coherent.
  */
-export function narrativeProblems(guide: EstimateGuide, divisions: PricedDivision[], range: { low: number; high: number } | null, lines: EstimateLine[], shares: string[] = []): string[] {
+export function narrativeProblems(
+  guide: EstimateGuide,
+  divisions: PricedDivision[],
+  range: { low: number; high: number } | null,
+  lines: EstimateLine[],
+  shares: string[] = [],
+  /** Cost book codes of the priced lines. When given, the notes under the range are checked against them. */
+  codes?: string[],
+): string[] {
   const problems: string[] = [];
+  const notes = guide.rangeNotes ?? [];
+  if (codes) {
+    const design = codes.some((c) => DESIGN_CODES.has(c));
+    const engineering = codes.some((c) => ENGINEERING_CODES.has(c));
+    const permits = codes.some((c) => c.startsWith("00-20"));
+    for (const note of notes) {
+      if (/Includes design/.test(note) && !design) problems.push(`"${note}" says design is included, but no design line is priced.`);
+      if (/^Includes (design, engineered plans|design and engineered plans|engineering)/.test(note) && !engineering) problems.push(`"${note}" says engineering is included, but no engineering line is priced.`);
+      if (/permit fees/.test(note) && !permits) problems.push(`"${note}" says permit fees are included, but no permit line is priced.`);
+      if (/Assumes you provide complete/.test(note) && (design || engineering)) problems.push(`"${note}" says you provide the plans, but design or engineering is priced.`);
+      if (/Assumes you provide the design/.test(note) && design) problems.push(`"${note}" says you provide the design, but design is priced.`);
+      if (/not yet determined/.test(note) && engineering) problems.push(`"${note}" says engineering is not yet determined, but it is priced.`);
+    }
+  }
   const priced = new Set([...lines.map((l) => l.description), ...shares]);
   for (const group of guide.included) for (const item of group.items) if (!priced.has(item)) problems.push(`"${item}" is described as included but has no priced line.`);
   const includedText = guide.included.flatMap((g) => g.items).map((i) => i.toLowerCase());
@@ -322,7 +384,7 @@ export function narrativeProblems(guide: EstimateGuide, divisions: PricedDivisio
     if (divisions.some((d) => d.low > d.high || d.items.length === 0)) problems.push("A division has an invalid range or no work in it.");
     if (new Set(divisions.map((d) => d.code)).size !== divisions.length) problems.push("A division appears twice.");
   }
-  const everything = [...guide.overview, ...guide.outcome, ...guide.assumptions, ...guide.excluded, ...guide.undetermined, ...guide.verification, ...guide.costDrivers, ...guide.disclaimer, ...includedText];
+  const everything = [...notes, ...guide.overview, ...guide.outcome, ...guide.assumptions, ...guide.excluded, ...guide.undetermined, ...guide.verification, ...guide.costDrivers, ...guide.disclaimer, ...includedText];
   for (const text of everything) if (BANNED_WORDING.test(text)) problems.push(`Unprofessional or vague wording: "${text}".`);
   if (!guide.disclaimer.length || !guide.overview.length) problems.push("The preliminary pricing qualifications are missing.");
   return problems;
