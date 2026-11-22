@@ -282,6 +282,20 @@
       "verified_at": "2026-11-22T17:05:25Z",
       "verification": "Google manager displayed Published; exact copy and Learn more destination read back from the saved post.",
       "notes": "Exact publication timestamp and public post permalink not recovered. Current owner-authorized manual campaign completion; do not duplicate. No indexing, ranking or customer outcome claim."
+    },
+    {
+      "platform": "press_release_network",
+      "brand": "P5 Home Co",
+      "id": "1665",
+      "published_at": "2026-11-22T10:41:00-07:00",
+      "timestamp_precision": "Displayed publication time is minute-level only",
+      "status": "published_verified_correction_requested",
+      "permalink_url": "https://pressrelease.network/press-release-distribution/thanks-nick-perkins-p5-home-co",
+      "destination_url": "",
+      "verified_at": "2026-11-22",
+      "backlink_status": "No P5 website anchors observed",
+      "classification": "Submitted press release, not independent earned editorial coverage",
+      "notes": "Substantive release is live. Headline and stray-signature correction requested; no new submission, no indexing or customer-outcome claim."
     }
   ],
   "scheduled": [],
@@ -329,11 +343,11 @@
       "brand": "P5 Home Co",
       "submission_url": "https://pressrelease.network/submit-press-release",
       "submitted_at": "2026-11-22",
-      "status": "sent_pending_review",
-      "published_url": "",
-      "backlink_status": "Free text-only service excludes hyperlinks",
+      "status": "published_correction_requested",
+      "published_url": "https://pressrelease.network/press-release-distribution/thanks-nick-perkins-p5-home-co",
+      "backlink_status": "No P5 website link observed; free text-only policy",
       "next_review": "2026-11-23",
-      "notes": "252-word release submitted individually. Sent-mail copy verified. Inbox delivery and publication remain unconfirmed."
+      "notes": "Publisher reported publication and the public page was independently verified. The email sign-off was used as the headline; one existing-thread correction requested the submitted headline and removal of stray signature text. Do not resubmit."
     }
   ],
   "profile_corrections": [
@@ -341,9 +355,10 @@
       "platform": "Google Business Profile",
       "brand": "P5 Home Co",
       "requested_at": "2026-11-22",
-      "status": "pending_review",
+      "status": "current_description_verified_in_manager",
       "change": "Factual service description updated through the existing verified profile",
-      "notes": "New proposal pending. The prior rejected proposal is historical; successful post publication is a separate result."
+      "notes": "Exact factual description now appears as current with no pending or rejected notice. Separate public-search cache propagation was not established.",
+      "verified_at": "2026-11-22T17:53:19Z"
     },
     {
       "platform": "ShowMeLocal",
@@ -352,7 +367,26 @@
       "requested_at": "2026-11-22",
       "status": "acknowledged_pending_correction",
       "change": "Requested current P5 display name, website and city/ZIP-only public location with street hidden.",
-      "notes": "Keep existing business record active. Automatic acknowledgement received; no completed correction claimed."
+      "notes": "Keep existing business record active. Automatic acknowledgement received; no completed correction claimed. Yellow-Pages.us.com uses the same listing ID and support network; coordinate verification through this existing request rather than opening a duplicate ticket."
+    },
+    {
+      "platform": "Nextdoor",
+      "brand": "P5 Home Co",
+      "public_url": "https://nextdoor.com/page/boise-remodeling-co-meridian-id/",
+      "requested_at": "2026-11-22",
+      "status": "description_saved_verified",
+      "verified_at": "2026-11-22T17:46:58Z",
+      "change": "Saved factual description mentioning preliminary online project estimates.",
+      "notes": "Existing page and correct contact details preserved. Street address remains hidden. Posting requires owner identity verification; no new post."
+    },
+    {
+      "platform": "Cylex",
+      "brand": "P5 Home Co",
+      "public_url": "https://www.cylex.us.com/company/p5-home-co-%2Dllc-40749871.html",
+      "requested_at": "2026-11-22",
+      "status": "acknowledged_pending_correction",
+      "change": "Requested current P5 display name and city/ZIP-only public location with street hidden and listing kept active.",
+      "notes": "Official support route used after normal correction form returned a region restriction. Automatic acknowledgement received. Existing https://p5homeco.com link verified with rel=nofollow; this is not a new acquisition."
     }
   ]
 }
