@@ -241,24 +241,26 @@ test('Every customer document says which company stands behind the brand',async(
  const {customerPdf}=await import('../lib/p5/pdf.ts');
  const {pdfTextLayers}=await import('../lib/p5/pdfText.ts');
  // The same file is copied to every brand. A child trades under its own name
- // (legalName is null, so tradesAsDba() is true). The parent does not.
- const line=tradesAsDba()
-  ? `${ESTIMATOR_BRAND.name} is a DBA of P5 Home Co.`
-  : `${ESTIMATOR_BRAND.name} is operated by P5 Home Co.`;
- assert.doesNotMatch(line,/LLC/);
+ // (legalName is null, so tradesAsDba() is true). The parent prints no identity sentence.
+ const line=tradesAsDba()?`${ESTIMATOR_BRAND.name} is a DBA of P5 Home Co.`:'';
  assert.equal(legalIdentityLine(),line);
- assert.doesNotMatch(legalIdentityLine(),/LLC/);
- assert.equal(documentFooterLine(new Date('2026-09-20T00:00:00Z')),`© 2026 P5 Home Co. ${line}`);
+ assert.doesNotMatch(legalIdentityLine(),/LLC|operated by/);
+ assert.equal(documentFooterLine(new Date('2026-09-20T00:00:00Z')),line?`© 2026 P5 Home Co. ${line}`:'© 2026 P5 Home Co.');
  const result={summary:'Repair work.',includedCategories:['Electrical'],range:{low:500,high:700},
   categoryRanges:[{category:'Electrical',low:500,high:700}],
   lineItems:[{id:'a',category:'Electrical',description:'Replace one receptacle',quantity:1,unit:'EA',low:500,high:700,unitLow:500,unitHigh:700}],
   assumptions:[],exclusions:[],allowances:[],factors:[],message:'m',nextStep:'n',disclaimer:'d'};
  const mail=estimateEmail('dba-check',{customer:result,contact:{name:'A B'}},false);
  const pdf=(await pdfTextLayers(await customerPdf('dba-check',result))).join('\n');
- const pattern=new RegExp(line.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'));
  for(const output of [mail.html,mail.text,pdf]){
-  assert.match(output,pattern,'the company is named on what the customer keeps');
   assert.doesNotMatch(output,/LLC/,'a customer document does not carry the legal suffix');
+  if(line)assert.match(output,new RegExp(line.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')),'the child DBA line is on what the customer keeps');
+  else assert.doesNotMatch(output,/operated by/,'the parent does not say it is operated by itself');
+ }
+ if(!line){
+  assert.doesNotMatch(mail.html,/<p[^>]*>\s*<\/p>/);
+  assert.match(mail.text,/\n\nYour complete estimate is attached as a PDF\.$/);
+  assert.doesNotMatch(mail.text,/\n\n\nYour complete estimate is attached as a PDF\.$/);
  }
 });
 // Owner report 2026-09-22, from a live Handyman estimate: allowance rows read

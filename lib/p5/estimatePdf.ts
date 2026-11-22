@@ -160,7 +160,8 @@ export async function renderEstimatePdf(doc:EstimateDocument):Promise<Buffer>{
     if(page===startPage)y=Math.min(y,start-labelHeight);
     divider(7);
   }
-  ensure(32+doc.nextSteps.reduce((t,[,b])=>t+19+height(b,10.5,WIDTH-32)+6,0)+64+height(doc.notice.text,9.5,WIDTH,regular,doc.notice.lead)+(doc.legalLine?15:0));heading('Next steps',14,10);
+  const legalText=doc.legalLine.trim();
+  ensure(32+doc.nextSteps.reduce((t,[,b])=>t+19+height(b,10.5,WIDTH-32)+6,0)+64+height(doc.notice.text,9.5,WIDTH,regular,doc.notice.lead)+(legalText?15:0));heading('Next steps',14,10);
   doc.nextSteps.forEach(([title,body],i)=>{ensure(40);y-=4;text(String(i+1).padStart(2,'0'),L,y-17,12,bold);text(title,L+32,y-11,11,bold);y-=15;para(body,10.5,{x:L+32,width:WIDTH-32,gap:6});});
   {const h=48;ensure(h+50);y-=4;page.drawRectangle({x:L,y:y-h,width:WIDTH,height:h,color:tint,borderColor:accent,borderWidth:.8});
    const t=doc.review.label;const tw=bold.widthOfTextAtSize(t,12);text(t,L+(WIDTH-tw)/2,y-19,12,bold);link(page,L+(WIDTH-tw)/2,y-22,tw,15,doc.review.mailto);
@@ -168,7 +169,7 @@ export async function renderEstimatePdf(doc:EstimateDocument):Promise<Buffer>{
    text(e+sep+p,x0,y-36,10,regular,muted);link(page,x0,y-39,regular.widthOfTextAtSize(e,10),13,doc.review.mailto);link(page,x0+regular.widthOfTextAtSize(e+sep,10),y-39,regular.widthOfTextAtSize(p,10),13,doc.review.tel);
    y-=h+12;}
   para(doc.notice.text,9.5,{lead:doc.notice.lead,color:muted});
-  if(doc.legalLine){y-=4;para(doc.legalLine,8,{color:soft});}
+  if(legalText){y-=4;para(legalText,8,{color:soft});}
 
   pages.forEach((p,i)=>{
     p.drawLine({start:{x:L,y:62},end:{x:R,y:62},thickness:.5,color:rule});

@@ -28,12 +28,15 @@ export const tradesAsDba=()=>Boolean(brand.parentLegalName&&customerCompanyName(
  * not as a disclaimer, because that is what it is.
  */
 export function legalIdentityLine():string{
+  // The parent is P5 Home Co. Saying it is operated by itself reads as a mistake,
+  // so the customer line is empty. A child brand keeps the DBA sentence.
+  if(!tradesAsDba()) return '';
   const parent=customerCompanyName(brand.parentLegalName)||legalEntityName();
-  return tradesAsDba()
-    ? `${brand.name} is a DBA of ${parent}.`
-    : `${brand.name} is operated by ${legalEntityName()}.`;
+  return `${brand.name} is a DBA of ${parent}.`;
 }
-/** Copyright plus the identity line, for a single footer row. */
+/** Copyright, plus the DBA sentence when this site trades under another name. */
 export function documentFooterLine(now=new Date()):string{
-  return `© ${now.getFullYear()} ${legalEntityName()}. ${legalIdentityLine()}`;
+  const copyright=`© ${now.getFullYear()} ${legalEntityName()}.`;
+  const line=legalIdentityLine();
+  return line?`${copyright} ${line}`:copyright;
 }
