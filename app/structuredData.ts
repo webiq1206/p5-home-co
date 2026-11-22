@@ -41,7 +41,7 @@ export const siteSchema = {
       email: ESTIMATOR_BRAND.email,
       image: `${siteUrl}/images/p5-og.jpg`,
       logo: { "@type": "ImageObject", url: `${siteUrl}/android-chrome-512x512.png` },
-      // Confirmed profiles only: the P5 Facebook page and the P5 Google Business Profile.
+      // Parent profiles only. The brand nodes have none of their own.
       sameAs: [P5_FACEBOOK_URL, P5_INSTAGRAM_URL, P5_GOOGLE_BUSINESS_PROFILE_URL, P5_GBP_MAPS_URL],
       employee: {
         "@type": "Person",

@@ -7,7 +7,7 @@ timeoutMs = 120000
 [deployment]
 router = "application"
 deploymentTarget = "gce"
-build = "npm run build:host"
+build = "npm run build:host && node tools/indexnow-deploy.mjs prepare"
 # Migrations run at BOOT rather than at build, because the build environment
 # does not carry the production DATABASE_URL - which is why the schema fell
 # behind the code and /admin/finance/data-quality started returning a 500.
@@ -18,7 +18,7 @@ build = "npm run build:host"
 # Deliberately `&&`. If a migration fails the app does NOT start, which is the
 # correct outcome - a running app on a half-applied schema serves wrong numbers
 # quietly, and quiet wrong numbers are worse than a site that is plainly down.
-run = "npm run db:migrate && npm run start:host"
+run = "npm run db:migrate && P5_INDEXNOW_POST_DEPLOY=1 npm run start:host"
 ignorePorts = false
 
 [workflows]

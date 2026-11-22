@@ -79,7 +79,11 @@ notification and CRM delivery have separate status. Urgent work should go to
 
 ## Contact
 
+P5 Home Co, Meridian, ID 83646 (service-area business, no public street). Phone (208) 477-1169. Web https://p5homeco.com.
+
 Serving Boise and the Treasure Valley. Phone (208) 477-1169. Email hello@p5homeco.com. Hours: Mon-Fri 9 AM-6 PM and Sat 9 AM-4 PM Mountain (Sunday closed). Address: Meridian, ID 83646. Contact page: https://p5homeco.com/contact
+
+Profiles: Facebook https://www.facebook.com/p5homeco. Instagram https://www.instagram.com/p5_home_co. Google https://www.google.com/search?kgmid=/g/11ntl1t7dc. Maps https://maps.google.com/?cid=11869148461693849141
 
 ## Key pages
 
@@ -101,7 +105,7 @@ Serving Boise and the Treasure Valley. Phone (208) 477-1169. Email hello@p5homec
 - [Full text for LLMs](https://p5homeco.com/llms-full.txt): this fact sheet
   plus the homepage questions and answers.
 
-Last updated: 2026-11-20.
+Last updated: 2026-11-21.
 
 ## Homepage questions
 
