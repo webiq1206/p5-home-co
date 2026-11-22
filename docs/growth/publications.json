@@ -254,6 +254,20 @@
       "published_at": "2026-11-05T15:16:18+0000",
       "verified_at": "2026-11-05",
       "link_attributes": "Facebook platform redirect; public post and tracked destination read back; crawlability, indexing and business outcome not claimed"
+    },
+    {
+      "platform": "facebook",
+      "brand": "Boise Remodeling Co",
+      "url": "https://boiseremodeling.co/instant-estimate",
+      "utm_content": "remodel_planning_estimator_20261122",
+      "id": "1228704823655951_122150684949385974",
+      "status": "published_verified",
+      "permalink_url": "https://www.facebook.com/122135638923385974/posts/122150684949385974",
+      "destination_url": "https://boiseremodeling.co/instant-estimate?utm_source=facebook&utm_medium=organic_social&utm_campaign=p5_free_growth_2026q4&utm_content=remodel_planning_estimator_20261122",
+      "created_at": "2026-11-22T14:20:40+0000",
+      "published_at": "2026-11-22T14:20:40+0000",
+      "verified_at": "2026-11-22",
+      "link_attributes": "Facebook platform redirect; exact post and tracked destination read back. Crawlability, indexing and customer outcomes not claimed."
     }
   ],
   "scheduled": [],
@@ -265,7 +279,9 @@
       "submitted_at": "2026-09-30",
       "status": "received_pending_review",
       "confirmation": "Your request has been received",
-      "scope": "One free parent listing; update existing record if present; no public street address or separate division listings."
+      "scope": "One free parent listing; update existing record if present; no public street address or separate division listings.",
+      "last_status_followup_at": "2026-11-22",
+      "followup_status": "Status requested in the existing correspondence; no new listing submission and no public listing confirmed."
     }
   ]
 }
