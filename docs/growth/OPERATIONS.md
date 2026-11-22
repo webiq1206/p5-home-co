@@ -1,5 +1,19 @@
 # P5 free growth operations
 
+## November 22, 2026 verified publicity completion
+
+The signed-in P5 account now manages the existing verified Google Business Profile. Estimator post 4781026451959496067 was published and its exact text and Learn more destination were read back. The destination is https://boiseremodeling.co/instant-estimate?utm_source=google&utm_medium=organic&utm_campaign=p5_free_growth_2026q4&utm_content=gbp_remodel_estimator_20261122 . The public post permalink remains unknown. This was a manual completion of the owner's current publicity request, alongside the earlier Facebook announcement. Preserve the recurring publication cadence and check both platforms before scheduling anything else. Do not duplicate either November 22 post.
+
+The old proposed Google description was marked Not approved. A concise factual replacement was submitted through the normal editor and now shows Pending. Do not treat it as live or interpret the earlier description warning as a global post restriction, since the estimator post published successfully.
+
+Nextdoor management access is confirmed for the existing P5 Home Co page at https://nextdoor.com/page/boise-remodeling-co-meridian-id/ . The correct website, email and phone are present, and the street address is hidden from neighbors. The page reports no existing posts. New posting requires the owner's identity-verification step, which is unfinished. No new Nextdoor post was published and no replacement page was created.
+
+Webnewswire accepted release submission 944933 and sent an automatic acknowledgement. Editorial approval and a public URL remain outstanding. Eagle Magazine's general inquiry form confirmed receipt of one tailored homeowner-planning pitch. Coordinate that inquiry across Idaho Media's brands rather than contacting each with the same pitch. Press Release Network received one individually sent 252-word release; its free service excludes hyperlinks. Keep all three distinct from published coverage and verified backlinks.
+
+ShowMeLocal's existing P5 listing was found with an outdated display name, a visible street address and no visible website link. A correction request was sent and automatically acknowledged. Request only the current name, P5 website and Meridian, ID 83646 public location, with the street hidden and existing listing active. Completion remains pending.
+
+PressLiftoff's Free form is prepared, but the required terms agreement has not been accepted. Preview must still be checked for platform-generated punctuation before submission. PRFree connected through P5's Google account and then required new account setup; the owner must complete credential entry. Patch remains a prepared written draft with account access outstanding. Preserve all exact submitted and prepared text in the existing private outreach log and packet. No paid option, trial, new duplicate business profile or new earned backlink was recorded.
+
 ## November 22, 2026 publicity reconciliation
 
 The existing P5 Facebook Page, Nextdoor page and Google Business Profile were reconciled with prior work before new distribution. Nextdoor remains at https://nextdoor.com/pages/boise-remodeling-co-meridian-id/ despite the older URL slug. P5's Google profile is https://www.google.com/maps?cid=11869148461693849141. Do not create duplicate profiles. Current management access is separate from profile existence.
@@ -70,7 +84,7 @@ The Google tag now requires the exact public hostname, skips automated browsers,
 
 Track accepted inquiry events separately from estimator starts, contact views, downloads and phone clicks. A phone click is not a connected call. Do not assign estimated revenue to leads. Match qualified leads, booked work and revenue against actual business records when available.
 
-The Analytics connection lacked analytics.edit on September 29. Creating generate_lead as a key event was rejected with HTTP 403 and no mutation occurred. Google Business Profile management access is now verified for the existing P5 profile. Apple and Nextdoor management access remain unverified. Distinguish submitted edits from approved public changes.
+The Analytics connection lacked analytics.edit on September 29. Creating generate_lead as a key event was rejected with HTTP 403 and no mutation occurred. Google Business Profile management access is now verified for the existing P5 profile. Apple management access remains unverified. Nextdoor management access was confirmed November 22; posting still requires the owner's verification step. Distinguish submitted edits from approved public changes.
 
 Code changes in main require separate production deployment verification. Never publish an old Replit workspace, force-push, overwrite concurrent changes, run production migrations or invoke paid Replit AI for this workflow. User authority includes ordinary commits and pushes to main.
 
