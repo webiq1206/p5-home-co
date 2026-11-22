@@ -324,7 +324,8 @@ test("the document estimator's customer email is sent with the greeting, the sch
     assert.ok(sent.html.includes(`${FAMILY_PS}</p></td></tr>\n <tr><td class="pad" style="padding:18px 28px 22px;border-top:`));
     assert.match(sent.html, /No payment or signature is required now\.<\/p><p [^>]*>P\.S\. /, "the P.S. follows the last paragraph of the letter");
     const afterPs = visible(sent.html.slice(sent.html.indexOf(FAMILY_PS) + FAMILY_PS.length)).replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim();
-    assert.equal(afterPs, "P5 Home Co | (208) 477-1169 | hello@p5homeco.com | p5homeco.com P5 Home Co is operated by P5 Home Co, LLC.", "only the brand footer follows the P.S.");
+    assert.equal(afterPs, "P5 Home Co | (208) 477-1169 | hello@p5homeco.com | p5homeco.com", "only the brand footer follows the P.S.");
+    assert.doesNotMatch(afterPs, /operated by|LLC/);
     assert.ok(sent.html.endsWith("</table></td></tr></table></body></html>"));
 
     // Nothing the template wrote was removed or reordered: taking the additions back out gives the original bytes.

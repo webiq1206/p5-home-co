@@ -91,7 +91,7 @@ export function customerLayout(doc:EstimateDocument,body:string){
  <tr><td class="pad" style="padding:0 28px 28px">${body}</td></tr>
  <tr><td class="pad" style="padding:18px 28px 22px;border-top:1px solid ${C.line}">
   <p style="margin:0;font-size:13px;line-height:1.6;color:${C.muted}"><b style="color:${C.ink}">${escape(doc.brand.name)}</b> &nbsp;|&nbsp; <a href="${escape(doc.review.tel)}" style="color:${C.muted};text-decoration:none">${escape(doc.brand.phone)}</a> &nbsp;|&nbsp; <a href="mailto:${escape(doc.brand.email)}" style="color:${C.muted}">${escape(doc.brand.email)}</a> &nbsp;|&nbsp; <a href="${escape(site)}" style="color:${C.muted}">${escape(doc.brand.domain)}</a></p>
-  ${endorsement}${doc.legalLine?`<p style="margin:6px 0 0;font-size:11px;line-height:1.5;color:${C.soft}">${escape(doc.legalLine)}</p>`:''}
+  ${endorsement}${doc.legalLine.trim()?`<p style="margin:6px 0 0;font-size:11px;line-height:1.5;color:${C.soft}">${escape(doc.legalLine.trim())}</p>`:''}
  </td></tr>
 </table></td></tr></table></body></html>`;
 }
@@ -105,7 +105,7 @@ export function customerText(doc:EstimateDocument,link=''){
  lines.push('ASSUMPTIONS & ITEMS TO CONFIRM');for(const [label,values] of doc.assumptionRows){lines.push(`${label}:`);for(const v of values)lines.push(`  - ${v}`);}lines.push('');
  lines.push('NEXT STEPS');doc.nextSteps.forEach(([title,body],i)=>lines.push(`${String(i+1).padStart(2,'0')} ${title}: ${body}`));
  lines.push('',`${doc.review.label}: ${doc.review.email} | ${doc.review.phone}`,'',`${doc.notice.lead} ${doc.notice.text}`,'',`${doc.brand.name} | ${doc.brand.phone} | ${doc.brand.email} | ${doc.brand.domain}`);
- if(doc.brand.endorsed)lines.push('A P5 Home Co brand');if(doc.legalLine)lines.push(doc.legalLine);
+ if(doc.brand.endorsed)lines.push('A P5 Home Co brand');if(doc.legalLine.trim())lines.push(doc.legalLine.trim());
  lines.push('','Your complete estimate is attached as a PDF.');
  return lines.join('\n');
 }

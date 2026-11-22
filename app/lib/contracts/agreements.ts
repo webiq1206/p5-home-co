@@ -51,7 +51,7 @@ export const masterSubcontractorAgreement: DocumentTemplate = {
     {
       heading: "1. Parties and scope of this agreement",
       body:
-        "This Master Subcontractor Agreement is made effective {{effective_date}} between P5 Home Co. LLC " +
+        "This Master Subcontractor Agreement is made effective {{effective_date}} between P5 Home Co LLC " +
         "(\"Contractor\") and {{sub_legal_name}} of {{sub_address}} (\"Subcontractor\"), Idaho contractor " +
         "registration number {{sub_registration}}.\n\n" +
         "This agreement does not itself commit either party to any particular work. It sets the terms that " +
@@ -76,7 +76,7 @@ export const masterSubcontractorAgreement: DocumentTemplate = {
       heading: "3. Insurance",
       body:
         "Before beginning any work and continuously thereafter, Subcontractor will maintain at its own expense:\n\n" +
-        "(a) Commercial General Liability of not less than {{gl_limit}} each occurrence, naming P5 Home Co. LLC " +
+        "(a) Commercial General Liability of not less than {{gl_limit}} each occurrence, naming P5 Home Co LLC " +
         "as additional insured on a primary and non-contributory basis;\n" +
         "(b) Commercial Automobile Liability of not less than {{auto_limit}} combined single limit;\n" +
         "(c) Workers' Compensation as required by Idaho law, with a waiver of subrogation in favour of " +
@@ -192,7 +192,7 @@ export const masterSubcontractorAgreement: DocumentTemplate = {
     },
   ],
   signatures: [
-    { role: "P5 Home Co. LLC, by" },
+    { role: "P5 Home Co LLC, by" },
     { role: "Subcontractor", nameField: "sub_legal_name" },
   ],
   issuingNotes: [
@@ -243,7 +243,7 @@ export const subcontractWorkOrder: DocumentTemplate = {
     {
       heading: "Work order",
       body:
-        "This Work Order is issued under the Master Subcontractor Agreement between P5 Home Co. LLC and " +
+        "This Work Order is issued under the Master Subcontractor Agreement between P5 Home Co LLC and " +
         "{{sub_legal_name}} dated {{master_date}}, and is governed entirely by its terms.",
       rationale:
         "The sentence that carries every term of the master agreement onto this job. Without it, this page is a bare price quote with no insurance, indemnity or lien terms behind it.",
@@ -273,7 +273,7 @@ export const subcontractWorkOrder: DocumentTemplate = {
       body:
         "Subcontract amount: {{contract_amount}}, subject to retainage of {{retainage_pct}} percent.\n\n" +
         "This is the complete price for the scope described. No additional amount is payable without a " +
-        "Change Order signed by P5 Home Co. LLC before the additional work is performed.",
+        "Change Order signed by P5 Home Co LLC before the additional work is performed.",
       rationale:
         "\"Signed before the work is performed\" is what stops a bill arriving for work nobody authorised.",
       loadBearing: true,
@@ -290,7 +290,7 @@ export const subcontractWorkOrder: DocumentTemplate = {
     },
   ],
   signatures: [
-    { role: "P5 Home Co. LLC, by" },
+    { role: "P5 Home Co LLC, by" },
     { role: "Subcontractor", nameField: "sub_legal_name" },
   ],
   issuingNotes: [
@@ -360,7 +360,7 @@ export const clientConstructionAgreement: DocumentTemplate = {
     {
       heading: "1. Parties",
       body:
-        "This Agreement is made {{agreement_date}} between P5 Home Co. LLC, Idaho contractor registration " +
+        "This Agreement is made {{agreement_date}} between P5 Home Co LLC, Idaho contractor registration " +
         "number {{p5_registration}} (\"Contractor\"), and {{customer_name}} (\"Owner\"), for work at " +
         "{{property_address}}. Job reference {{job_reference}}.",
     },
@@ -465,7 +465,7 @@ export const clientConstructionAgreement: DocumentTemplate = {
     },
   ],
   signatures: [
-    { role: "P5 Home Co. LLC, by" },
+    { role: "P5 Home Co LLC, by" },
     { role: "Owner", nameField: "customer_name" },
   ],
   issuingNotes: [
@@ -518,7 +518,7 @@ export const changeOrder: DocumentTemplate = {
     {
       heading: "Change order",
       body:
-        "Job: {{job_reference}}\nProperty: {{property_address}}\nBetween: P5 Home Co. LLC and " +
+        "Job: {{job_reference}}\nProperty: {{property_address}}\nBetween: P5 Home Co LLC and " +
         "{{counterparty_name}}\nDate: {{change_date}}",
     },
     {
@@ -564,7 +564,7 @@ export const changeOrder: DocumentTemplate = {
     },
   ],
   signatures: [
-    { role: "P5 Home Co. LLC, by" },
+    { role: "P5 Home Co LLC, by" },
     { role: "Accepted by", nameField: "counterparty_name" },
   ],
   issuingNotes: [
@@ -602,7 +602,7 @@ export const idahoResidentialDisclosure: DocumentTemplate = {
       heading: "Disclosure",
       body:
         "To: {{customer_name}}\nProperty: {{property_address}}\nJob: {{job_reference}}\n" +
-        "Contractor: P5 Home Co. LLC, Idaho registration {{p5_registration}}\n" +
+        "Contractor: P5 Home Co LLC, Idaho registration {{p5_registration}}\n" +
         "Contract price: {{contract_amount}}\nDate delivered: {{disclosure_date}}",
     },
     {
@@ -633,7 +633,7 @@ export const idahoResidentialDisclosure: DocumentTemplate = {
     {
       heading: "Our practice",
       body:
-        "P5 Home Co. LLC collects conditional lien waivers with every subcontractor payment request and " +
+        "P5 Home Co LLC collects conditional lien waivers with every subcontractor payment request and " +
         "unconditional waivers once payments clear, and requires the same of its subcontractors from their own " +
         "suppliers. A current list of subcontractors and suppliers for your job is available on request at any " +
         "time.",
@@ -649,7 +649,7 @@ export const idahoResidentialDisclosure: DocumentTemplate = {
     },
   ],
   signatures: [
-    { role: "Delivered by, for P5 Home Co. LLC" },
+    { role: "Delivered by, for P5 Home Co LLC" },
     { role: "Received by Owner", nameField: "customer_name" },
     { role: "Date received" },
   ],

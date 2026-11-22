@@ -22,7 +22,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
           portal. Without it their only route is replying to whichever email
           brought them here, which may not be monitored. */}
       <footer className="fin-legal">
-        <span>P5 Home Co. LLC</span>
+        <span>P5 Home Co</span>
         <a href="mailto:accounting@p5homeco.com?subject=P5%20Portal%20question">
           Questions about this page?
         </a>

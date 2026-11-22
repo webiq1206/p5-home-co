@@ -170,7 +170,7 @@ export default async function DrawPackagePage({
           </table>
         </div>
         <p className="fin-footnote">
-          Prepared by P5 Home Co. LLC from QuickBooks records and the P5 project
+          Prepared by P5 Home Co from QuickBooks records and the P5 project
           registry. Use the browser&apos;s Print to save as PDF.
         </p>
       </section>

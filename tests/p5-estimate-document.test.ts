@@ -117,7 +117,7 @@ test('PDF and email render the same saved revision, keep its date on every re-re
  assert.match(mail.html,/mailto:[^"]+\?subject=Project%20review%20request%20-%20estimate%20P5-0F1E2D3C/);
 });
 test('a child brand prints P5 Home Co as the brand and keeps the contracting company line',async()=>{
- const legal='Boise Remodeling Co is a DBA of P5 Home Co, LLC.';
+ const legal='Boise Remodeling Co is a DBA of P5 Home Co.';
  const doc=buildEstimateDocument({id:ID,result:re10,brand:brand('remodeling'),issue:{service:'kitchen'},legalLine:legal});
  assert.equal(doc.legalLine,legal);
  for(const file of ['estimateEmail.ts','estimatePdf.ts']){
@@ -131,7 +131,7 @@ test('a child brand prints P5 Home Co as the brand and keeps the contracting com
  for(const output of [text,html,pdf]){
   assert.match(output,/A P5 Home Co brand/);
   assert.doesNotMatch(output,/A P5 Home Co\. brand/);
-  assert.match(output,/Boise Remodeling Co is a DBA of P5 Home Co, LLC\./);
+  assert.match(output,/Boise Remodeling Co is a DBA of P5 Home Co\./);
  }
  assert.match(html,/alt="P5 Home Co"/);
  assert.doesNotMatch(html,/alt="P5"(?! Home Co)/);

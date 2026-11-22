@@ -24,7 +24,7 @@ function attachmentClause(riderName: string) {
     heading: "1. This rider attaches to the Agreement",
     body:
       `This ${riderName} forms part of the Residential Construction Agreement dated ` +
-      `{{agreement_date}} between P5 Home Co. LLC and {{customer_name}} for the property at ` +
+      `{{agreement_date}} between P5 Home Co LLC and {{customer_name}} for the property at ` +
       `{{property_address}}, job reference {{job_reference}}.\n\n` +
       `The Agreement applies in full. This rider adds terms specific to this kind of work. ` +
       `Where this rider and the Agreement conflict, this rider governs, and only as to the ` +
@@ -44,7 +44,7 @@ const linkFields = [
 ];
 
 const riderSignatures = [
-  { role: "P5 Home Co. LLC, by" },
+  { role: "P5 Home Co LLC, by" },
   { role: "Owner", nameField: "customer_name" },
 ];
 

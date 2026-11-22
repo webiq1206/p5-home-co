@@ -281,6 +281,6 @@ ${ex.purpose}`,
     title: doc.title,
     blocks,
     watermark: doc.draftWatermark,
-    footer: "P5 Home Co. LLC",
+    footer: "P5 Home Co LLC",
   };
 }
