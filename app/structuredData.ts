@@ -10,7 +10,6 @@ import {
   P5_INSTAGRAM_URL,
   P5_GOOGLE_BUSINESS_PROFILE_URL,
   P5_GBP_MAPS_URL,
-  P5_BBB_URL,
   PUBLIC_ADDRESS_LOCALITY,
   PUBLIC_ADDRESS_REGION,
   PUBLIC_POSTAL_CODE,
@@ -43,7 +42,7 @@ export const siteSchema = {
       image: `${siteUrl}/images/p5-og.jpg`,
       logo: { "@type": "ImageObject", url: `${siteUrl}/android-chrome-512x512.png` },
       // Parent profiles only. The brand nodes have none of their own.
-      sameAs: [P5_FACEBOOK_URL, P5_INSTAGRAM_URL, P5_GOOGLE_BUSINESS_PROFILE_URL, P5_GBP_MAPS_URL, P5_BBB_URL],
+      sameAs: [P5_FACEBOOK_URL, P5_INSTAGRAM_URL, P5_GOOGLE_BUSINESS_PROFILE_URL, P5_GBP_MAPS_URL],
       employee: {
         "@type": "Person",
         "@id": NICK_PERKINS_ID,

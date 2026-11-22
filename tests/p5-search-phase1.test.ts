@@ -70,14 +70,14 @@ test("llms-full.txt is the fact sheet plus the homepage FAQ and nothing invented
   assert.equal(full.includes("does the work itself"), false);
   assert.match(full, /Boise, Meridian, Eagle, Garden City, Nampa, Kuna, Star, Middleton and Caldwell/);
   const nap = "P5 Home Co, Meridian, ID 83646 (service-area business, no public street). Phone (208) 477-1169. Web https://p5homeco.com.";
-  const profiles = "Profiles: Facebook https://www.facebook.com/p5homeco. Instagram https://www.instagram.com/p5_home_co. Google https://www.google.com/search?kgmid=/g/11ntl1t7dc. Maps https://maps.google.com/?cid=11869148461693849141. BBB https://www.bbb.org/us/id/meridian/profile/general-contractor/p5-home-co-llc-1296-1000203624";
+  const profiles = "Profiles: Facebook https://www.facebook.com/p5homeco. Instagram https://www.instagram.com/p5_home_co. Google https://www.google.com/search?kgmid=/g/11ntl1t7dc. Maps https://maps.google.com/?cid=11869148461693849141";
   assert.ok(flat(llms).includes(nap), "llms.txt NAP");
   assert.ok(flat(full).includes(nap), "llms-full.txt NAP");
   assert.ok(flat(llms).includes(profiles), "llms.txt profiles");
   assert.ok(flat(full).includes(profiles), "llms-full.txt profiles");
   assert.match(llms, /Last updated: 2026-11-21\./);
   assert.match(full, /Last updated: 2026-11-21\./);
-  assert.doesNotMatch(`${llms}\n${full}`, /BBB[^.\n]*(rating|grade|accredit)/i);
+  assert.equal(`${llms}\n${full}`.toLowerCase().includes("bbb.org"), false);
   for (const item of faqs) {
     assert.ok(full.includes(item.q), item.q);
     assert.ok(full.includes(item.a), item.q);

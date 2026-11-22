@@ -80,7 +80,6 @@ test("public schema publishes the locality, rounded geo and the seven service ar
     "https://www.instagram.com/p5_home_co",
     "https://www.google.com/search?kgmid=/g/11ntl1t7dc",
     "https://maps.google.com/?cid=11869148461693849141",
-    "https://www.bbb.org/us/id/meridian/profile/general-contractor/p5-home-co-llc-1296-1000203624",
   ]);
   assert.equal(JSON.stringify(organization).includes("aggregateRating"), false);
   assert.equal(/accreditation|bbbRating|"rating"/i.test(JSON.stringify(organization)), false);
