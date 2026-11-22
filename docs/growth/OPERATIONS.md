@@ -1,5 +1,19 @@
 # P5 free growth operations
 
+## November 22, 2026 publicity reconciliation
+
+The existing P5 Facebook Page, Nextdoor page and Google Business Profile were reconciled with prior work before new distribution. Nextdoor remains at https://nextdoor.com/pages/boise-remodeling-co-meridian-id/ despite the older URL slug. P5's Google profile is https://www.google.com/maps?cid=11869148461693849141. Do not create duplicate profiles. Current management access is separate from profile existence.
+
+A free remodeling-estimator update was published on the existing P5 Facebook Page and independently read back on November 22:
+https://www.facebook.com/122135638923385974/posts/122150684949385974
+
+The post links to the current remodeling instant-estimate page with campaign p5_free_growth_2026q4 and content remodel_planning_estimator_20261122. Exact Page management permissions, recent published posts and the empty scheduled queue were checked first. There was no post in the preceding seven days. Preserve the shared cap of one post per day and four helpful posts per rolling seven days. The post explains a preliminary total range and scope of work, followed by a firm proposal after a site visit, measurements and selections. Publication is not evidence of qualified inquiries, rankings or revenue.
+
+The existing September 30 Treasure Valley Contractor Guide request received a status follow-up, not another submission. Its public listing remains unverified. Public business location is Meridian, ID 83646 only, with no street address or staffed-office claim. The current owner reports all websites launched; dated prelaunch notes below are historical, and each promotion still requires a working destination check.
+
+The private outreach log now reconciles earlier conversations, accounts and submissions, including Totally Boise's November 21 inquiry, the Capital Sun referral, HomeProjectBase's sample already sent, and existing Medium and directory activity. Consult those current records before any further contact or publishing. Preserve the existing owner workflow and do not start another tracker or task.
+
+
 ## Required contact identity and browser housekeeping
 
 Use Nick Perkins for every P5 owner/contact name in listings, registrations, forms and business-facing communications. Never use the user's personal name. Correct prepared forms before submission. Keep business email hello@p5homeco.com, phone (208) 477-1169 and the authorized public address unchanged. Close stale, duplicate and completed browser tabs as work finishes; retain only tabs required for active work or a specific pending handoff.
