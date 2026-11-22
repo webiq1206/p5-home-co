@@ -268,6 +268,20 @@
       "published_at": "2026-11-22T14:20:40+0000",
       "verified_at": "2026-11-22",
       "link_attributes": "Facebook platform redirect; exact post and tracked destination read back. Crawlability, indexing and customer outcomes not claimed."
+    },
+    {
+      "platform": "google_business_profile",
+      "brand": "P5 Home Co",
+      "id": "4781026451959496067",
+      "topic": "remodel_planning_estimator_20261122",
+      "published_at": "2026-11-22",
+      "status": "published_verified",
+      "permalink_url": "",
+      "public_profile_url": "https://www.google.com/maps?cid=11869148461693849141",
+      "destination_url": "https://boiseremodeling.co/instant-estimate?utm_source=google&utm_medium=organic&utm_campaign=p5_free_growth_2026q4&utm_content=gbp_remodel_estimator_20261122",
+      "verified_at": "2026-11-22T17:05:25Z",
+      "verification": "Google manager displayed Published; exact copy and Learn more destination read back from the saved post.",
+      "notes": "Exact publication timestamp and public post permalink not recovered. Current owner-authorized manual campaign completion; do not duplicate. No indexing, ranking or customer outcome claim."
     }
   ],
   "scheduled": [],
@@ -282,6 +296,63 @@
       "scope": "One free parent listing; update existing record if present; no public street address or separate division listings.",
       "last_status_followup_at": "2026-11-22",
       "followup_status": "Status requested in the existing correspondence; no new listing submission and no public listing confirmed."
+    }
+  ],
+  "editorial_submissions": [
+    {
+      "platform": "Webnewswire",
+      "brand": "P5 Home Co",
+      "submission_url": "https://www.webnewswire.com/usp_form/sendcontent/",
+      "submission_id": "944933",
+      "submitted_at": "2026-11-22",
+      "status": "received_pending_review",
+      "confirmation": "Success! You have successfully submitted a release.",
+      "published_url": "",
+      "backlink_status": "Not confirmed",
+      "next_review": "2026-11-23",
+      "notes": "Automatic email acknowledgement also received. Verify actual public release and links before counting publication; do not resubmit."
+    },
+    {
+      "platform": "Eagle Magazine / Idaho Media",
+      "brand": "P5 Home Co",
+      "submission_url": "https://www.eaglemagazine.com/contact/",
+      "submitted_at": "2026-11-22",
+      "status": "inquiry_received",
+      "confirmation": "Your message was sent successfully. Thanks.",
+      "published_url": "",
+      "backlink_status": "Not confirmed",
+      "next_review": "2026-11-30",
+      "notes": "Single group inquiry. Do not duplicate through It's a Boise Thing or MeridianIdaho.net."
+    },
+    {
+      "platform": "Press Release Network",
+      "brand": "P5 Home Co",
+      "submission_url": "https://pressrelease.network/submit-press-release",
+      "submitted_at": "2026-11-22",
+      "status": "sent_pending_review",
+      "published_url": "",
+      "backlink_status": "Free text-only service excludes hyperlinks",
+      "next_review": "2026-11-23",
+      "notes": "252-word release submitted individually. Sent-mail copy verified. Inbox delivery and publication remain unconfirmed."
+    }
+  ],
+  "profile_corrections": [
+    {
+      "platform": "Google Business Profile",
+      "brand": "P5 Home Co",
+      "requested_at": "2026-11-22",
+      "status": "pending_review",
+      "change": "Factual service description updated through the existing verified profile",
+      "notes": "New proposal pending. The prior rejected proposal is historical; successful post publication is a separate result."
+    },
+    {
+      "platform": "ShowMeLocal",
+      "brand": "P5 Home Co",
+      "public_url": "https://www.showmelocal.com/40506138-p5-home-co-llc-meridian",
+      "requested_at": "2026-11-22",
+      "status": "acknowledged_pending_correction",
+      "change": "Requested current P5 display name, website and city/ZIP-only public location with street hidden.",
+      "notes": "Keep existing business record active. Automatic acknowledgement received; no completed correction claimed."
     }
   ]
 }
