@@ -128,7 +128,11 @@ test("every live brand embed project uses the same mandatory fees and total-only
     assert.ok(FLOWS.some(f=>f.id===project));
     const estimate=priceEstimate({brand:brand.id,project,tier:"mid",answers:{},address:"Synthetic test location",property:null},{now:NOW});
     const services=estimate.pricing.lines.filter(l=>l.basis==="project-service");
-    if(estimate.pricing.lines.some(l=>l.basis!=="project-service"&&l.basis!=="trip-charge")){
+    if(brand.id==="handyman"){
+      // Handyman Co bills $95/hr all-in on every job, paint and flooring included: no $120 lines.
+      assert.equal(services.length,0,`${brand.id}/${project}`);
+      assert.ok(!estimate.pricing.lines.some(l=>l.basis==="project-service-credit"),`${brand.id}/${project}: credit`);
+    } else if(estimate.pricing.lines.some(l=>l.basis!=="project-service"&&l.basis!=="trip-charge")){
       assert.equal(services.length,3,`${brand.id}/${project}`);
       assert.ok(services.every(l=>l.unitPrice===120));
       const report=internalReport(estimate);
