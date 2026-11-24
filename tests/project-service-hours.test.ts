@@ -96,9 +96,16 @@ test("document financial engine adds flat fees once with no markup, no extra pro
   const services=priced.lines.filter(l=>projectServiceCode(l.id));
   assert.equal(services.length,3);
   assert.ok(services.every(l=>l.sellingUnitPrice===120&&l.contingency===0&&l.operatingProfit===0));
+  // New plans bill internal labor in full at $120/hr: no overhead credit.
   const credit=priced.projectServiceOverheadCredit??0;
-  assert.equal(credit,projectOverheadCredit(services.reduce((n,l)=>n+l.sellingAmount,0),legacy.contractPrice,legacy.allocations.overhead));
-  assert.equal(priced.contractPrice-legacy.contractPrice,services.reduce((n,l)=>n+l.sellingAmount,0)-credit);
+  assert.equal(credit,0);
+  assert.equal(priced.contractPrice-legacy.contractPrice,services.reduce((n,l)=>n+l.sellingAmount,0));
+  // Saved plans from before 24 Nov 2026 (no overheadCredit flag) keep their credit.
+  const {overheadCredit:_none,...savedPlan}=i.projectServices!;
+  const saved=calculateP5Estimate({...i,projectServices:savedPlan},DEFAULT_FINANCE,[],NOW);
+  const savedCredit=saved.projectServiceOverheadCredit??0;
+  assert.equal(savedCredit,projectOverheadCredit(services.reduce((n,l)=>n+l.sellingAmount,0),legacy.contractPrice,legacy.allocations.overhead));
+  assert.ok(savedCredit>0);
   assert.equal(priced.operatingProfit,legacy.operatingProfit);
   assert.ok(Math.abs(priced.reconciliation)<.00001);
   assert.deepEqual(calculateP5Estimate({...i,lines:priced.lines},DEFAULT_FINANCE,[],NOW),priced);

@@ -1,5 +1,5 @@
 import {publicPricingText} from './customerProjection.ts';
-import {projectServiceLines,projectServiceCode,projectOverheadCredit,PROJECT_OVERHEAD_CREDIT_ID,duplicateOwnerServiceCost,documentProjectServiceBasis} from './projectServices.ts';
+import {projectServiceLines,projectServiceCode,projectOverheadCredit,billsInternalLaborInFull,PROJECT_OVERHEAD_CREDIT_ID,duplicateOwnerServiceCost,documentProjectServiceBasis} from './projectServices.ts';
 import {tradeForLine,apportionAmount,type TradeCategory} from "./trades.ts";
 /** Internal policy. Import only from server entry points, never client components. */
 export const POLICY_VERSION = "p5-2026-10-01-contingency-and-minor-work";
@@ -280,9 +280,11 @@ export function calculateP5Estimate(input: PricingInput, finance: FinancePolicy,
   const divisor = 1 - allocations.total - margin;
   const ordinaryPrice = priceFromRiskAdjustedCost(riskAdjustedDirectCost, allocations.total, margin);
   const serviceBasis=input.projectServices?(oldServicePolicy?{outsideDirectCost:directCost,milestoneOutsideCosts:undefined}:documentProjectServiceBasis(input.lines,directCost)):undefined;
-  const services = input.projectServices ? projectServiceLines(input.projectServices,serviceBasis!.outsideDirectCost,lines.length,serviceBasis!.milestoneOutsideCosts) : [];
+  // Handyman Co bills $95/hour all-in, so new handyman plans add no separate $120 internal-labor lines.
+  const handymanAllIn = billsInternalLaborInFull(input.projectServices) && (input.service === "handyman" || input.service === "re10");
+  const services = input.projectServices && !handymanAllIn ? projectServiceLines(input.projectServices,serviceBasis!.outsideDirectCost,lines.length,serviceBasis!.milestoneOutsideCosts) : [];
   const projectServiceRecovery = sum(services.map(s=>s.price));
-  const overlapCredit = projectServiceRecovery>0?projectOverheadCredit(projectServiceRecovery,ordinaryPrice,allocations.overhead,finance.annualOverhead,oldServicePolicy?finance.annualOverhead:finance.ownerSalaryOverheadAnnual??200000):0;
+  const overlapCredit = projectServiceRecovery>0&&!billsInternalLaborInFull(input.projectServices)?projectOverheadCredit(projectServiceRecovery,ordinaryPrice,allocations.overhead,finance.annualOverhead,oldServicePolicy?finance.annualOverhead:finance.ownerSalaryOverheadAnnual??200000):0;
   const contractPrice = ordinaryPrice + projectServiceRecovery - overlapCredit;
   // The flat fees recover project-specific overhead labor, not another cost
   // plus margin. Ordinary overhead is never applied to these fees.

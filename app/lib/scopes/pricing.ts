@@ -21,7 +21,7 @@ import {
   type FinancePolicy,
 } from "../../../lib/p5/pricing.ts";
 import type { FinishTier } from "../../../lib/p5/priceBook.ts";
-import { projectServiceLines, projectServiceCode, isSuperintendentCode,projectOverheadCredit,PROJECT_OVERHEAD_CREDIT_ID,projectServiceCostBasis,type ProjectServiceBasis } from "../../../lib/p5/projectServices.ts";
+import { projectServiceLines, projectServiceCode, isSuperintendentCode,projectOverheadCredit,billsInternalLaborInFull,PROJECT_OVERHEAD_CREDIT_ID,projectServiceCostBasis,type ProjectServiceBasis } from "../../../lib/p5/projectServices.ts";
 import {
   COST_BOOK_REVIEWED_AT,
   COST_BOOK_SOURCE,
@@ -519,7 +519,7 @@ export function priceScope(doc: ScopeDoc, ctx: PricingContext): PricingResult {
     }));
     const count = new Set(ordinary.map(l => l.taskId)).size;
     const services=projectServiceLines(doc.projectServices,serviceBasis.outsideDirectCost,count,serviceBasis.milestoneOutsideCosts);
-    const credit=projectOverheadCredit(services.reduce((n,s)=>n+s.price,0),ordinary.reduce((n,l)=>n+l.price,0),overhead,
+    const credit=billsInternalLaborInFull(doc.projectServices)?0:projectOverheadCredit(services.reduce((n,s)=>n+s.price,0),ordinary.reduce((n,l)=>n+l.price,0),overhead,
       (ctx.finance??DEFAULT_FINANCE).annualOverhead,oldServicePolicy?(ctx.finance??DEFAULT_FINANCE).annualOverhead:(ctx.finance??DEFAULT_FINANCE).ownerSalaryOverheadAnnual??200000);
     for (const service of services) {
       lines.push({

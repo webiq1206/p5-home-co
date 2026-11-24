@@ -119,6 +119,8 @@ test("four shared embed pricing paths and intake/QBO receiver retain saved defau
     const priced=priceEstimate({brand,project,tier:"mid",answers:brand==="handyman"?{tasks:{faucet:2}}:{},address:"Isolated fixture",property:null},
       {projectServiceDefaults:settings,now:new Date("2026-11-23T12:00:00Z")});
     const roles=priced.pricing.lines.filter(l=>l.sku);
+    // Handyman Co bills $95/hr all-in, so no $120 project-service lines.
+    if(brand==="handyman"){assert.equal(roles.length,0);continue;}
     const expected=projectServiceLines(newProjectServices(settings),priced.pricing.projectServiceBasis!.outsideDirectCost,1);
     assert.equal(roles.length,3);
     assert.deepEqual(roles.map(l=>l.quantity),expected.map(l=>l.quantity));

@@ -1,7 +1,7 @@
 {
   "source": "p5-home-co",
-  "commit": "894320513633cdc6a2d0aa6fb8e7ffc352a7373d",
-  "generatedAt": "2026-11-24T17:34:02.655Z",
+  "commit": "acc86fb959557e1c15cab3030ebcc56f63f7b45a",
+  "generatedAt": "2026-11-24T20:14:14.536Z",
   "note": "Shared estimator engine published from p5-home-co. Edit shared files there and run scripts/p5-sync.mjs; hash checks remain mandatory in every brand.",
   "files": {
     "app/admin/p5-estimators/page.tsx": "aa1557d1cbf80c072715ab051f8adbc1130abb720c088ee6d5ddd18c664844ed",
@@ -179,7 +179,7 @@
     "lib/p5/presentation.ts": "6351d7433a043369919c797409a126b642b00064ed3d0f835ff5bd8150f22bcd",
     "lib/p5/priceBook.ts": "b4d10f84ec3c7e8051aada3f8d78503262509e358dc8e02b4b15baf1f12a0870",
     "lib/p5/priceBookData.ts": "c033ceb44f9797223053d068a6e1610998e562d642cbe2676ff2d25f9ebbdd7f",
-    "lib/p5/pricing.ts": "01e3b9d9311a557f3aa7f42f047115bcf8a989e87ef3438d626bf10335cb4d20",
+    "lib/p5/pricing.ts": "74022a62df1873ec909d24737571333c31d357b08d3fe58f387fd5d8ecdaa725",
     "lib/p5/pricingBasis.ts": "77f7407be492bf9b4278ffdd2a9aec8939fc22771a34614704a2887435cb68d3",
     "lib/p5/pricingCache.ts": "99dce7244fb151dd8967cd27dd839f37e5247adcf519f74f222d2ff0db9ab5a9",
     "lib/p5/pricingCorrections.ts": "ac2fa7c2c760d3d42a920b6c2d2fdfd5ad6f294c3323d901303ef57a4dbd631e",
@@ -209,7 +209,7 @@
     "lib/p5/projectReviewContract.ts": "135b89dcf786b29dc5ec064e5e9912e0dc9c9459423148b06b77141a4a5dcb83",
     "lib/p5/projectReviewEvidence.ts": "48fcd5589c6cf6e33fcddd7a8fe541041e62e3cb5e9aaccd6adf50680f4cc640",
     "lib/p5/projectServicePolicy.ts": "43406d3d1b8c4253b23f17d3f2fb174270d68848377e8811ec7a9ecef529c605",
-    "lib/p5/projectServices.ts": "62eaad6928684bd652730bfc6e30dff199cea3023c3ed7529cc6d652678ba45b",
+    "lib/p5/projectServices.ts": "5d0dc233a3621b04e34684f97f00e4b1216d27c868cbe4073e2a7127603e7a7c",
     "lib/p5/projectSource.ts": "77edf216923253458a562e08b4822bf6ede89952d001e968cd3bac2ab07b8cce",
     "lib/p5/projectSpecifications.ts": "8b274d67c2a76960b0318c64bea8d27eea002495c39473182d020d9caa1f389c",
     "lib/p5/projectUnits.ts": "53953807731aff9ad2495cbed31d78e36703ebf35128d1b4bb296af858adb0a0",

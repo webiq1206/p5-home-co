@@ -215,7 +215,8 @@ function compileDoc(input: PriceInput, recipe: Recipe, service: string, summary:
   }
 
   const doc = emptyScope();
-  doc.projectServices = newProjectServices(defaults);
+  // Handyman Co bills $95/hour all-in (t2013u): no separate $120 internal-labor lines.
+  if (service !== "handyman") doc.projectServices = newProjectServices(defaults);
   doc.summary = `${flow.title} requested through the ${brand.name} online estimator: ${summary.join("; ")}.`;
   doc.goals = [flow.title];
   doc.tasks = tasks;

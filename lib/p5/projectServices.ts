@@ -137,9 +137,15 @@ export type ProjectServicePlan = {
   defaults?: ProjectServiceDefaults;
   /** Internal employee overrides only. Missing roles keep their estimated defaults. */
   hours?: Partial<Record<ProjectServiceCode, MilestoneHours>>;
+  /** "none" (owner instruction 2026-11-24, t2013u/t2015u): internal labor is billed in full at
+   * $120/hour with no overhead credit. Plans saved without it keep their original credit, so
+   * already-priced jobs never change. */
+  overheadCredit?: "none";
 };
+/** True when a plan bills internal labor in full, with no salary-overlap credit. */
+export const billsInternalLaborInFull=(plan?:ProjectServicePlan)=>plan?.overheadCredit==="none";
 export const newProjectServices = (defaults?:ProjectServiceDefaults): ProjectServicePlan =>
-  ({ version: PROJECT_SERVICES_VERSION,...(defaults?{defaults:validateProjectServiceDefaults(defaults)}:{}) });
+  ({ version: PROJECT_SERVICES_VERSION,overheadCredit:"none",...(defaults?{defaults:validateProjectServiceDefaults(defaults)}:{}) });
 /** Editing a draft version never updates the existing estimate itself.
  * Legacy, sent, accepted and invoiced estimates remain locked. */
 export function projectServiceHoursEditable(plan:ProjectServicePlan|undefined,estimate?:{
@@ -159,6 +165,7 @@ export function validateProjectServices(value: ProjectServicePlan): ProjectServi
     if(value.version==="project-services-v1")throw new Error("Historical project-service defaults cannot be changed.");
     validateProjectServiceDefaults(value.defaults);
   }
+  if (value.overheadCredit !== undefined && value.overheadCredit !== "none") throw new Error("Unsupported project service overhead credit policy.");
   if (value.hours && (typeof value.hours !== "object" || Array.isArray(value.hours))) throw new Error("Project service hours must be keyed by role.");
   for (const [code, hours] of Object.entries(value.hours ?? {})) {
     if (projectServiceCode(code)!==code) throw new Error("Unknown project service code.");

@@ -98,6 +98,8 @@ test("shared guided pricing and incoming brand pricing use identical service-ite
     const guided=priceEstimate({brand:brand.id,project:brand.projects[0],tier:"mid",
       answers:brand.projects[0]==="handyman"?{tasks:{faucet:2}}:{},address:"Synthetic offline location",property:null},{now:new Date("2026-11-23T00:00:00Z")});
     const roles=guided.pricing.lines.filter(l=>l.sku);
+    // Handyman Co bills $95/hr all-in, so its jobs carry no $120 project-service lines.
+    if(brand.projects[0]==="handyman"){assert.equal(roles.length,0,brand.id);continue;}
     assert.equal(roles.length,3,brand.id);
     const read=readSiteEstimate(envelope(roles.map(l=>({
       sku:l.sku,title:l.description,quantity:l.quantity,unit:l.unit,
