@@ -74,7 +74,9 @@ export function validateConfiguration(raw:any):EstimatorConfiguration{
   return raw as EstimatorConfiguration;
 }
 export type PolicySaveDeps={authorize?:typeof requireEstimatorAdmin;ensure?:typeof ensureSchema;query?:typeof query};
-export async function putAdminPolicy(request:Request,deps:PolicySaveDeps={}){try{
+/** The route handler. Next route exports may take only the request, so injected dependencies live on savePolicyWithDeps. */
+export async function putAdminPolicy(request:Request){return savePolicyWithDeps(request);}
+export async function savePolicyWithDeps(request:Request,deps:PolicySaveDeps={}){try{
   protectRequest(request);const actor=await (deps.authorize??requireEstimatorAdmin)();await (deps.ensure??ensureSchema)();
   const write=deps.query??query;
   const raw=JSON.parse(new TextDecoder().decode(await limitedBody(request,2000000)));

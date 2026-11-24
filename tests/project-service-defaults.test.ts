@@ -26,7 +26,7 @@ import {calculateP5Estimate,COST_CATEGORIES} from "../lib/p5/pricing.ts";
 registerHooks({resolve(specifier,context,next){
   return next(specifier==="next/headers"?"next/headers.js":specifier,context);
 }});
-const {putAdminPolicy,validateConfiguration}=await import("../lib/p5/adminEndpoint.ts");
+const {savePolicyWithDeps:putAdminPolicy,validateConfiguration}=await import("../lib/p5/adminEndpoint.ts");
 
 const edited={
   "01-31-03":{hoursPer1000:.625,minimumHours:.375},

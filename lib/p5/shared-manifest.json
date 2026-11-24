@@ -1,7 +1,7 @@
 {
   "source": "p5-home-co",
-  "commit": "388950632e125eaa805d6b69834a8cc7db65eb90",
-  "generatedAt": "2026-11-24T14:27:41.710Z",
+  "commit": "8a4b7863d62103fe1673d875f36b764a6a2231c6",
+  "generatedAt": "2026-11-24T17:15:39.402Z",
   "note": "Shared estimator engine published from p5-home-co. Edit shared files there and run scripts/p5-sync.mjs; hash checks remain mandatory in every brand.",
   "files": {
     "app/admin/p5-estimators/page.tsx": "aa1557d1cbf80c072715ab051f8adbc1130abb720c088ee6d5ddd18c664844ed",
@@ -46,7 +46,7 @@
     "components/ProjectServiceDefaultsEditor.tsx": "da9a5d6c81ae915b190fcda4426ec2b29a05221822ecd8d8a068c17439f3f46e",
     "components/ProjectServiceEditor.tsx": "f27e6facbe6ef1fb2ea7723c1520a723b667566e4fad352e97f48fe1e0d70cac",
     "lib/p5/adaptive.ts": "d874b26921c2c77a028d6609d2530a084e193699b0e9786d06e44a03f52430f4",
-    "lib/p5/adminEndpoint.ts": "6bc989102b291ecfc00216735fef7bcdad697df63c3520cf90b07c1c743fed4d",
+    "lib/p5/adminEndpoint.ts": "779debbfb3128bea506088a4b4032960bdff3a059681f2d67e81f688a3f277b5",
     "lib/p5/adminEstimate.ts": "0a324a6dfaa166e9369705381f4ce45b7d89d5b960ac9bccb125adcf51d2f024",
     "lib/p5/advisoryProvenance.ts": "460df392ecd625d9dbe037309367eef65b2b52b1e5b43889a0eb9dd746ac1fcc",
     "lib/p5/analysisProgress.ts": "2f41c2b12c5b6551241967b63c6f36479e5b41f799811b81b55e92ab8a6eb539",
@@ -249,7 +249,7 @@
     "lib/p5/scopeFields.ts": "4846cfff6e0e0e4ada6dab60a6abb7800a18fe021e2caff5d2a3aba4842dd50f",
     "lib/p5/scopeInterpretation.ts": "57fa1a260817ddbf9bf6116a4a5195317960a798d623b23628d40ca669fe20c9",
     "lib/p5/scopeInventory.ts": "823baac9f40357847a8f6afd9a905058298dfc8dab553d584223bcd3f890d64a",
-    "lib/p5/scopePricing.ts": "f69d4899161b9bb4fd9c85f963905897498bbf66e27683b92931f2c361373a9b",
+    "lib/p5/scopePricing.ts": "d1fb77b50085d852ab53ed0bae6f8be018df4da762b89f8e11b4238d98683fe9",
     "lib/p5/scopeReplacement.ts": "1a00315d2962f30dd7abbce85dcd33ce096e9f9b305cac0130d127e0e53c5a99",
     "lib/p5/serviceBundles.ts": "bde5370a7591306f3ff014186326c50ab2b09696386b3014482b40ae101dc842",
     "lib/p5/serviceSignals.ts": "215be917ed8329deda2649d01b277778d21e3c42b758ea0b4acb06c69856f351",
