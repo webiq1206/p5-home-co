@@ -449,9 +449,9 @@ test("handyman: the minimum service charge is enforced and the trip charge nets 
   assert.ok(customerWork >= 135 && customerWork < 137.5, `customer work+minimum ${customerWork}`);
   const services = small.pricing.lines.filter((l) => l.basis === "project-service");
   const credit = small.pricing.lines.find((l) => l.basis === "project-service-credit")?.price ?? 0;
-  assert.equal(services.length, 3);
-  assert.ok(services.every((l) => l.unitPrice === 120));
-  assert.ok(credit <= 0 && credit >= -services.reduce((s, l) => s + l.price, 0) - 0.01);
+  // Handyman Co bills $95/hr all-in: no $120 project-service lines or credit.
+  assert.equal(services.length, 0);
+  assert.equal(credit, 0);
   const customer = small.pricing.totals.basePrice;
   assert.ok(Math.abs(customer - (customerWork + services.reduce((s, l) => s + l.price, 0) + credit)) < 0.02, `customer minimum ${customer}`);
   assert.ok(customer >= 135, `customer minimum ${customer}`);

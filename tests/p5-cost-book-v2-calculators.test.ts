@@ -42,10 +42,10 @@ test("shared book, scope platform and guided estimator agree on v2 unit prices",
 
 test("guided estimator and scope platform return the v2 totals for four scenarios", () => {
   const cases = [
-    { name: "small flooring, 200 SF", project: "flooring", answers: { sqft: 200 }, brand: "p5" as const, base: 2287.01, low: 2100, high: 2480 },
-    { name: "S03 hall bath, full, alcove", project: "bathroom-remodel", answers: { bath: "hall", scope: "full", bathing: "combo" }, brand: "p5" as const, base: 20722.92, low: 19020, high: 22430 },
-    { name: "S01 kitchen, same layout, medium", project: "kitchen-remodel", answers: { size: "medium", scope: "replace" }, brand: "p5" as const, base: 44452.21, low: 40840, high: 48050 },
-    { name: "large new home, 2,000 SF", project: "custom-home", answers: { sqft: 2000 }, brand: "construction" as const, base: 745632.87, low: 551720, high: 939560 },
+    { name: "small flooring, 200 SF", project: "flooring", answers: { sqft: 200 }, brand: "p5" as const, base: 2422.7, low: 2220, high: 2630 },
+    { name: "S03 hall bath, full, alcove", project: "bathroom-remodel", answers: { bath: "hall", scope: "full", bathing: "combo" }, brand: "p5" as const, base: 21952.71, low: 20150, high: 23760 },
+    { name: "S01 kitchen, same layout, medium", project: "kitchen-remodel", answers: { size: "medium", scope: "replace" }, brand: "p5" as const, base: 47090.21, low: 43270, high: 50900 },
+    { name: "large new home, 2,000 SF", project: "custom-home", answers: { sqft: 2000 }, brand: "construction" as const, base: 789883.11, low: 584460, high: 995320 },
   ];
   for (const item of cases) {
     const estimate = guided(item.project, item.answers, "mid", item.brand);
@@ -64,9 +64,8 @@ test("guided estimator and scope platform return the v2 totals for four scenario
 });
 
 // 01-31-02 stays on the scope at 16 hours for full hall and primary baths.
-// With project-services-v2 those internal superintendent hours are not billed
-// again (outside supervision stays chargeable); the 01-31-03/04/05 lines net
-// to zero against the overhead credit, so the customer total drops by 16 x $120.
+// Since 24 Nov 2026 new estimates bill all internal labor in full at $120/hr:
+// the 01-31-03/04/05 project-service lines carry no overhead credit.
 test("full hall and primary baths carry 16 hours of supervision at the standard hourly rate; a powder room does not", () => {
   const hall = guided("bathroom-remodel", { bath: "hall", scope: "full", bathing: "combo" });
   const primary = guided("bathroom-remodel", { bath: "primary", scope: "full", bathing: "walkin" });
@@ -76,7 +75,7 @@ test("full hall and primary baths carry 16 hours of supervision at the standard 
     assert.equal(line?.quantity.value, 16);
   }
   assert.equal(powder.doc.tasks.some((task) => task.costCode === "01-31-02"), false);
-  assert.equal(primary.pricing.totals.basePrice, 28702.12);
+  assert.equal(primary.pricing.totals.basePrice, 30405.41);
 });
 
 test("conversational assembly calculator prices the v2 book, not a local table", () => {
