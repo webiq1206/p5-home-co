@@ -18,6 +18,7 @@
  */
 
 import type { FinancePolicy } from "../../../lib/p5/pricing.ts";
+import {newProjectServices,projectServiceCode,projectServiceDefaults,isSuperintendentCode,type ProjectServiceDefaults} from "../../../lib/p5/projectServices.ts";
 import { COST_BOOK_SOURCE, COST_BOOK_VERSION, costBookEntry, costBookRate } from "../scopes/costbook.ts";
 import type { RiskFactor } from "../../../lib/p5/pricing.ts";
 import { defaultPhase, divisionName, groupByPhaseDivision, phaseName } from "../scopes/divisions.ts";
@@ -44,7 +45,7 @@ import {
 } from "./types.ts";
 
 /** Bumped whenever a recipe or a qualification rule changes, and stored with every estimate. */
-export const ESTIMATOR_RULES_VERSION = "2026-11-21.1";
+export const ESTIMATOR_RULES_VERSION = "2026-11-24.project-services-v2";
 
 /**
  * Gross margin floor. Owner business plan (lib/p5/pricing.ts): 20% overhead
@@ -70,6 +71,7 @@ export type PriceInput = {
 };
 
 export type PriceContext = {
+  projectServiceDefaults?:ProjectServiceDefaults;
   settings?: ScopeSettings;
   finance?: FinancePolicy;
   acknowledged?: Set<string>;
@@ -154,8 +156,11 @@ function directCost(lines: { code: string; qty: number }[], tier: Tier, service:
  * two at today's rates.
  */
 export const HANDYMAN_MINIMUM_HOURS = 1;
+/** Handyman Co hourly rate (owner, 24 November 2026), shared with the scope platform. */
+export { HANDYMAN_HOURLY_RATE } from "../scopes/types.ts";
+import { HANDYMAN_HOURLY_RATE } from "../scopes/types.ts";
 
-function compileDoc(input: PriceInput, recipe: Recipe, service: string, summary: string[], visitFloor = 0): ScopeDoc {
+function compileDoc(input: PriceInput, recipe: Recipe, service: string, summary: string[], visitFloor = 0,defaults?:ProjectServiceDefaults): ScopeDoc {
   const flow = flowById(input.project)!;
   const brand = brandConfig(input.brand)!;
   const tasks: ScopeTask[] = [];
@@ -210,6 +215,7 @@ function compileDoc(input: PriceInput, recipe: Recipe, service: string, summary:
   }
 
   const doc = emptyScope();
+  doc.projectServices = newProjectServices(defaults);
   doc.summary = `${flow.title} requested through the ${brand.name} online estimator: ${summary.join("; ")}.`;
   doc.goals = [flow.title];
   doc.tasks = tasks;
@@ -271,7 +277,7 @@ export function qualify(pricing: PricingResult, estimateClass: EstimateClass, cr
     if (disclosed.has(issue.kind)) continue;
     reasons.push({ code: issue.kind, message: issue.message });
   }
-  const priced = pricing.lines.filter((l) => l.basis !== "trip-charge" && l.taskId !== "gmin").length;
+  const priced = pricing.lines.filter((l) => l.basis !== "trip-charge" && !l.basis.startsWith("project-service") && l.taskId !== "gmin").length;
   if (recipeLineCount === 0) reasons.push({ code: "empty", message: "No work was selected." });
   else if (priced < recipeLineCount) reasons.push({ code: "unpriced-lines", message: `${recipeLineCount - priced} selected item(s) could not be priced from the cost book.` });
   if (pricing.totals.basePrice <= 0 && recipeLineCount > 0) reasons.push({ code: "zero-total", message: "The estimate total is zero." });
@@ -311,7 +317,7 @@ export function priceEstimate(input: PriceInput, ctx: PriceContext = {}): Priced
     finance: ctx.finance,
     now: ctx.now,
   };
-  let doc = compileDoc(resolved, recipe, flow.service, summary);
+  let doc = compileDoc(resolved, recipe, flow.service, summary,0,ctx.projectServiceDefaults);
   let pricing = priceScope(doc, pricingContext);
   const crossCheck = crossCheckResult(recipe.crossCheck, recipe, tier, flow.service);
   let base = pricing.lines.filter((l) => !l.optional);
@@ -341,14 +347,18 @@ export function priceEstimate(input: PriceInput, ctx: PriceContext = {}): Priced
   // Handyman one-hour minimum: the low end of the range the customer sees is
   // never under one hour at the labor rate. When it would be, the balance on
   // the minimum service charge line is raised until it is not.
-  const oneHour = settings.laborRate * HANDYMAN_MINIMUM_HOURS;
+  const oneHour = HANDYMAN_HOURLY_RATE * HANDYMAN_MINIMUM_HOURS;
   const hourlyVisit = flow.service === "handyman" && recipe.lines.length > 0 && oneHour > 0;
   if (hourlyVisit) {
     const { multiplier } = priceMultiplier(flow.service, ctx.now ?? new Date(), ctx.finance);
-    for (let attempt = 0; attempt < 5 && ranged.low < oneHour && pricing.totals.baseCost !== null; attempt++) {
+    // Coordination fees cannot replace the existing minimum field-service
+    // labor charge. Apply that floor before adding the project fees.
+    const visitLow = () => divisionRanges(base.filter(l=>!l.basis.startsWith("project-service")), width, (line) =>
+      line.division==="90"?splitByDivision(codeOf.get(line.taskId)??"",line.price,tier,flow.service):null).low;
+    for (let attempt = 0; attempt < 5 && visitLow() < oneHour && pricing.totals.baseCost !== null; attempt++) {
       // Each division's low end is rounded down to $10, so allow that much again.
-      const shortfall = (oneHour - ranged.low) / (1 - width) + 10;
-      doc = compileDoc(resolved, recipe, flow.service, summary, pricing.totals.baseCost + shortfall / multiplier);
+      const shortfall = (oneHour - visitLow()) / (1 - width) + 10;
+      doc = compileDoc(resolved, recipe, flow.service, summary, pricing.totals.baseCost + shortfall / multiplier,ctx.projectServiceDefaults);
       pricing = priceScope(doc, pricingContext);
       base = pricing.lines.filter((l) => !l.optional);
       codeOf = new Map(doc.tasks.map((t) => [t.id, String(t.costCode ?? "")]));
@@ -358,7 +368,10 @@ export function priceEstimate(input: PriceInput, ctx: PriceContext = {}): Priced
   }
   const range = { low: ranged.low, high: ranged.high };
   const guide = buildGuide(narrative, ranged.divisions, range, risks, ranged.shares);
-  const review = qualify(pricing, flow.estimateClass, crossCheck, recipe.lines.length);
+  // 01-31-02 (and any 01-31-01) recipe hours stay on the scope, but project-services-v2
+  // prices them through 01-31-03/04/05 instead of as a second superintendent line.
+  const recipeLineCount = recipe.lines.filter((l) => !projectServiceCode(l.code) && !isSuperintendentCode(l.code)).length;
+  const review = qualify(pricing, flow.estimateClass, crossCheck, recipeLineCount);
   if (hourlyVisit && range.low < oneHour) {
     review.push({ code: "hourly-minimum", message: `The range starts under the one-hour minimum of $${oneHour.toLocaleString("en-US")}.` });
   }
@@ -512,16 +525,17 @@ export function internalReport(estimate: PricedEstimate): InternalReport {
   adjustments.push(
     `Customer price = direct cost x ${(1 + p.contingencyRate).toFixed(2)} project reserve / (1 - ${(p.overheadRate * 100).toFixed(1)}% overhead - ${(p.profitRate * 100).toFixed(1)}% profit)`,
   );
+  if(base.some(l=>l.sku))adjustments.push(`Project service exception: final $120/person-hour, no markup. Frozen defaults: ${Object.entries(projectServiceDefaults(estimate.doc.projectServices?.defaults)).map(([code,d])=>`${code}: ${d.hoursPer1000} hours per $1,000 outside costs, whole-project minimum ${d.minimumHours} hours`).join("; ")}. Milestone cost shares or equal allocation; internal overrides prevail. Owner-salary overlap is credited once; distinct outside supervision remains chargeable.`);
   if (estimate.usesFinish) adjustments.push(`Cost book finish tier: ${p.finishTier}`);
   if (base.some((l) => /remodel premium/i.test(l.source) || / remodel direct cost/.test(l.source))) adjustments.push("Existing-home remodel premium applied where the cost book carries one");
   if (base.some((l) => l.basis === "trip-charge")) adjustments.push("Handyman trip charge shown with an equal credit (owner rule)");
   if (base.some((l) => l.taskId === "gmin")) {
     const hourly = estimate.doc.tasks.some((t) => t.id === "gmin" && t.title.startsWith("One-hour"));
-    adjustments.push(hourly ? `Balance to the one-hour minimum at $${p.laborRate}/hour added on the minimum service charge line` : "Balance to the cost book minimum service charge added");
+    adjustments.push(hourly ? `Balance to the one-hour minimum at $${HANDYMAN_HOURLY_RATE}/hour added on the minimum service charge line` : "Balance to the cost book minimum service charge added");
   }
   return {
     lines: base.map((l) => ({
-      code: codeByTask.get(l.taskId) ?? null,
+      code: codeByTask.get(l.taskId) ?? projectServiceCode(l.id) ?? null,
       item: l.item,
       phase: l.phase,
       division: l.division,

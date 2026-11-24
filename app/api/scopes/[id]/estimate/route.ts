@@ -8,7 +8,7 @@ import { after, NextResponse } from "next/server";
 
 import { syncProjectFiles } from "../../../../lib/scopes/filesync.ts";
 
-import { compute, commitDoc, currentDoc } from "../../../../lib/scopes/engine.ts";
+import { compute, commitDoc, currentDoc, lockedPricing } from "../../../../lib/scopes/engine.ts";
 import { fail, ok, requireProject } from "../../../../lib/scopes/http.ts";
 import {
   buildPayloadFor,
@@ -65,7 +65,9 @@ export async function POST(request: Request, { params }: Ctx) {
         if (fresh.readiness.status !== "ready") throw new Error(`The estimate is not ready: ${fresh.readiness.blockers.slice(0, 3).join(" ")}`);
         // The estimate must point at an exact saved version: if pricing moved
         // (settings changed since the last save), save it as a version first.
-        if (canonical(fresh.pricing) !== canonical(version.pricing)) {
+        // A version priced on an earlier cost book keeps its locked prices
+        // (owner rule, 24 November 2026): the estimate uses the saved pricing.
+        if (!lockedPricing(version) && canonical(fresh.pricing) !== canonical(version.pricing)) {
           ({ version } = await commitDoc(project, doc, "repriced", "Repriced before creating the estimate", g.user.id));
           doc = version.doc;
         }

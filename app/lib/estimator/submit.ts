@@ -12,6 +12,7 @@
 import { isDatabaseConfigured } from "../db.ts";
 import { collectAttribution } from "../leads/attribution.ts";
 import { savedFinance } from "../scopes/engine.ts";
+import {loadProjectServiceDefaults} from "../../../lib/p5/projectServicePolicy.ts";
 import { globalAcknowledgements, loadScopeSettings } from "../scopes/store.ts";
 import { brandConfig } from "./brands.ts";
 import { flowById } from "./flows.ts";
@@ -76,8 +77,8 @@ export type SubmitDeps = {
 };
 
 async function defaultContext(): Promise<PriceContext> {
-  const [settings, finance, acknowledged] = await Promise.all([loadScopeSettings(), savedFinance(), globalAcknowledgements()]);
-  return { settings, finance, acknowledged };
+  const [settings, finance, acknowledged, projectServiceDefaults] = await Promise.all([loadScopeSettings(), savedFinance(), globalAcknowledgements(),loadProjectServiceDefaults()]);
+  return { settings, finance, acknowledged,projectServiceDefaults };
 }
 
 export async function handleSubmit(request: Request, deps: SubmitDeps = {}): Promise<Response> {

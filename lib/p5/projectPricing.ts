@@ -104,7 +104,7 @@ export function compileProjectPrices(record:ProjectRecord,selection:ProjectPrice
 
 /** The existing financial calculator is retained. No legacy scope defaults,
  * keyword correction or prose-based issue waiver can alter this input. */
-export function calculateProjectEstimate(record:ProjectRecord,selection:ProjectPriceSelection,configuration:EstimatorConfiguration,receipt:ProjectReviewReceipt,now=new Date(),completionPlan?:ProjectCompletionPlan){
+export function calculateProjectEstimate(record:ProjectRecord,selection:ProjectPriceSelection,configuration:EstimatorConfiguration,receipt:ProjectReviewReceipt,now=new Date(),completionPlan?:ProjectCompletionPlan,projectServices?:import('./projectServices.ts').ProjectServicePlan){
  const review=receipt.review;
  verifiedReviewCatalog(review,configuration.planningCatalog?.rates||[]);
  const compiled=compileProjectPrices(record,selection,configuration,now);
@@ -120,6 +120,7 @@ export function calculateProjectEstimate(record:ProjectRecord,selection:ProjectP
  if(compiled.lines.some(line=>Date.parse(line.evidence.validUntil)<now.getTime()))assumptions.push(`Pricing uses the owner planning catalog recorded ${configuration.planningCatalog!.importedAt.slice(0,10)}, which is past its scheduled review. Current supplier and trade pricing must be confirmed before a firm proposal.`);
  const exclusions=record.requirements.filter(r=>r.status==='excluded').map(r=>r.description);
  const input:PricingInput={estimatePurpose:'preliminary',firmPrice:record.service==='re10',bookPriced:true,service:record.service as Service,revision:projectHash({record:record.recordHash,selection,finance:configuration.finance}),scopeSummary:record.summary,lines:compiled.lines,coverage:COST_CATEGORIES.map(category=>({category,status:compiled.lines.some(line=>line.category===category)?'included':'not-applicable',reason:'Coverage is recorded against individual project requirements.'})),risks:[],assumptions,exclusions,missingInformation:[],allowances:[],uncertainty:compiled.specificationAllowances.length||compiled.quantities.some(q=>q.basis==='allowance')?'high':'medium',locationProvided:Boolean(record.location)};
+ input.projectServices=projectServices;
  const estimate=calculateP5Estimate(input,configuration.finance,[],now);
  for(const warning of estimate.warnings.filter(w=>w.severity==='block'))problems.push({code:warning.code,ids:[],message:warning.message});
  const customer=customerSafeProjection({...customerEstimate(estimate,record.summary),scopeTasks:record.requirements.map(r=>({id:r.id,description:r.description,category:r.trade,status:r.status,origin:r.origin,basis:r.reason})),verificationItems:record.questions.filter(q=>q.priority==='budget-choice').map(q=>q.prompt),projectRecordRevision:record.revision});

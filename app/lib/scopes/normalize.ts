@@ -222,12 +222,16 @@ export function carryForward(current: ScopeDoc | null, generated: ScopeDoc): Sco
   const cur = new Map(current.tasks.map((t) => [t.id, t]));
   return {
     ...generated,
+    projectServices: current.projectServices,
     tasks: generated.tasks.map((g) => {
       const c = cur.get(g.id);
       if (!c) return g;
       return {
         ...g,
         quote: c.quote ?? null,
+        milestone:c.milestone,
+        supervisionProvider:c.supervisionProvider,
+        ownerLaborTreatment:c.ownerLaborTreatment,
         allowance: c.allowance ?? null,
         dismissed: c.dismissed,
         edited: c.edited,
@@ -292,6 +296,9 @@ export function sanitizeTask(
         }
       : null,
     performer: pick(t.performer, PERFORMERS, before?.performer ?? "subcontractor"),
+    milestone:t.milestone==="planning"||t.milestone==="delivery"||t.milestone==="closeout"?t.milestone:before?.milestone,
+    supervisionProvider:t.supervisionProvider==="owner"||t.supervisionProvider==="outside"?t.supervisionProvider:before?.supervisionProvider,
+    ownerLaborTreatment:t.ownerLaborTreatment==="additional-project-labor"||t.ownerLaborTreatment==="included-in-overhead"?t.ownerLaborTreatment:before?.ownerLaborTreatment,
     laborHours: lh ? { value: lhValue, basis, note: sn(lh.note, 300) } : null,
     materials: strs(t.materials).slice(0, 30),
     selections: arr(t.selections).map((y, i) => {

@@ -56,9 +56,10 @@ export async function POST(request: Request) {
     next.confirmedBy = g.user.fullName;
     next.confirmedAt = new Date().toISOString();
     await saveScopeSettings(next, g.user.id);
-    // Re-price open projects so their status reflects the new setup.
+    // Re-price open projects so their status reflects the new setup. Projects
+    // priced on an earlier cost book keep their locked prices (owner rule, 24 November 2026).
     const open = await query<{ id: string }>("SELECT id FROM scope_project WHERE archived_at IS NULL AND current_version_id IS NOT NULL");
-    for (const p of open) await reprice(Number(p.id), g.user.id, "Pricing setup changed").catch(() => undefined);
+    for (const p of open) await reprice(Number(p.id), g.user.id, "Pricing setup changed", { respectLock: true }).catch(() => undefined);
     return ok({ settings: next });
   } catch (error) {
     return fail(error);

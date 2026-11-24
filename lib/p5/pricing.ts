@@ -1,4 +1,5 @@
 import {publicPricingText} from './customerProjection.ts';
+import {projectServiceLines,projectServiceCode,projectOverheadCredit,PROJECT_OVERHEAD_CREDIT_ID,duplicateOwnerServiceCost,documentProjectServiceBasis} from './projectServices.ts';
 import {tradeForLine,apportionAmount,type TradeCategory} from "./trades.ts";
 /** Internal policy. Import only from server entry points, never client components. */
 export const POLICY_VERSION = "p5-2026-10-01-contingency-and-minor-work";
@@ -36,6 +37,9 @@ export interface FinancePolicy {
   reviewedAt: string | null;
   approvedBy: string[];
   overheadRate?: number;
+  /** Documented owner salary/burden component of the annual overhead budget.
+   * Default: the two $100,000 salaries in the maintained financial policy. */
+  ownerSalaryOverheadAnnual?:number;
   /** Actual earned-revenue evidence is needed to lower the standard rate. */
   reducedRateReview?: { annualizedEarnedRevenue:number; annualizedOverhead:number; source:string; reviewedAt:string };
 }
@@ -62,6 +66,8 @@ export interface LandedMaterial {
   waste: number; storage: number; handling: number;
 }
 export interface DirectCostLine {
+  milestone?:"planning"|"delivery"|"closeout";
+  supervisionProvider?:"owner"|"outside";
   allowance?:boolean;
   building?:string;
   floor?:string;
@@ -92,6 +98,8 @@ export interface OwnerApproval {
   approvedAt: string; estimateRevision: string;
 }
 export interface PricingInput {
+  /** New-project marker. Its absence keeps legacy/signed pricing unchanged. */
+  projectServices?: import("./projectServices.ts").ProjectServicePlan;
   estimatePurpose?:'preliminary';
   /** One price instead of a range (owner rule: an RE-10 repair list gets a single firm price). */
   firmPrice?:boolean;
@@ -161,13 +169,26 @@ export function calculateP5Estimate(input: PricingInput, finance: FinancePolicy,
   if (!input.scopeSummary.trim() || !input.revision.trim()) throw new Error("A scope summary and estimate revision are required");
   if (!Object.hasOwn(SERVICE_MATRIX,input.service)) throw new Error("Unknown service");
   if (!input.lines.length) throw new Error("At least one direct-cost line is required");
+  if(input.projectServices?.version==="project-services-v2"){
+    const ids=new Set<string>();
+    for(const line of input.lines){
+      if(!line.id.trim()||ids.has(line.id))throw new Error("Blank or duplicated direct-cost line before owner-service replacement.");
+      ids.add(line.id);
+    }
+  }
   // A range that does not contain the value it brackets is a repairable inconsistency in one line,
   // not a reason to discard a finished estimate. Live 2026-09-23: "The quantity range must contain
   // the modeled quantity" threw out completed pricing and the stage was asked again, which is how a
   // five-item bedroom scope reached 27 mapping calls. Widening is also the safe direction here: the
   // range feeds the HIGH end of the estimate, so including the modeled value can only make the top
   // of the range honest, never narrower than the work actually priced.
-  input = {...input, lines: input.lines.map(line => {
+  const oldServicePolicy=input.projectServices?.version==="project-services-v1";
+  const replacedOwnerLines=input.projectServices?input.lines.filter(l=>duplicateOwnerServiceCost(l,oldServicePolicy)):[];
+  const replacedIds=new Set(replacedOwnerLines.map(l=>l.id));
+  input = {...input,...(input.projectServices?{allowances:input.allowances.map(a=>({...a,
+    costLineIds:a.costLineIds.filter(id=>!replacedIds.has(id)),
+    directAmount:a.directAmount-replacedOwnerLines.filter(l=>a.costLineIds.includes(l.id)).reduce((n,l)=>n+l.quantity*l.unitCost,0),
+  })).filter(a=>a.costLineIds.length)}:{}),lines: input.lines.filter(line => !replacedIds.has(line.id)).map(line => {
     const widen = (range: {low: number; high: number} | undefined, value: number) =>
       range && Number.isFinite(range.low) && Number.isFinite(range.high) && Number.isFinite(value)
         ? {low: Math.min(range.low, value), high: Math.max(range.high, value)} : range;
@@ -257,9 +278,16 @@ export function calculateP5Estimate(input: PricingInput, finance: FinancePolicy,
   const contingency = directCost * contingencyRate;
   const riskAdjustedDirectCost = directCost + contingency;
   const divisor = 1 - allocations.total - margin;
-  const contractPrice = priceFromRiskAdjustedCost(riskAdjustedDirectCost, allocations.total, margin);
-  const allocationDollars = { overhead: contractPrice * allocations.overhead };
-  const operatingProfit = contractPrice * margin;
+  const ordinaryPrice = priceFromRiskAdjustedCost(riskAdjustedDirectCost, allocations.total, margin);
+  const serviceBasis=input.projectServices?(oldServicePolicy?{outsideDirectCost:directCost,milestoneOutsideCosts:undefined}:documentProjectServiceBasis(input.lines,directCost)):undefined;
+  const services = input.projectServices ? projectServiceLines(input.projectServices,serviceBasis!.outsideDirectCost,lines.length,serviceBasis!.milestoneOutsideCosts) : [];
+  const projectServiceRecovery = sum(services.map(s=>s.price));
+  const overlapCredit = projectServiceRecovery>0?projectOverheadCredit(projectServiceRecovery,ordinaryPrice,allocations.overhead,finance.annualOverhead,oldServicePolicy?finance.annualOverhead:finance.ownerSalaryOverheadAnnual??200000):0;
+  const contractPrice = ordinaryPrice + projectServiceRecovery - overlapCredit;
+  // The flat fees recover project-specific overhead labor, not another cost
+  // plus margin. Ordinary overhead is never applied to these fees.
+  const allocationDollars = { overhead: ordinaryPrice * allocations.overhead + projectServiceRecovery - overlapCredit };
+  const operatingProfit = ordinaryPrice * margin;
   const pricedLines=lines.map(line=>{
     const lineContingency=line.cost*contingencyRate;
     const riskAdjustedCost=line.cost+lineContingency;
@@ -267,6 +295,23 @@ export function calculateP5Estimate(input: PricingInput, finance: FinancePolicy,
     const overheadRecovery=sellingAmount*allocations.overhead;
     const operatingProfit=sellingAmount*margin;
     return {...line,contingency:lineContingency,riskAdjustedCost,overheadRecovery,operatingProfit,sellingAmount,sellingUnitPrice:sellingAmount/line.quantity};
+  });
+  for (const service of services) pricedLines.push({
+    id: service.code, category: "project-supervision", trade: "General Conditions", description: service.description,
+    quantity: service.quantity, unit: "HR", unitCost: 0, cost: 0,
+    evidence: {basis:"approved-cost-book",reference:service.source,verifiedAt:now.toISOString(),validUntil:"9999-12-31"},
+    quantitySource: service.source, allowance: true, priceBasis:"customer-price",
+    contingency:0,riskAdjustedCost:0,overheadRecovery:service.price,operatingProfit:0,
+    sellingAmount:service.price,sellingUnitPrice:service.unitPrice,
+  });
+  if(overlapCredit>0) pricedLines.push({
+    id:PROJECT_OVERHEAD_CREDIT_ID,category:"project-supervision",trade:"General Conditions",
+    description:"Project coordination allowance adjustment",quantity:1,unit:"LS",unitCost:0,cost:0,
+    evidence:{basis:"approved-cost-book",reference:oldServicePolicy?"Existing overhead recovery credited against the three project-service roles to avoid duplicate salary recovery.":
+      `Existing owner-salary recovery credited once, using $${finance.ownerSalaryOverheadAnnual??200000} of $${finance.annualOverhead} annual overhead. Non-salary overhead remains funded; replaced owner allowances are not credited again.`,verifiedAt:now.toISOString(),validUntil:"9999-12-31"},
+    quantitySource:"One project-wide overlap credit",allowance:false,priceBasis:"customer-price",
+    contingency:0,riskAdjustedCost:0,overheadRecovery:-overlapCredit,operatingProfit:0,
+    sellingAmount:-overlapCredit,sellingUnitPrice:-overlapCredit,
   });
   // A book-priced estimate carries the owner's own dialed-in prices, so its band is tight: 5% each way,
   // plus 1% per real risk flag, never more than 8%. Anything priced outside the book keeps the wider band.
@@ -306,6 +351,7 @@ export function calculateP5Estimate(input: PricingInput, finance: FinancePolicy,
     estimatePurpose: input.estimatePurpose||'verified-cost-review',
     currentCostsConfirmed: !lines.some(line=>['owner-estimating-schedule','sourced-market-average','regional-planning-average','owner-budget-allowance'].includes(line.evidence.basis)),
     service, requestedService: input.service, matrix, lines:pricedLines, coverage: input.coverage,
+    ...(input.projectServices?{projectServices:input.projectServices,projectServiceBasis:serviceBasis,projectServiceOverheadCredit:overlapCredit}:{}),
     directByCategory, directCost, contingencyRate, contingency, riskAdjustedDirectCost,
     allocations, allocationDollars, targetOperatingProfit: margin, operatingProfit, divisor,
     contractPrice, planningRange, planningBandHigh, assumptions: input.assumptions, allowances: input.allowances,
@@ -425,6 +471,9 @@ export function customerNextStep(service: string, firm: boolean): string {
   return "Book a free consultation. We will walk the space with you, go over selections, and turn this range into a fixed-price proposal.";
 }
 export function customerEstimate(estimate: P5Estimate, summary: string) {
+  // The internal overlap credit is not customer scope or a negative public
+  // category weight. Distribute the net total over positive scope lines.
+  estimate={...estimate,lines:estimate.lines.filter(line=>line.id!==PROJECT_OVERHEAD_CREDIT_ID)};
   const trades=[...new Set(estimate.lines.map(l=>tradeForLine(l)))];
   const weights=estimate.lines.map(line=>line.cost);
   const lows=apportionAmount(estimate.planningRange.low,weights);

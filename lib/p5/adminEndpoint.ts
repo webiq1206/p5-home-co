@@ -6,6 +6,7 @@ import {query} from "./database.ts";
 import {ensureSchema,DraftError} from "./store.ts";
 import {EMPTY_CONFIGURATION,type EstimatorConfiguration} from "./costBook.ts";
 import {validatePlanningCatalog} from './planningBooks.ts';
+import {validateProjectServiceDefaults} from "./projectServices.ts";
 import {companyAllocation,SERVICE_MATRIX,COST_CATEGORIES} from "./pricing.ts";
 import {processOutbox} from "./outbox.ts";
 import {ensureReviewSchema,saveManualReview,approveManualReview,publishManualReview,reconcileDelivery} from "./manualReview.ts";
@@ -53,6 +54,8 @@ export async function getAdminEstimates(request:Request){try{
   return json({configuration,version:policy?.version||0,allocation:companyAllocation(configuration.finance),drafts,delivery,reviewRequests,serviceMatrix:SERVICE_MATRIX});
 }catch(error){return failed(error);}}
 export function validateConfiguration(raw:any):EstimatorConfiguration{
+  if(raw?.projectServiceDefaults!==undefined)try{raw={...raw,projectServiceDefaults:validateProjectServiceDefaults(raw.projectServiceDefaults)};}
+  catch(error){throw new DraftError(error instanceof Error?error.message:"Invalid project-service defaults.");}
   if(!raw?.finance||!Array.isArray(raw.costBooks)||raw.costBooks.length>30)throw new DraftError("Invalid estimator configuration.");
   const f=raw.finance;
   if(typeof f.annualOverhead!=="number"||!Number.isFinite(f.annualOverhead)||f.annualOverhead<420000)throw new DraftError("The official annual overhead budget is at least $420,000.");
@@ -70,14 +73,37 @@ export function validateConfiguration(raw:any):EstimatorConfiguration{
   }
   return raw as EstimatorConfiguration;
 }
-export async function putAdminPolicy(request:Request){try{
-  protectRequest(request);const actor=await requireEstimatorAdmin();await ensureSchema();
-  const raw=JSON.parse(new TextDecoder().decode(await limitedBody(request,2000000)));const configuration=validateConfiguration(raw.configuration);
+export type PolicySaveDeps={authorize?:typeof requireEstimatorAdmin;ensure?:typeof ensureSchema;query?:typeof query};
+/** The route handler. Next route exports may take only the request, so injected dependencies live on savePolicyWithDeps. */
+export async function putAdminPolicy(request:Request){return savePolicyWithDeps(request);}
+export async function savePolicyWithDeps(request:Request,deps:PolicySaveDeps={}){try{
+  protectRequest(request);const actor=await (deps.authorize??requireEstimatorAdmin)();await (deps.ensure??ensureSchema)();
+  const write=deps.query??query;
+  const raw=JSON.parse(new TextDecoder().decode(await limitedBody(request,2000000)));
   if(!Number.isInteger(raw.version)||raw.version<0)throw new DraftError("Configuration version is required.");
+  if(Object.hasOwn(raw,"projectServiceDefaults")){
+    if(Object.keys(raw).some(key=>!["version","projectServiceDefaults"].includes(key)))throw new DraftError("Save project-hour defaults separately from financial configuration.");
+    let defaults;
+    try{defaults=validateProjectServiceDefaults(raw.projectServiceDefaults);}
+    catch(error){throw new DraftError(error instanceof Error?error.message:"Invalid project-service defaults.");}
+    // Only the six fields change; this action must not approve a forecast,
+    // replace a cost book or discard another administrator's policy edits.
+    let rows=await write(`INSERT INTO p5_estimator_policy(id,payload,updated_by)
+      SELECT 'current',$1::jsonb,$2 WHERE $3=0 ON CONFLICT DO NOTHING
+      RETURNING version,payload->'projectServiceDefaults' AS defaults`,
+      [JSON.stringify({...EMPTY_CONFIGURATION,projectServiceDefaults:defaults}),actor.id,raw.version]);
+    if(!rows.length)rows=await write(`UPDATE p5_estimator_policy
+      SET payload=jsonb_set(payload,'{projectServiceDefaults}',$1::jsonb,true),updated_by=$2,updated_at=now(),version=version+1
+      WHERE id='current' AND version=$3 RETURNING version,payload->'projectServiceDefaults' AS defaults`,
+      [JSON.stringify(defaults),actor.id,raw.version]);
+    if(!rows.length)throw new DraftError("Configuration changed. Reload before saving.",409);
+    return json({saved:true,version:Number(rows[0].version),projectServiceDefaults:validateProjectServiceDefaults(rows[0].defaults)});
+  }
+  const configuration=validateConfiguration(raw.configuration);
   configuration.finance.reviewedAt=new Date().toISOString();configuration.finance.approvedBy=[actor.email];
-  const rows=await query(`INSERT INTO p5_estimator_policy(id,payload,updated_by) SELECT 'current',$1::jsonb,$2 WHERE $3=0
+  const rows=await write(`INSERT INTO p5_estimator_policy(id,payload,updated_by) SELECT 'current',$1::jsonb,$2 WHERE $3=0
     ON CONFLICT DO NOTHING RETURNING version`,[JSON.stringify(configuration),actor.id,raw.version]);
-  if(!rows.length){const updated=await query("UPDATE p5_estimator_policy SET payload=$1::jsonb,updated_by=$2,updated_at=now(),version=version+1 WHERE id='current' AND version=$3 RETURNING version",[JSON.stringify(configuration),actor.id,raw.version]);if(!updated.length)throw new DraftError("Configuration changed. Reload before saving.",409);}
+  if(!rows.length){const updated=await write("UPDATE p5_estimator_policy SET payload=$1::jsonb,updated_by=$2,updated_at=now(),version=version+1 WHERE id='current' AND version=$3 RETURNING version",[JSON.stringify(configuration),actor.id,raw.version]);if(!updated.length)throw new DraftError("Configuration changed. Reload before saving.",409);}
   return json({saved:true});
 }catch(error){return failed(error);}}
 export async function postAdminAction(request:Request){try{

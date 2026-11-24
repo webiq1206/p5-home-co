@@ -6,6 +6,10 @@ import {useEffect,useState} from "react";
 import {P5OverheadReview} from "@/components/P5OverheadReview";
 import {P5LinePricing} from "@/components/P5LinePricing";
 import {P5PriceReferences} from "@/components/P5PriceReferences";
+import ProjectServiceEditor from "@/components/ProjectServiceEditor";
+import ProjectServiceDefaultsEditor from "@/components/ProjectServiceDefaultsEditor";
+import {projectServiceDefaults,PROJECT_SERVICE_ROLES} from "@/lib/p5/projectServices";
+import {projectServiceCode,documentProjectServiceBasis,validateProjectServices,type ProjectServiceBasis} from "@/lib/p5/projectServices";
 export default function EstimatorAdministration(){
   const [data,setData]=useState<any>(null);const [selected,setSelected]=useState<any>(null);const [config,setConfig]=useState("");const [error,setError]=useState("");const [busy,setBusy]=useState(false);
   const [costInput,setCostInput]=useState("");const [reviewNotes,setReviewNotes]=useState("");const [review,setReview]=useState<any>(null);const [confirmed,setConfirmed]=useState(false);
@@ -16,18 +20,39 @@ export default function EstimatorAdministration(){
     const params=new URLSearchParams(window.location.search);const requestedDraft=params.get("id");const requestedRevision=params.get("revision");
     if(requestedDraft)return inspect(requestedDraft,requestedRevision===null?undefined:requestedRevision);
   }).catch(e=>setError(e.message));},[]);
-  async function save(){setBusy(true);setError("");try{const response=await fetch("/api/admin/p5-estimators",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({version:data.version,configuration:JSON.parse(config)})});const body=await response.json();if(!response.ok)throw new Error(body.error);await load();}catch(e){setError(e instanceof Error?e.message:"Save failed");}finally{setBusy(false);}}
+  async function persistConfiguration(){const parsed=JSON.parse(config);const configuration={...parsed,projectServiceDefaults:projectServiceDefaults(parsed.projectServiceDefaults)};const response=await fetch("/api/admin/p5-estimators",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({version:data.version,configuration})});const body=await response.json();if(!response.ok)throw new Error(body.error);await load();}
+  async function persistServiceDefaults(){
+    const parsed=JSON.parse(config);
+    const response=await fetch("/api/admin/p5-estimators",{method:"PUT",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({version:data.version,projectServiceDefaults:projectServiceDefaults(parsed.projectServiceDefaults)})});
+    const body=await response.json();if(!response.ok)throw new Error(body.error);
+    const readback=projectServiceDefaults(body.projectServiceDefaults);
+    setData((current:any)=>({...current,version:body.version,configuration:{...current.configuration,projectServiceDefaults:readback}}));
+    setConfig(current=>JSON.stringify({...JSON.parse(current),projectServiceDefaults:readback},null,2));
+  }
+  async function save(){setBusy(true);setError("");try{await persistConfiguration();}catch(e){setError(e instanceof Error?e.message:"Save failed");}finally{setBusy(false);}}
   async function inspect(id:string,revision?:string|number){if(!/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(id))throw new Error("Invalid estimate reference.");const revisionValue=revision===undefined?undefined:String(revision);if(revisionValue!==undefined&&!/^[1-9]\d*$/.test(revisionValue))throw new Error("Invalid estimate revision.");
     const query=`id=${encodeURIComponent(id)}${revisionValue===undefined?"":`&revision=${encodeURIComponent(revisionValue)}`}`;const response=await fetch(`/api/admin/p5-estimators?${query}`);const body=await response.json();if(!response.ok)throw new Error(body.error);setSelected(body);setReview(null);setConfirmed(false);setStatus("");
     const e=body.estimate.internal_estimate;const prior=body.reviews?.find((r:any)=>r.source_revision===body.estimate.revision);const service=body.estimate.payload.answers.service;
-    const input=prior?.input||{service,revision:"assigned-by-server",scopeSummary:e?.scope?.text||body.estimate.payload.text||"",lines:e?.lines||[],coverage:e?.coverage||["materials","field-labor","owner-production","subcontractors","permits-inspections","engineering-design","equipment-rentals","disposal","travel-mobilization","protection-cleanup","project-supervision","closeout","other-direct"].map(category=>({category,status:"missing",reason:""})),risks:e?.riskFactors||[],assumptions:e?.assumptions||[],exclusions:e?.exclusions||[],missingInformation:e?.missingInformation||[],allowances:e?.allowances||[],uncertainty:"high",urgency:body.estimate.payload.answers.urgency||"standard",locationProvided:Boolean(body.estimate.payload.answers.location||body.estimate.payload.answers.address),manualAdjustments:[]};
+    const input=prior?.input||e?.manualReview?.input||{service,revision:"assigned-by-server",scopeSummary:e?.scope?.text||body.estimate.payload.text||"",lines:e?.lines||[],coverage:e?.coverage||["materials","field-labor","owner-production","subcontractors","permits-inspections","engineering-design","equipment-rentals","disposal","travel-mobilization","protection-cleanup","project-supervision","closeout","other-direct"].map(category=>({category,status:"missing",reason:""})),risks:e?.riskFactors||[],assumptions:e?.assumptions||[],exclusions:e?.exclusions||[],missingInformation:e?.missingInformation||[],allowances:e?.allowances||[],uncertainty:"high",urgency:body.estimate.payload.answers.urgency||"standard",locationProvided:Boolean(body.estimate.payload.answers.location||body.estimate.payload.answers.address),manualAdjustments:[]};
     setCostInput(JSON.stringify(input,null,2));setReviewNotes(prior?.notes||"");setReason("");setEvidence("");setProviderId("");
   }
   async function action(body:any){setBusy(true);setError("");setStatus("");try{const response=await fetch("/api/admin/p5-estimators",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});const result=await response.json();if(!response.ok)throw new Error(result.error||"The action could not be completed.");return result;}catch(e){setError(e instanceof Error?e.message:"Review failed");return null;}finally{setBusy(false);}}
   async function reviewCosts(){try{const result=await action({action:"save-review",id:selected.estimate.id,expectedRevision:selected.estimate.revision,input:JSON.parse(costInput),notes:reviewNotes});if(result){setReview(result);setConfirmed(false);setStatus("Saved this cost review. Changed scope, costs or financial policy require a new review and approvals.");}}catch(e){setError(e instanceof Error?e.message:"Invalid cost data");}}
   async function publish(){const result=await action({action:"publish-review",reviewId:review?.reviewId,confirmed});if(result){await inspect(selected.estimate.id);await load();setStatus(`Published revision ${result.revision}. ${result.crmNeedsReview?"Update the existing CRM record and reconcile it below.":"Deliveries are queued; check their status below."}`);}}
+  let serviceInput:any=null;let serviceBasis:ProjectServiceBasis|null=null;
+  try{serviceInput=JSON.parse(costInput);if(serviceInput?.projectServices)validateProjectServices(serviceInput.projectServices);
+    serviceBasis=documentProjectServiceBasis(serviceInput?.lines??[]);
+  }catch{/* The JSON editor displays its own save validation; invalid costs must not crash the editor. */}
+  let defaults=projectServiceDefaults();let configurationReadable=true;
+  try{const parsed=JSON.parse(config);if(parsed.projectServiceDefaults&&PROJECT_SERVICE_ROLES.every(r=>parsed.projectServiceDefaults[r.code]&&typeof parsed.projectServiceDefaults[r.code]==="object"))defaults=parsed.projectServiceDefaults;}
+  catch{configurationReadable=false;}
   return <main style={{maxWidth:1100,margin:"0 auto",padding:"36px 20px",overflowWrap:"anywhere"}}><h1>P5 estimator administration</h1><p><a href="/admin/p5-estimators/project-review">Open project-record qualification workspace</a></p>{error&&<p role="alert">{error}</p>}{data&&<>
     <P5OverheadReview configuration={config} onChange={setConfig} onSave={save} busy={busy} rate={data.allocation.total} warnings={data.allocation.warnings}/>
+    {configurationReadable?<ProjectServiceDefaultsEditor value={defaults} busy={busy}
+      onChange={value=>setConfig(JSON.stringify({...JSON.parse(config),projectServiceDefaults:value},null,2))}
+      onSave={async()=>{setBusy(true);setError("");try{await persistServiceDefaults();}catch(e){setError(e instanceof Error?e.message:"Save failed");throw e;}finally{setBusy(false);}}}/>:
+      <p role="alert">Correct the configuration JSON before editing project-hour defaults.</p>}
     <details><summary>Review financial configuration and cost books</summary><label htmlFor="p5-admin-config">Financial forecast, current cost evidence, quantity rules and scope coverage</label><textarea id="p5-admin-config" value={config} onChange={e=>setConfig(e.target.value)} rows={22} style={{display:"block",width:"100%",maxWidth:"100%",fontSize:16,fontFamily:"monospace",color:"#383837",background:"#fff",padding:14}}/><button onClick={save} disabled={busy} style={{minHeight:44,padding:12}}>Save reviewed configuration</button></details>
     <P5PriceReferences review={review}/><h2>Delivery health</h2><ul>{data.delivery.map((d:any)=><li key={d.status}>{d.status}: {d.count}</li>)}</ul><button style={{minHeight:44,padding:12}} onClick={async()=>{setBusy(true);try{const r=await fetch("/api/admin/p5-estimators",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"process-delivery"})});if(!r.ok)throw new Error((await r.json()).error);await load();}catch(e){setError(String(e));}finally{setBusy(false);}}} disabled={busy}>Process due deliveries</button>
     <P5IntakeQueue/>
@@ -36,6 +61,14 @@ export default function EstimatorAdministration(){
     <h2>Saved projects and partial estimates</h2><ul>{data.drafts.map((d:any)=><li key={d.id} style={{padding:"14px 0",borderBottom:"1px solid #888"}}><button style={{minHeight:44,textAlign:"left"}} onClick={()=>inspect(d.id).catch(e=>setError(e.message))}>{d.contact?.name||"Partial project"} | {d.service||"Service not selected"} | {d.status}</button><p>{d.contact?.email||"Contact not yet supplied"}</p></li>)}</ul>
     {selected&&<section><h2>Estimate record</h2>{selected.reference?.historical&&<p role="status">Viewing immutable saved revision {selected.reference.resolvedRevision}. Historical references are read-only.</p>}<p><a href={`/api/admin/p5-estimators?id=${encodeURIComponent(selected.estimate.id)}&revision=${selected.reference.resolvedRevision}&pdf=administrative`}>Administrative PDF</a>{selected.estimate.customer_estimate&&<> | <a href={`/api/admin/p5-estimators?id=${encodeURIComponent(selected.estimate.id)}&revision=${selected.reference.resolvedRevision}&pdf=customer`}>Customer PDF</a></>}</p><ul>{selected.uploads.map((f:any)=><li key={f.id}><a href={`/api/admin/p5-estimators/upload?id=${f.id}`}>{f.name}</a></li>)}</ul>
       <h2>Customer estimate preview</h2>{selected.estimate.customer_estimate&&<div className={estimateStyles.root}><P5EstimateDetails result={selected.estimate.customer_estimate}/></div>}<h2>Review and publish project costs</h2><p>Review every uploaded file and scope detail. Itemize current direct costs, quantities, evidence, labor burdens, landed material costs, allowance inclusions and selection deadlines. Record why each remaining cost category does not apply. The server applies overhead, contingency and the service profit policy.</p>
+      {selected.estimate.payload.projectServices&&serviceInput&&serviceBasis&&<ProjectServiceEditor
+        key={`${selected.estimate.id}:${selected.estimate.revision}`}
+        plan={serviceInput.projectServices??selected.estimate.payload.projectServices}
+        directCost={serviceBasis.outsideDirectCost}
+        milestoneOutsideCosts={serviceBasis.milestoneOutsideCosts}
+        taskCount={(serviceInput.lines??[]).filter((l:any)=>!projectServiceCode(l.id)).length}
+        disabled={busy||selected.reference?.historical||selected.estimate.status==="submitted"}
+        onSave={plan=>{setCostInput(JSON.stringify({...serviceInput,projectServices:plan},null,2));setReview(null);setConfirmed(false);setStatus("Milestone hours updated in the cost editor. Save and calculate reviewed costs to persist the new review; no existing published estimate has changed.");}}/>}
       <fieldset disabled={busy||selected.reference?.historical} style={{border:0,padding:0,minWidth:0}}>
         <label htmlFor="p5-review-costs">Itemized project costs and assumptions (JSON)</label><textarea id="p5-review-costs" rows={24} style={{...control,fontFamily:"monospace"}} value={costInput} onChange={e=>{setCostInput(e.target.value);setReview(null);setConfirmed(false);}}/>
         <label htmlFor="p5-review-notes">Scope, upload, risk and warning review notes</label><textarea id="p5-review-notes" rows={4} style={control} value={reviewNotes} onChange={e=>{setReviewNotes(e.target.value);setReview(null);setConfirmed(false);}}/>

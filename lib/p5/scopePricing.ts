@@ -28,6 +28,8 @@ import {priceBookRates} from './priceBook.ts';
 import {finalMinorWorkExplanation} from './finalMinorWorkExplanation.ts';
 import {advisoryReviewSchema,assumptionLedger,stampAdvisoryReview,type AdvisoryReviewRecord} from './advisoryProvenance.ts';
 import {z} from 'zod';
+import {PROJECT_SERVICE_ROLES,PROJECT_OVERHEAD_CREDIT_ID} from './projectServices.ts';
+const PROJECT_SERVICE_LINE_IDS=new Set<string>([...PROJECT_SERVICE_ROLES.map(role=>role.code),PROJECT_OVERHEAD_CREDIT_ID]);
 import {PricingPending,PricingStageTimeout,isPricingPending,isPricingStageTimeout} from './pricingProgress.ts';
 import {suggestedTrade,tradeForScopeTask} from './trades.ts';
 import {priceReviewedScope,type CostRule,type EstimatorConfiguration,type ScopePriceResolution} from './costBook.ts';
@@ -1192,7 +1194,9 @@ export function catalogResolution(mapping:Mapping,configuration:EstimatorConfigu
         result.assumptions.push(t.description+': standard alignment and leveling are included in the confirmed cabinet installation labor, priced once. Separately requested repairs or custom fitting are not inferred.');
       }
     }
-    t.existingLineIds=[...new Set(t.existingLineIds.map(id=>resolvePricedLineId(id,pricedLines)))];
+    // Whole-project service lines (01-31-03/04/05 and their overhead credit) are final-price
+    // lines priced once for the project, never a task's price reference; ignore a citation of them.
+    t.existingLineIds=[...new Set(t.existingLineIds.map(id=>resolvePricedLineId(id,pricedLines)))].filter(id=>!PROJECT_SERVICE_LINE_IDS.has(id));
     for(const id of t.existingLineIds){
       const line=pricedLines.find(l=>l.id===id);
       if(result.removeLineIds?.includes(id)||!line||line.quantity*line.unitCost<=0)result.issues.push(`${t.description}: invalid existing price reference.`);

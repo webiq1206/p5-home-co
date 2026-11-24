@@ -44,7 +44,7 @@ export function draftProjectScope(draft:Draft):ProjectScope{
   const extracted=analyzed[field]===value||Boolean(draft.extraction?.facts.some(f=>f.field===field&&f.value===value));
   answerOrigins[field]=explicitlyConfirmed||!draft.extraction?'customer':extracted?'reader':'unconfirmed';
  }
- return {text:draft.text,answers:draft.answers,answerOrigins,extraction:draft.extraction,uploads:draft.uploads,reviewedAt:draft.updatedAt,corrections:[]};
+ return {projectServices:draft.projectServices,text:draft.text,answers:draft.answers,answerOrigins,extraction:draft.extraction,uploads:draft.uploads,reviewedAt:draft.updatedAt,corrections:[]};
 }
 export async function readProjectQualification(id:string){
  const [row]=await query('SELECT payload FROM p5_estimator_work WHERE draft_id=$1 AND work_key=$2',[id,LATEST]);
@@ -108,7 +108,7 @@ async function runProjectQualificationImpl(id:string,expectedRevision:number,pha
     payload.errors??={};payload.errors[key]={code:projectStageErrorCode(error),at:new Date().toISOString()};await persist();throw error;
    }
   };
-  const options={request:staged,previous,changes,now:new Date(payload.startedAt),deadline,completionPlan:phase==='price'?previousCompletion:undefined};
+  const options={request:staged,previous,changes,now:new Date(payload.startedAt),deadline,completionPlan:phase==='price'?previousCompletion:undefined,projectServices:scope.projectServices};
   const workflowResult=phase==='interpret'?await interpretProjectRecord(scope,options):await priceProjectRecord(previous!,configuration,options);
   const completionPlan='completionPlan'in workflowResult?workflowResult.completionPlan:phase==='price'?previousCompletion:undefined;
   const result:QualificationResult={...workflowResult,completionPlan,runEvidence:{contractHash:PROJECT_WORKFLOW_CONTRACT_HASH,completedStages:Object.entries(payload.replies).map(([requestHash,reply])=>({requestHash,requestedModel:reply.model||null,returnedModel:reply.responseModel||null,providerRequestIds:reply.providerRequestIds||[]}))}};

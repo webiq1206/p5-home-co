@@ -535,9 +535,9 @@ function FilesAndHistory({ ws, onWorkspace, onPlay, onError }: { ws: WS; onWorks
           <label className="sc-field">
             <span>Finish tier</span>
             <select value={p.finish_tier} onChange={(ev) => void patch({ finish_tier: ev.target.value })}>
-              <option value="builder">Builder grade</option>
-              <option value="mid">Mid-range</option>
-              <option value="high">High-end</option>
+              <option value="builder">Essential</option>
+              <option value="mid">Signature</option>
+              <option value="high">Premium</option>
               <option value="luxury">Luxury</option>
             </select>
           </label>

@@ -11,6 +11,7 @@
 import { SCHEDULE_MEMO } from "../leads/scheduleLink.ts";
 import { divisionLabel, phaseName, groupByPhaseDivision, withoutDivisionPrefix } from "./divisions.ts";
 import type { EstimateLine, ItemKey, PricingResult } from "./types.ts";
+import {resolveProjectServiceLine,assertProjectServiceSet} from "../../../lib/p5/projectServices.ts";
 
 export type QboLine = {
   DetailType: "SalesItemLineDetail" | "DescriptionOnly";
@@ -45,6 +46,16 @@ function clip(s: string, max: number): string {
   return s.length <= max ? s : `${s.slice(0, max - 1)}…`;
 }
 
+/** Fixed service SKUs do not require (or fall back to) a generic item mapping. */
+export function requiredEstimateItems(pricing:PricingResult):ItemKey[]{
+  assertProjectServiceSet(pricing.lines.filter(l=>!l.optional));
+  return [...new Set(pricing.lines.filter(l=>!l.optional).filter(l=>{
+    const role=resolveProjectServiceLine({...l,amount:l.price});
+    if(role&&role.amount!==l.price)throw new Error("Project-service amounts must be rounded to cents.");
+    return !role;
+  }).map(l=>l.item))];
+}
+
 export function buildEstimatePayload(input: {
   customerId: string;
   pricing: PricingResult;
@@ -57,6 +68,7 @@ export function buildEstimatePayload(input: {
   privateNote: string;
 }): EstimatePayload {
   const base = input.pricing.lines.filter((l) => !l.optional);
+  assertProjectServiceSet(base);
   const optional = input.pricing.lines.filter((l) => l.optional);
   const Line: QboLine[] = [];
   for (const group of groupByPhaseDivision(base)) {
@@ -111,14 +123,16 @@ export function lineText(line: Pick<EstimateLine, "title" | "description">): str
 }
 
 function salesLine(l: EstimateLine, itemIds: Record<ItemKey, string>, taxable: ItemKey[]): QboLine {
+  const role=resolveProjectServiceLine({...l,amount:l.price});
+  if(role&&role.amount!==l.price)throw new Error("Project-service amounts must be rounded to cents.");
   return {
     DetailType: "SalesItemLineDetail",
     Description: clip(lineText(l), 4000),
     Amount: l.price,
     SalesItemLineDetail: {
-      ItemRef: { value: itemIds[l.item], name: l.item },
-      Qty: l.quantity,
-      UnitPrice: l.unitPrice,
+      ItemRef: role?{value:role.qboItemId}:{ value: itemIds[l.item], name: l.item },
+      Qty: role?role.quantity:l.quantity,
+      UnitPrice: role?role.unitPrice:l.unitPrice,
       TaxCodeRef: { value: taxable.includes(l.item) ? "TAX" : "NON" },
     },
   };

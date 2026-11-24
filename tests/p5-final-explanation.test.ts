@@ -24,7 +24,7 @@ for(const release of ['8','9','10'])test(`real .${release} replay uses retained 
  const original=priceReviewedScope(f.scope,f.configuration,now,f.resolution);
  const out=render(f),current=explanation(out);
  assert.equal(JSON.stringify(f),before);
- assert.equal(out.internal.directCost,285);
+ assert.equal(out.internal.directCost,276);
  for(const key of ['directCost','contractPrice','planningRange','allocationDollars','contingency','operatingProfit'])assert.deepEqual((out.internal as any)[key],(original.internal as any)[key],key);
  assert.deepEqual(out.customer.range,original.customer.range);
  assert.deepEqual(render(f).customer,out.customer);
@@ -97,7 +97,7 @@ test('fresh policy assignments identify remaining components and survive idempot
  f.auditTrail.tasks=tasks;
  const out=render(f);
  assert.ok(explanation(out).coverage.every((x:any)=>x.source==='structured-policy'));
- assert.equal(out.internal.directCost,285);assert.equal(created.unitCost,pool.unitCost);
+ assert.equal(out.internal.directCost,276);assert.equal(created.unitCost,pool.unitCost);
 });
 
 test('minor-work explanations apply to the common renderer; non-policy estimates keep existing behavior',()=>{

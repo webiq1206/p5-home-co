@@ -6,6 +6,7 @@
  * the browser, so nothing here may import server code.
  */
 
+import type { ProjectServicePlan,ProjectServiceBasis,ProjectServiceCode,ProjectServiceItemId } from "../../../lib/p5/projectServices.ts";
 export type PhaseId = "pre-construction" | "construction";
 
 /** Where a statement came from. `t` is seconds into the recording (whole project timeline). */
@@ -83,11 +84,14 @@ export type ScopeTask = {
     estimated?: boolean;
   } | null;
   performer?: Performer;
+  supervisionProvider?: "owner" | "outside";
+  ownerLaborTreatment?: "additional-project-labor" | "included-in-overhead";
+  milestone?: "planning" | "delivery" | "closeout";
   laborHours?: { value: number | null; basis: LaborBasis; note?: string | null } | null;
   materials?: string[];
   selections?: Selection[];
   /** A written trade or supplier quote replacing the cost book price. Direct cost. */
-  quote?: { amount: number; assetId?: number | null; vendor?: string | null } | null;
+  quote?: { amount: number; tax?:number; assetId?: number | null; vendor?: string | null } | null;
   /** An allowance amount (direct cost) that must be approved before the estimate is complete. */
   allowance?: { amount: number; approved: boolean } | null;
   notes?: string | null;
@@ -110,6 +114,8 @@ export type Conflict = {
 export type ClientField = { value: string | null; certainty: Certainty; evidence: Evidence[] };
 
 export type ScopeDoc = {
+  /** Absent on legacy versions: never retrofit saved estimates. */
+  projectServices?: ProjectServicePlan;
   projectName?: string | null;
   summary: string;
   client?: {
@@ -194,6 +200,8 @@ export type ProfitCheck = {
 };
 
 export type PriceBasis =
+  | "project-service"
+  | "project-service-credit"
   | "cost-book"
   | "written-quote"
   | "internal-labor"
@@ -204,6 +212,10 @@ export type PriceBasis =
   | "site-estimate";
 
 export type EstimateLine = {
+  /** Allowlisted final-price project-service SKU, never an arbitrary QBO ID. */
+  sku?:ProjectServiceCode;
+  /** Server-resolved P5 service item; never honored without a matching SKU. */
+  qboItemId?:ProjectServiceItemId;
   id: string;
   taskId: string;
   phase: PhaseId;
@@ -246,6 +258,7 @@ export type PricingIssue = {
 };
 
 export type PricingResult = {
+  projectServiceBasis?:ProjectServiceBasis;
   lines: EstimateLine[];
   issues: PricingIssue[];
   totals: {
@@ -272,8 +285,12 @@ export type PricingResult = {
 
 export type ScopeSettings = {
   /**
-   * What the customer pays per hour of P5 labor. Owner rule: this is the
-   * billed rate. Overhead, reserve and profit are never added on top of it.
+   * What the customer pays per hour of P5 internal labor (tasks performed by
+   * P5): project management, supervision, coordinating subs, administration
+   * and accounting. Owner rule (24 November 2026): $120/hour, the billed rate,
+   * with no overhead, reserve or profit added on top. Trade work is bought from
+   * subcontractors at the cost book's trade rates plus the normal markup and
+   * never uses this rate. Handyman Co bills $95/hour (HANDYMAN_HOURLY_RATE).
    */
   laborRate: number;
   /** P5's own cost per hour. Optional, used only to show internal margin. */
@@ -295,8 +312,20 @@ export type ScopeSettings = {
   confirmedAt?: string | null;
 };
 
+/**
+ * Handyman Co hourly rate (owner, 24 November 2026): "Handyman is fine at
+ * $95/hr but everything else must be billed at our standard hourly rate."
+ * Every other service bills internal labor at settings.laborRate ($120).
+ */
+export const HANDYMAN_HOURLY_RATE = 95;
+
+/** The customer's hourly price for P5 labor on a service. */
+export function laborRateFor(service: string, settings: Pick<ScopeSettings, "laborRate">): number {
+  return service === "handyman" ? HANDYMAN_HOURLY_RATE : settings.laborRate;
+}
+
 export const DEFAULT_SCOPE_SETTINGS: ScopeSettings = {
-  laborRate: 125,
+  laborRate: 120,
   handymanTripCharge: 45,
   laborLoadedCost: null,
   productionRates: {},

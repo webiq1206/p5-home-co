@@ -96,8 +96,11 @@ test("every recipe line is a real, priceable cost book line with a positive quan
       assert.doesNotMatch(line.text, /\d{2}-\d{2}-\d{2}|—/, `${project}: customer text carries a code or an em dash`);
     }
     // Nothing the customer selected may silently vanish between recipe and price.
+    // Internal superintendent recipe hours (01-31-02) stay on the scope but are
+    // priced through project-services-v2, not as a second cost-book line.
     const priced = estimate.pricing.lines.filter((l) => l.basis === "cost-book" && l.taskId !== "gmin").length;
-    assert.equal(priced, recipe.lines.length, `${project} ${JSON.stringify(estimate.answers)}: ${recipe.lines.length - priced} line(s) were not priced`);
+    const expected = recipe.lines.filter((l) => !/^01-31-0[12]$/.test(l.code)).length;
+    assert.equal(priced, expected, `${project} ${JSON.stringify(estimate.answers)}: ${expected - priced} line(s) were not priced`);
   }
 });
 
@@ -212,7 +215,9 @@ test("the QuickBooks estimate carries the same lines and descriptions the custom
     const payload = buildEstimatePayload({ customerId: "1", pricing: estimate.pricing, itemIds, taxable: [], exclusions: estimate.doc.exclusions, privateNote: "test" });
     const sales = payload.Line.filter((l) => l.DetailType === "SalesItemLineDetail" && (l.Amount ?? 0) !== 0 && !/^Trip charge/.test(l.Description));
     const shown = new Set([...view.divisions.flatMap((d) => d.items).map((i) => i.text), ...view.guide.included.flatMap((g) => g.items)]);
+    const serviceOnly = /Project (management|administration|accounting)|coordination allowance adjustment|Existing overhead recovery credit/;
     for (const line of sales) {
+      if (serviceOnly.test(line.Description ?? "")) continue;
       assert.ok(shown.has(line.Description), `${project}: QuickBooks line "${line.Description}" was not shown to the customer`);
       assert.ok(line.SalesItemLineDetail!.ItemRef.value, `${project}: a line has no QuickBooks item`);
     }
@@ -435,7 +440,21 @@ test("handyman: the minimum service charge is enforced and the trip charge nets 
   assert.equal(trip.reduce((s, l) => s + cents(l.price), 0), 0);
   // The small job costs the minimum, within a cent of rounding the balance quantity up.
   const one = price("handyman", { tasks: { "hang-art": 1 } }).pricing.totals.baseCost!;
-  assert.ok(one >= 135 && one < 136.4, `direct cost ${one}`);
+  // The $135 owner minimum is the customer price (Service Fee rows are stored
+  // net of the estimator markup since 24 November 2026).
+  assert.ok(one >= 83.4 && one < 84.9, `direct cost ${one}`);
+  const customerWork = small.pricing.lines
+    .filter((l) => l.basis === "cost-book" || l.basis === "trip-charge")
+    .reduce((s, l) => s + l.price, 0);
+  assert.ok(customerWork >= 135 && customerWork < 137.5, `customer work+minimum ${customerWork}`);
+  const services = small.pricing.lines.filter((l) => l.basis === "project-service");
+  const credit = small.pricing.lines.find((l) => l.basis === "project-service-credit")?.price ?? 0;
+  assert.equal(services.length, 3);
+  assert.ok(services.every((l) => l.unitPrice === 120));
+  assert.ok(credit <= 0 && credit >= -services.reduce((s, l) => s + l.price, 0) - 0.01);
+  const customer = small.pricing.totals.basePrice;
+  assert.ok(Math.abs(customer - (customerWork + services.reduce((s, l) => s + l.price, 0) + credit)) < 0.02, `customer minimum ${customer}`);
+  assert.ok(customer >= 135, `customer minimum ${customer}`);
   assert.equal(small.estimateClass, "quote");
   assert.deepEqual(small.review, []);
 });

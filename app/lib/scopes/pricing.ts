@@ -21,6 +21,7 @@ import {
   type FinancePolicy,
 } from "../../../lib/p5/pricing.ts";
 import type { FinishTier } from "../../../lib/p5/priceBook.ts";
+import { projectServiceLines, projectServiceCode, isSuperintendentCode,projectOverheadCredit,PROJECT_OVERHEAD_CREDIT_ID,projectServiceCostBasis,type ProjectServiceBasis } from "../../../lib/p5/projectServices.ts";
 import {
   COST_BOOK_REVIEWED_AT,
   COST_BOOK_SOURCE,
@@ -40,6 +41,7 @@ import type {
   ScopeSettings,
   ScopeTask,
 } from "./types.ts";
+import { laborRateFor } from "./types.ts";
 
 export const CONTINGENCY_RATE = 0.1;
 /** Cost book line "Trip / material run charge". */
@@ -136,6 +138,7 @@ export function priceScope(doc: ScopeDoc, ctx: PricingContext): PricingResult {
   const now = ctx.now ?? new Date();
   const { multiplier, overhead, profit } = priceMultiplier(ctx.service, now, ctx.finance);
   const settings = ctx.settings;
+  const laborRate = laborRateFor(ctx.service, settings);
   const lines: EstimateLine[] = [];
   const issues: PricingIssue[] = [];
   const issue = (i: PricingIssue) => {
@@ -149,7 +152,7 @@ export function priceScope(doc: ScopeDoc, ctx: PricingContext): PricingResult {
   const pushLabor = (task: ScopeTask, hours: number, basisNote: string) => {
     // Owner rule: the hourly rate is the customer's price. Overhead, reserve
     // and profit are never added to it, on any service.
-    const unitPrice = settings.laborRate;
+    const unitPrice = laborRate;
     const unitCost = settings.laborLoadedCost;
     lines.push({
       id: `${task.id}:labor`,
@@ -222,6 +225,12 @@ export function priceScope(doc: ScopeDoc, ctx: PricingContext): PricingResult {
 
   for (const task of doc.tasks) {
     if (!isPriced(task)) continue;
+    // Project-wide services are synthesized once after all rooms/scopes.
+    const outsideSupervision=task.supervisionProvider==="outside"||
+      task.supervisionProvider!=="owner"&&task.performer==="subcontractor"&&Boolean(task.quote);
+    if (doc.projectServices && (projectServiceCode(task.costCode ?? "") ||
+      doc.projectServices.version!=="project-services-v1"&&task.ownerLaborTreatment==="included-in-overhead"||
+      isSuperintendentCode(task.costCode ?? "")&&(doc.projectServices.version==="project-services-v1"||!outsideSupervision))) continue;
     const blocking = task.bucket === "approved";
     const optional = task.bucket === "optional";
     const entry = costBookEntry(task.costCode);
@@ -492,6 +501,46 @@ export function priceScope(doc: ScopeDoc, ctx: PricingContext): PricingResult {
     }
   }
 
+  let serviceBasis:ProjectServiceBasis|undefined;
+  if (doc.projectServices && lines.some(l => !l.optional && l.basis !== "trip-charge")) {
+    const ordinary = lines.filter(l => !l.optional && l.basis !== "trip-charge");
+    const byTask=new Map<string,typeof ordinary>();
+    for(const line of ordinary)byTask.set(line.taskId,[...(byTask.get(line.taskId)??[]),line]);
+    const oldServicePolicy=doc.projectServices.version==="project-services-v1";
+    serviceBasis=oldServicePolicy?{outsideDirectCost:ordinary.reduce((n,l)=>n+(l.cost??l.price/multiplier),0)}:projectServiceCostBasis([...byTask].map(([id,taskLines])=>{
+      const task=doc.tasks.find(t=>t.id===id);
+      const entry=costBookEntry(task?.costCode);
+      return {cost:taskLines.reduce((n,l)=>n+(l.cost??l.price/multiplier),0),tax:task?.quote?.tax,
+        excluded:Boolean(task?.ownerLaborTreatment||task?.supervisionProvider==="owner"||
+          task?.allowance&&isSuperintendentCode(task.costCode??"")||
+          entry?.percentage&&/\b(overhead|profit|tax(?:es)?)\b/i.test(entry.item)),
+        milestone:task?.milestone??(taskLines.every(l=>l.phase===taskLines[0].phase)?
+          (taskLines[0].phase==="pre-construction"?"planning":"delivery"):undefined)};
+    }));
+    const count = new Set(ordinary.map(l => l.taskId)).size;
+    const services=projectServiceLines(doc.projectServices,serviceBasis.outsideDirectCost,count,serviceBasis.milestoneOutsideCosts);
+    const credit=projectOverheadCredit(services.reduce((n,s)=>n+s.price,0),ordinary.reduce((n,l)=>n+l.price,0),overhead,
+      (ctx.finance??DEFAULT_FINANCE).annualOverhead,oldServicePolicy?(ctx.finance??DEFAULT_FINANCE).annualOverhead:(ctx.finance??DEFAULT_FINANCE).ownerSalaryOverheadAnnual??200000);
+    for (const service of services) {
+      lines.push({
+        id: service.code, taskId: service.code,...(!oldServicePolicy?{sku:service.code}:{}),phase: "construction", division: "01",
+        item: "Direct Labor", title: service.description, description: service.description,
+        quantity: service.quantity, unit: "HR", unitCost: 0, cost: 0,
+        unitPrice: service.unitPrice, price: service.price, basis: "project-service",
+        source: service.source + " Salary cost remains in the existing overhead budget, not a second direct cost.",
+        optional: false, allowance: true, laborHours: service.quantity, notes: [service.source],
+      });
+    }
+    if(credit>0) lines.push({
+      id:PROJECT_OVERHEAD_CREDIT_ID,taskId:PROJECT_OVERHEAD_CREDIT_ID,phase:"construction",division:"01",
+      item:"Direct Labor",title:"Existing overhead recovery credit",description:"Project coordination allowance adjustment",
+      quantity:1,unit:"LS",unitCost:0,cost:0,unitPrice:-credit,price:-credit,basis:"project-service-credit",
+      source:oldServicePolicy?"One project-wide credit, up to existing overhead recovery, avoids funding the same project-service labor twice.":
+        "One project-wide credit against documented owner-salary recovery only; non-salary overhead remains funded. Duplicate owner allowances are replaced, not credited a second time; distinct outside supervision remains chargeable.",
+      optional:false,allowance:false,laborHours:0,notes:[],
+    });
+  }
+
   // Cost book age.
   const ageDays = (now.getTime() - Date.parse(COST_BOOK_REVIEWED_AT)) / 86_400_000;
   if (ageDays > settings.priceMaxAgeDays && lines.some((l) => l.basis === "cost-book") && !ctx.acknowledged.has(costBookAgeKey())) {
@@ -519,18 +568,19 @@ export function priceScope(doc: ScopeDoc, ctx: PricingContext): PricingResult {
   let profitCheck: ProfitCheck | null = null;
   if (baseCost !== null && basePrice > 0) {
     const grossProfit = round2(basePrice - baseCost);
-    const overheadShare = round2(basePrice * overhead);
+    const serviceRecovery = base.filter(l => l.basis === "project-service"||l.basis==="project-service-credit").reduce((n, l) => n + l.price, 0);
+    const overheadShare = round2((basePrice - serviceRecovery) * overhead + serviceRecovery);
     // Only marked-up lines carry the reserve; P5 labor and the trip charge are billed as is.
     const reserve = round2(
-      base.filter((l) => l.basis !== "internal-labor" && l.basis !== "trip-charge").reduce((s, l) => s + (l.cost ?? 0) * CONTINGENCY_RATE, 0),
+      base.filter((l) => l.basis !== "internal-labor" && l.basis !== "trip-charge" && l.basis !== "project-service").reduce((s, l) => s + (l.cost ?? 0) * CONTINGENCY_RATE, 0),
     );
     const netProfit = round2(grossProfit - overheadShare - reserve);
     const netMargin = Math.round((netProfit / basePrice) * 10000) / 10000;
     const notes: string[] = [];
     const status: ProfitCheck["status"] =
       netMargin >= profit * 2 ? "high" : netMargin >= profit ? "on-target" : netMargin >= profit / 2 ? "thin" : "below";
-    if (settings.laborLoadedCost !== null && settings.laborLoadedCost >= settings.laborRate) {
-      notes.push(`P5 labor costs $${settings.laborLoadedCost}/hour and is billed at $${settings.laborRate}/hour, so every labor hour loses money.`);
+    if (settings.laborLoadedCost !== null && settings.laborLoadedCost >= laborRate) {
+      notes.push(`P5 labor costs $${settings.laborLoadedCost}/hour and is billed at $${laborRate}/hour, so every labor hour loses money.`);
     }
     const underwater = base.filter((l) => l.cost !== null && l.price < (l.cost ?? 0) && l.basis !== "trip-charge");
     if (underwater.length) notes.push(`${underwater.length} line${underwater.length === 1 ? " is" : "s are"} priced below cost: ${underwater.slice(0, 3).map((l) => l.description).join("; ")}.`);
@@ -544,6 +594,7 @@ export function priceScope(doc: ScopeDoc, ctx: PricingContext): PricingResult {
   }
 
   return {
+    ...(serviceBasis?{projectServiceBasis:serviceBasis}:{}),
     lines,
     issues,
     totals: {
@@ -559,7 +610,7 @@ export function priceScope(doc: ScopeDoc, ctx: PricingContext): PricingResult {
       overheadRate: overhead,
       profitRate: profit,
       contingencyRate: CONTINGENCY_RATE,
-      laborRate: settings.laborRate,
+      laborRate,
       finishTier: ctx.finishTier,
       costBookSource: COST_BOOK_SOURCE,
       costBookVersion: COST_BOOK_VERSION,
