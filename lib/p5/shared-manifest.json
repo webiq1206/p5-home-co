@@ -1,7 +1,7 @@
 {
   "source": "p5-home-co",
-  "commit": "8a4b7863d62103fe1673d875f36b764a6a2231c6",
-  "generatedAt": "2026-11-24T17:15:39.402Z",
+  "commit": "894320513633cdc6a2d0aa6fb8e7ffc352a7373d",
+  "generatedAt": "2026-11-24T17:34:02.655Z",
   "note": "Shared estimator engine published from p5-home-co. Edit shared files there and run scripts/p5-sync.mjs; hash checks remain mandatory in every brand.",
   "files": {
     "app/admin/p5-estimators/page.tsx": "aa1557d1cbf80c072715ab051f8adbc1130abb720c088ee6d5ddd18c664844ed",
@@ -44,7 +44,7 @@
     "components/P5ReferenceCostBudget.tsx": "81f85ff0199fdaa7484d36b56d7d404c568c0010bf7588430471a9f6201414dd",
     "components/P5ReviewRequest.tsx": "03e2ac446bffc2ff440393ec855e982ba625b74cced6e45008ed560e619802a4",
     "components/ProjectServiceDefaultsEditor.tsx": "da9a5d6c81ae915b190fcda4426ec2b29a05221822ecd8d8a068c17439f3f46e",
-    "components/ProjectServiceEditor.tsx": "f27e6facbe6ef1fb2ea7723c1520a723b667566e4fad352e97f48fe1e0d70cac",
+    "components/ProjectServiceEditor.tsx": "138ab8bd450477995ac7beabcfb74b807dcf466b1ee43c1f01dd52db8824f5a7",
     "lib/p5/adaptive.ts": "d874b26921c2c77a028d6609d2530a084e193699b0e9786d06e44a03f52430f4",
     "lib/p5/adminEndpoint.ts": "779debbfb3128bea506088a4b4032960bdff3a059681f2d67e81f688a3f277b5",
     "lib/p5/adminEstimate.ts": "0a324a6dfaa166e9369705381f4ce45b7d89d5b960ac9bccb125adcf51d2f024",

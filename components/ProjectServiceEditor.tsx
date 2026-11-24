@@ -36,7 +36,7 @@ function ProjectServiceFields({plan,directCost,taskCount,milestoneOutsideCosts,d
           style={{minHeight:44,width:180,maxWidth:"100%",boxSizing:"border-box",padding:8,fontSize:16}}
           value={Number.isFinite(hours[role.code][m])?hours[role.code][m]:""} onChange={e=>setHours({...hours,[role.code]:{...hours[role.code],[m]:e.target.value===""?NaN:Number(e.target.value)}})}/>
       </label>)}
-      <p>{Number.isFinite(Object.values(hours[role.code]).reduce((a,b)=>a+b,0))?Object.values(hours[role.code]).reduce((a,b)=>a+b,0).toLocaleString("en-US",{maximumFractionDigits:9}):"—"} total hours · $120/hour</p>
+      <p>{Number.isFinite(Object.values(hours[role.code]).reduce((a,b)=>a+b,0))?Object.values(hours[role.code]).reduce((a,b)=>a+b,0).toLocaleString("en-US",{maximumFractionDigits:9}):"-"} total hours · $120/hour</p>
     </fieldset>)}
     <p>Saving hours creates a draft review only; it does not update an existing QuickBooks estimate. Any estimate update uses the existing reviewed action.</p>
     {disabled||plan.version==="project-services-v1"?<p>Only authorized internal pricing managers can revise new-policy drafts or verified unsent, unsigned estimates. Legacy, sent, signed and invoiced estimates stay locked.</p>:
