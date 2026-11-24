@@ -135,7 +135,7 @@
         "category": "field-labor",
         "evidence": {
           "basis": "owner-estimating-schedule",
-          "reference": "P5 Cost Database 2026.xlsx (Master sheet), Mid-Range direct cost; PB-08-71-01; Measured: three passage-lever installations on ground-floor doors with existing predrilled holes. PB-08-71-01 rates door-hardware installation labor per door; consumables (fasteners, mounting hardware) are included per source description.",
+          "reference": "P5 Cost Database 2026.xlsx (Master sheet), Signature direct cost; PB-08-71-01; Measured: three passage-lever installations on ground-floor doors with existing predrilled holes. PB-08-71-01 rates door-hardware installation labor per door; consumables (fasteners, mounting hardware) are included per source description.",
           "validUntil": "2026-12-12T00:00:00.000Z",
           "verifiedAt": "2026-09-11T00:00:00.000Z"
         },
@@ -143,7 +143,7 @@
           "fixed": 3,
           "factor": 1
         },
-        "unitCost": 70,
+        "unitCost": 67,
         "allowance": false,
         "priceBasis": "direct-cost",
         "description": "Remove and dispose of three existing interior passage-door levers; install three owner-supplied compatible replacement passage levers on the same three ground-floor doors with existing predrilled holes.: Door hardware install / replace, per door (labor) (labor only; price materials separately; Door Hardware Installation (Labor), Openings). Labor only; material priced separately",
@@ -339,7 +339,7 @@
             "category": "field-labor",
             "evidence": {
               "basis": "owner-estimating-schedule",
-              "reference": "P5 Cost Database 2026.xlsx (Master sheet), Mid-Range direct cost; PB-08-71-01; Measured: three passage-lever installations on ground-floor doors with existing predrilled holes. PB-08-71-01 rates door-hardware installation labor per door; consumables (fasteners, mounting hardware) are included per source description.",
+              "reference": "P5 Cost Database 2026.xlsx (Master sheet), Signature direct cost; PB-08-71-01; Measured: three passage-lever installations on ground-floor doors with existing predrilled holes. PB-08-71-01 rates door-hardware installation labor per door; consumables (fasteners, mounting hardware) are included per source description.",
               "validUntil": "2026-12-12T00:00:00.000Z",
               "verifiedAt": "2026-09-11T00:00:00.000Z"
             },
@@ -347,7 +347,7 @@
               "fixed": 3,
               "factor": 1
             },
-            "unitCost": 70,
+            "unitCost": 67,
             "allowance": false,
             "priceBasis": "direct-cost",
             "description": "Remove and dispose of three existing interior passage-door levers; install three owner-supplied compatible replacement passage levers on the same three ground-floor doors with existing predrilled holes.: Door hardware install / replace, per door (labor) (labor only; price materials separately; Door Hardware Installation (Labor), Openings). Labor only; material priced separately",

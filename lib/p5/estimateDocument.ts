@@ -43,12 +43,12 @@ export function confirmStep(service:string):string{
   if(CONSTRUCTION_SERVICES.has(service))return "We'll review your plans, site conditions, selections and schedule.";
   return "We'll verify measurements, selections, existing conditions and the scope of work.";
 }
-/** The book's four finish tiers, in words a homeowner uses. "Refresh" is the builder-grade tier and is
- * never called a refresh on new construction. */
+/** The book's four finish tiers, in the names a homeowner sees. The stored value
+ * "refresh" is the Essential tier and is never called a refresh on new construction. */
 const FINISH:Record<string,{name:string;detail:string}>={
-  'refresh':{name:'Builder grade',detail:'Durable, standard-grade materials, fixtures and finishes in widely available styles.'},
-  'mid-range':{name:'Mid-range',detail:'Quality mid-grade materials, fixtures and finishes, with selected upgrades.'},
-  'high-end':{name:'High-end',detail:'Premium materials, fixtures and finishes with more custom detailing.'},
+  'refresh':{name:'Essential',detail:'Durable, standard-grade materials, fixtures and finishes in widely available styles.'},
+  'mid-range':{name:'Signature',detail:'Quality mid-grade materials, fixtures and finishes, with selected upgrades.'},
+  'high-end':{name:'Premium',detail:'Premium materials, fixtures and finishes with more custom detailing.'},
   'luxury':{name:'Luxury',detail:'Top-tier and custom materials, fixtures and finishes throughout.'},
 };
 const BASIS_TEXT:Record<FinishBasis,string>={

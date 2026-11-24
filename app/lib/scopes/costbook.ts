@@ -23,7 +23,7 @@ import type { ItemKey } from "./types.ts";
  * Date the current cost book was imported (commit of lib/p5/priceBookData.ts).
  * The book itself carries no per-line dates, so age is measured from here.
  */
-export const COST_BOOK_REVIEWED_AT = "2026-10-24";
+export const COST_BOOK_REVIEWED_AT = "2026-11-24";
 export const COST_BOOK_SOURCE = PRICE_BOOK_SOURCE;
 export const COST_BOOK_VERSION = PRICE_BOOK_VERSION;
 

@@ -4,7 +4,7 @@
  * nothing here is ever sent to a customer.
  */
 
-import { compute, currentDoc } from "./engine.ts";
+import { compute, currentDoc, lockedPricing } from "./engine.ts";
 import { ESTIMATE_STATUS_LABEL, estimateStatus, qboWebUrl, type EstimateStatusName } from "./estimate.ts";
 import { applyMirroredStatus, isSandbox, projectIsProject, qboState } from "./qbo.ts";
 import {
@@ -112,7 +112,11 @@ export async function loadWorkspace(projectId: number, viewer: Pick<ScopeUser, "
   await Promise.race([ensureProperty(project).catch(() => false), new Promise((r) => setTimeout(r, 5000))]);
   const settings = await loadScopeSettings();
   const { version, doc } = await currentDoc(project);
-  const computed = await compute(project, doc, settings);
+  const fresh = await compute(project, doc, settings);
+  // Current jobs keep their locked prices (owner rule, 24 November 2026): a
+  // version priced on an earlier cost book shows its saved pricing.
+  const locked = lockedPricing(version);
+  const computed = locked ? { ...fresh, pricing: locked } : fresh;
   if (version && computed.readiness.status !== project.scope_status) {
     await setProjectState(projectId, { scope_status: computed.readiness.status });
   }

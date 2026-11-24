@@ -15,7 +15,7 @@
 export const DOCUMENT_ESTIMATE_MAX_LINES=60;
 
 /** One line of the estimate as the intake reads it. `amount` is what the customer pays for the line. */
-export interface DocumentEstimateLine {title:string;description?:string;quantity?:number;unit?:string;amount:number;division?:string}
+export interface DocumentEstimateLine {title:string;description?:string;quantity?:number;unit?:string;amount:number;division?:string;sku?:"01-31-03"|"01-31-04"|"01-31-05"}
 /** The contract's `estimate` object for a document estimate. Customer amounts only. */
 export interface DocumentEstimateBody {kind:'document';low:number;high:number;base:number;label:string;verified:true;lines:DocumentEstimateLine[]}
 
@@ -41,30 +41,56 @@ export function linesByTrade(lines:DocumentEstimateLine[]):DocumentEstimateLine[
  * price. Cost, contingency, overhead and profit fields are never read.
  */
 export function documentEstimate(record:unknown):{estimate:DocumentEstimateBody;notes:string[]}|null{
-  const source=(record&&typeof record==='object'?record:{}) as {scope?:{answers?:{service?:unknown}};customer?:{range?:{low?:unknown;high?:unknown}|null};internal?:{contractPrice?:unknown;lines?:unknown}};
+  const source=(record&&typeof record==='object'?record:{}) as {scope?:{answers?:{service?:unknown}};customer?:{range?:{low?:unknown;high?:unknown}|null};internal?:{contractPrice?:unknown;lines?:unknown;projectServices?:{version?:unknown}}};
   const low=Number(source.customer?.range?.low),high=Number(source.customer?.range?.high),contract=Number(source.internal?.contractPrice);
   if(![low,high,contract].every(value=>Number.isFinite(value)&&value>0))return null;
   const base=round2(contract);
   const notes:string[]=[];
   let lines:DocumentEstimateLine[]=[];
+  const hourlyServices=new Set<DocumentEstimateLine>();
+  let overlapCredit=0;
   for(const entry of Array.isArray(source.internal?.lines)?source.internal.lines as Record<string,unknown>[]:[]){
     const amount=round2(Number(entry?.sellingAmount));
     const description=oneLine(entry?.description,Number.MAX_SAFE_INTEGER);
+    // The intake's positive-price contract stays unchanged. Absorb this
+    // server-created adjustment in ordinary selling lines, never in the three
+    // final hourly prices. No financial cost/allocation fields are read.
+    if(entry?.id==='project-services-overhead-credit'&&Number.isFinite(amount)&&amount<0){overlapCredit=round2(overlapCredit-amount);continue;}
     if(!Number.isFinite(amount)||amount<=0||!description)continue;
     const quantity=Number(entry.quantity),unit=oneLine(entry.unit,20),trade=oneLine(entry.trade,80);
-    lines.push({title:description.slice(0,200).trim(),...(description.length>200?{description:description.slice(0,1000).trim()}:{}),
-      ...(Number.isFinite(quantity)&&quantity>0?{quantity}:{}),...(unit?{unit}:{}),amount,...(trade?{division:trade}:{})});
+    const line:DocumentEstimateLine={title:description.slice(0,200).trim(),...(description.length>200?{description:description.slice(0,1000).trim()}:{}),
+      ...(Number.isFinite(quantity)&&quantity>0?{quantity}:{}),...(unit?{unit}:{}),amount,...(trade?{division:trade}:{})};
+    lines.push(line);
+    if(['01-31-03','01-31-04','01-31-05'].includes(String(entry.id))){
+      if(source.internal?.projectServices?.version==="project-services-v2")line.sku=String(entry.id) as DocumentEstimateLine["sku"];
+      hourlyServices.add(line);
+    }
   }
+  const ordinary=lines.filter(line=>!hourlyServices.has(line));
+  if(overlapCredit>0){
+    const ordinaryTotal=sumOf(ordinary);
+    if(overlapCredit>=ordinaryTotal)throw new Error('Project service overlap credit exceeds ordinary selling lines.');
+    let deducted=0;
+    for(const line of ordinary){
+      const used=round2(overlapCredit*line.amount/ordinaryTotal);
+      line.amount=round2(line.amount-used);deducted=round2(deducted+used);
+    }
+    const largest=ordinary.reduce((a,b)=>b.amount>a.amount?b:a);
+    largest.amount=round2(largest.amount+deducted-overlapCredit);
+    if(ordinary.some(line=>line.amount<=0))throw new Error('Project service overlap credit cannot remove a scoped work line.');
+  }
+  lines=lines.filter(line=>line.amount>0);
   // Rounding can move at most a cent for each line that was priced, however they are grouped afterwards.
   const tolerance=0.01*lines.length;
   if(lines.length>DOCUMENT_ESTIMATE_MAX_LINES){
     notes.push(`${lines.length} lines were combined into one line per trade`);
-    lines=linesByTrade(lines);
+    lines=[...linesByTrade(lines.filter(line=>!hourlyServices.has(line))),...lines.filter(line=>hourlyServices.has(line))];
   }
   if(lines.length){
     const drift=round2(base-sumOf(lines));
     if(drift!==0&&Math.abs(drift)<=tolerance+1e-9){
-      const largest=lines.reduce((a,b)=>b.amount>a.amount?b:a);
+      const eligible=lines.filter(line=>!hourlyServices.has(line));
+      const largest=(eligible.length?eligible:lines).reduce((a,b)=>b.amount>a.amount?b:a);
       largest.amount=round2(largest.amount+drift);
     }
   }

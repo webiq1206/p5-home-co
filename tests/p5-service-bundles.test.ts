@@ -21,11 +21,11 @@ for(const [version,file] of [['.8','p5-same-door-hardware.json'],['.9','p5-retai
  const out=await priceCompleteScope(scope,configuration,failedProvider,now);
  const internal=out.internal as any;
  assert.equal(internal.scopePricing.version,'supported-service-bundle-v1');
- assert.equal(internal.directCost,285);assert.equal(internal.lines.length,2);
+ assert.equal(internal.directCost,276);assert.equal(internal.lines.length,2);
  assert.equal(internal.lines.filter((line:any)=>line.category==='field-labor').length,1);
  assert.equal(internal.lines.find((line:any)=>line.id==='bundle-labor').quantity,3);
  assert.equal(internal.lines.find((line:any)=>line.id==='minor-work-allowance').unitCost,75);
- assert.ok(out.customer.range);assert.equal(internal.contingency,28.5);assert.equal(internal.contingencyRate,.1);
+ assert.ok(out.customer.range);assert.equal(internal.contingency,27.6);assert.equal(internal.contingencyRate,.1);
  assert.ok(internal.targetOperatingProfit>=.12);assert.ok(internal.divisor>0);assert.ok(internal.contractPrice>internal.riskAdjustedDirectCost);
  assert.equal(JSON.stringify(scope),before);
  assert.doesNotMatch(JSON.stringify(out.customer),/PB-02-41-29|no supported price|research exhausted|Earlier scope and pricing assumptions/);
@@ -40,7 +40,7 @@ function scopeFor(item:string,count=3){
  scope.extraction={...scope.extraction,sourceText:scope.text,summary:scope.text,facts:[],reviewNotes:[],instructions:{...scope.extraction.instructions,inclusions:[`Install ${count} owner-supplied compatible ${item}`,'Contractor supplies normal installation consumables'],exclusions:[],responsibilities:[`Owner supplies ${item}`]}};
  return scope;
 }
-for(const [item,count,cost] of [['passage door levers',1,145],['passage door knobs',6,495],['cabinet pulls',10,155],['cabinet knobs',12,171],['towel bars',2,165],['towel rings',3,210],['toilet paper holders',2,165],['robe hooks',4,255]] as const)test('supported bundle: '+count+' '+item,async()=>{
+for(const [item,count,cost] of [['passage door levers',1,142],['passage door knobs',6,477],['cabinet pulls',10,155],['cabinet knobs',12,171],['towel bars',2,165],['towel rings',3,210],['toilet paper holders',2,165],['robe hooks',4,255]] as const)test('supported bundle: '+count+' '+item,async()=>{
  const out=await priceCompleteScope(scopeFor(item,count),configuration,failedProvider,now);
  assert.ok(out.customer.range);assert.equal((out.internal as any).directCost,cost);
  assert.equal((out.internal as any).lines.filter((line:any)=>line.id==='minor-work-allowance').length,1);
@@ -52,7 +52,7 @@ test('one explicit total across rooms stays one supported quantity',async()=>{
  scope.text+=' All three levers are in bedroom and hallway rooms.';
  scope.extraction.sourceText=scope.text;
  const out=await priceCompleteScope(scope,configuration,failedProvider,now);
- assert.equal((out.internal as any).directCost,285);
+ assert.equal((out.internal as any).directCost,276);
 });
 
 for(const [name,mutate] of [

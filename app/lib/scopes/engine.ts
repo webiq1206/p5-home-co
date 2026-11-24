@@ -10,11 +10,13 @@
  */
 
 import { query, queryOne } from "../db.ts";
+import {newProjectServices,validateProjectServices,projectServiceHoursEditable,type ProjectServicePlan} from "../../../lib/p5/projectServices.ts";
+import {loadProjectServiceDefaults} from "../../../lib/p5/projectServicePolicy.ts";
 import type { FinancePolicy } from "../../../lib/p5/pricing.ts";
 import type { FinishTier } from "../../../lib/p5/priceBook.ts";
 import { extractScope, transcribe, type SourceInput } from "./ai.ts";
 import { supportingSuggestions } from "./checklist.ts";
-import { costBookEntry } from "./costbook.ts";
+import { costBookEntry, COST_BOOK_VERSION } from "./costbook.ts";
 import { classify, prepareForModel, readBytes } from "./files.ts";
 import { applyAnswer, deriveQuestions, readiness, reconcileMeasurements, type AnswerState } from "./gaps.ts";
 import { applyChanges, diffScopes, markEdited, type Proposal } from "./merge.ts";
@@ -32,6 +34,7 @@ import {
   listAnswers,
   listAssets,
   loadScopeSettings,
+  latestEstimate,
   logEvent,
   saveAnswer,
   saveVersion,
@@ -96,6 +99,7 @@ export async function commitDoc(
   opts: { clearProposal?: boolean } = {},
 ): Promise<{ version: VersionRow; computed: Computed }> {
   let doc = reconcileMeasurements(input);
+  if (!project.current_version_id) doc = {...doc, projectServices: doc.projectServices ?? newProjectServices(await loadProjectServiceDefaults())};
   doc = { ...doc, tasks: [...doc.tasks, ...supportingSuggestions(doc, project.service)] };
   const computed = await compute(project, doc);
   const version = await saveVersion({
@@ -130,7 +134,7 @@ async function prefillProject(p: ProjectRow, doc: ScopeDoc): Promise<void> {
 
 export async function currentDoc(project: ProjectRow): Promise<{ version: VersionRow | null; doc: ScopeDoc }> {
   const version = await currentVersion(project);
-  return { version, doc: version?.doc ?? emptyScope() };
+  return { version, doc: version?.doc ?? {...emptyScope(),projectServices:newProjectServices()} };
 }
 
 // ---------------------------------------------------------------------------
@@ -351,6 +355,7 @@ export async function rejectProposal(projectId: number, userId: number): Promise
 }
 
 export type EditOp =
+  | { op: "project-services"; plan: ProjectServicePlan }
   | { op: "task"; task: ScopeTask }
   | { op: "remove-task"; id: string }
   | { op: "restore-task"; id: string }
@@ -365,6 +370,22 @@ export async function editScope(projectId: number, ops: EditOp[], userId: number
   let note = "Edited by hand";
   for (const o of ops) {
     switch (o.op) {
+      case "project-services": {
+        const estimate=await latestEstimate(projectId);
+        const raw=estimate?.qbo_snapshot;
+        const gate=estimate?{
+          unsent:estimate.txn_status==="Pending"&&estimate.email_status==="NotSet"&&raw?.TxnStatus==="Pending"&&raw?.EmailStatus==="NotSet",
+          signed:Boolean(estimate.accepted_by||estimate.accepted_date||raw?.AcceptedBy||raw?.AcceptedDate),
+          invoiced:Boolean(estimate.linked_invoice||(Array.isArray(raw?.LinkedTxn)&&raw.LinkedTxn.some(t=>t?.TxnType==="Invoice"))),
+        }:null;
+        if (!projectServiceHoursEditable(doc.projectServices,gate)) throw new Error("Legacy, sent, signed or invoiced estimates are preserved. Only a new-policy draft or a verified unsent, unsigned estimate allows a draft hour revision.");
+        if(o.plan?.version!==doc.projectServices!.version)throw new Error("Editing hours cannot change the project's pricing-policy version.");
+        if(o.plan.defaults!==undefined&&canonical(o.plan.defaults)!==canonical(doc.projectServices!.defaults))
+          throw new Error("Project default snapshots are frozen. Edit milestone hours instead.");
+        doc = {...doc, projectServices:validateProjectServices({...doc.projectServices!,hours:o.plan.hours})};
+        note="Revised draft project-service milestone hours; existing QuickBooks estimate unchanged";
+        break;
+      }
       case "task": {
         const before = doc.tasks.find((t) => t.id === o.task.id);
         const clean = sanitizeTask(o.task, before, (c) => Boolean(costBookEntry(c)), new Set(doc.measurements.map((m) => m.id)));
@@ -434,11 +455,28 @@ export async function answerQuestion(input: {
   await commitDoc(project, next, "answer", input.prompt ? `Answered: ${input.prompt}` : `Answered ${input.key}`, input.userId);
 }
 
-/** Re-price after a settings change, a tier or service change. No-op when nothing moved. */
-export async function reprice(projectId: number, userId: number, note: string): Promise<void> {
+/**
+ * Owner rule (Jared, 24 November 2026): prices on current jobs are locked in.
+ * A saved version priced on an earlier cost book keeps those prices; cost book
+ * updates price new work only. Returns the locked pricing, or null when the
+ * version was priced on the current book (or has no pricing yet).
+ */
+export function lockedPricing(version: Pick<VersionRow, "pricing"> | null | undefined): PricingResult | null {
+  const pricing = version?.pricing;
+  if (!pricing) return null;
+  return pricing.policy?.costBookVersion === COST_BOOK_VERSION ? null : pricing;
+}
+
+/**
+ * Re-price after a settings change, a tier or service change. No-op when nothing moved.
+ * With respectLock (automatic re-pricing, such as a Pricing setup save), a
+ * version priced on an earlier cost book keeps its locked prices.
+ */
+export async function reprice(projectId: number, userId: number, note: string, opts: { respectLock?: boolean } = {}): Promise<void> {
   const project = (await getProject(projectId))!;
   const { version, doc } = await currentDoc(project);
   if (!version) return;
+  if (opts.respectLock && lockedPricing(version)) return;
   // A site estimate's version holds the customer prices a website gave
   // (leads/site-estimate.ts). There is no scope behind it to price again, so a
   // pricing change must not replace it with an empty one. Once a person builds

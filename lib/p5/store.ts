@@ -1,4 +1,6 @@
 import type {IntakeContext} from './intakeContract.ts';
+import {newProjectServices,type ProjectServicePlan} from './projectServices.ts';
+import {loadProjectServiceDefaults} from "./projectServicePolicy.ts";
 import {REGISTER_DRAFT_UPLOAD_SQL,TRANSFER_HOLD_MESSAGE} from './intakeTransferGuards.ts';
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { query } from "./database.ts";
@@ -25,6 +27,7 @@ export interface Draft {
   analyzedFingerprint?: string;
   analyzedUploads?:Array<{sha256:string;size:number}>;
   analyzedAnswers?: string;
+  projectServices?: ProjectServicePlan;
   reviewed: ReviewedScope | null; uploads: ScopeUpload[];
   contact: { name: string; email: string; phone: string }; brand: string;
 }
@@ -124,6 +127,10 @@ export async function saveDraft(...args:Parameters<typeof saveDraftImpl>):Promis
 }
 async function saveDraftImpl(id: string,key: string,brand: string,payload: Omit<Draft,"id"|"brand"|"revision"|"status"|"updatedAt"|"uploads">,expectedRevision: number,qaDeterministicOnly:boolean|'bounded-paid'=false): Promise<Draft> {
   const existing=await rowFor(id,key);
+  // Server-owned new-project marker. Existing drafts (including saved QA
+  // checkpoints) keep their old pricing; a public request cannot opt out.
+  const projectServices=existing?existing.payload?.projectServices:newProjectServices(await loadProjectServiceDefaults());
+  payload={...payload,projectServices,reviewed:payload.reviewed?{...payload.reviewed,projectServices}:null};
   // Preserve conversational context when extraction or a clarification saves its own scope fields.
   if(existing?.payload?.intake&&!payload.intake)payload={...payload,intake:existing.payload.intake};
   if(payload.extraction&&payload.analyzedUploads===undefined&&existing?.payload?.analyzedUploads)payload={...payload,analyzedUploads:existing.payload.analyzedUploads};

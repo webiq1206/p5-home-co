@@ -31,6 +31,7 @@ export interface ScopeExtraction {
 }
 export interface ScopeUpload { id: string; name: string; type: string; size: number; sha256: string; status: "stored" | "failed" }
 export interface ReviewedScope {
+  projectServices?: import("./projectServices.ts").ProjectServicePlan;
   text: string; answers: ScopeAnswers; extraction: ScopeExtraction | null; uploads: ScopeUpload[];
   uncertainFields?: ScopeField[];
   reviewedAt: string; corrections: { field: ScopeField; previous: string; value: string }[];

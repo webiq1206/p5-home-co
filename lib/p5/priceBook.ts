@@ -1,15 +1,23 @@
 import {createHash} from 'node:crypto';
-import {PRICE_BOOK,PRICE_BOOK_SOURCE,type PriceBookRow} from './priceBookData.ts';
+import {PRICE_BOOK as MASTER_PRICE_BOOK,PRICE_BOOK_SOURCE,type PriceBookRow} from './priceBookData.ts';
+import {PROJECT_SERVICE_ROLES,PROJECT_SERVICE_RATE,projectServiceCode} from './projectServices.ts';
 import type {PlanningRate} from './planningBooks.ts';
+/** Owner-authorized final-price supplement; never edit generated master rows. */
+export const PRICE_BOOK:PriceBookRow[]=[
+ ...MASTER_PRICE_BOOK.filter(row=>!projectServiceCode(row[0])),
+ ...PROJECT_SERVICE_ROLES.map(role=>[role.code,"General Requirements","Project Management & Fee",role.name,"HR","Labor Only","",1,127,0,PROJECT_SERVICE_RATE,PROJECT_SERVICE_RATE,PROJECT_SERVICE_RATE,PROJECT_SERVICE_RATE,0,"Final client hourly price; no markup or remodel premium. Project-specific hours only; excludes duplicated superintendent/overhead labor."] as PriceBookRow),
+];
 
 /**
  * The owner's master price book, resolved for one project.
  *
  * The book holds every line once with four finish-tier prices, a remodel premium, the labor share
  * and flags for where the line applies (new construction, remodel, handyman, cabinets, RE-10,
- * commercial and residential TI). Every figure is a DIRECT COST: no overhead, profit or
+ * commercial and residential TI). Master workbook figures are DIRECT COST: no overhead, profit or
  * contingency. The estimator applies the owner's margin policy once, after direct costs, so a
- * price here must never carry margin of its own.
+ * price here must never carry margin of its own. The three owner-authorized
+ * project-service supplement rows are explicitly FINAL client hourly prices;
+ * pricing compilers handle them separately, never as marked-up direct costs.
  *
  * For a given project this module picks the lines that apply to its service, prices each at the
  * finish tier the customer chose, adds the remodel premium where the work is in an existing home,
@@ -17,10 +25,10 @@ import type {PlanningRate} from './planningBooks.ts';
  */
 export type FinishTier='builder'|'mid'|'high'|'luxury';
 /** The estimator's finish values, mapped to the book's four tiers. 'refresh' is the value the
- * selector has always stored for its lowest tier; the book calls that tier Builder Grade. */
+ * selector has always stored for its lowest tier; customers see that tier as Essential. */
 export const FINISH_TIER:Record<string,FinishTier>={refresh:'builder','mid-range':'mid','high-end':'high',luxury:'luxury'};
-export const TIER_LABEL:Record<FinishTier,string>={builder:'Builder Grade',mid:'Mid-Range',high:'High-End',luxury:'Luxury'};
-/** The book's own default when no finish is chosen is Mid-Range. */
+export const TIER_LABEL:Record<FinishTier,string>={builder:'Essential',mid:'Signature',high:'Premium',luxury:'Luxury'};
+/** The book's own default when no finish is chosen is Signature. */
 export const finishTier=(finish?:string|null):FinishTier=>FINISH_TIER[String(finish||'')]||'mid';
 
 // Flag bits, in the order scripts/p5-build-price-book.mjs writes them.
@@ -67,11 +75,19 @@ export const PRICE_BOOK_RATEABLE=PRICE_BOOK.filter(row=>UNITS[row[4]]&&COST_TYPE
 export const PRICE_BOOK_PERCENTAGE=PRICE_BOOK.filter(row=>row[5]==='Percentage'&&['% of const.','% of cost'].includes(row[4]));
 export const PRICE_BOOK_INVALID=PRICE_BOOK.filter(row=>!PRICE_BOOK_RATEABLE.includes(row)&&!PRICE_BOOK_PERCENTAGE.includes(row));
 if(PRICE_BOOK_INVALID.length)throw new Error('The price book contains unsupported units or cost types: '+PRICE_BOOK_INVALID.map(row=>row[0]).join(', '));
-/** One line, priced for this project. */
+/** One shared cost-book line, priced. Older brand calculators call this instead of a local price table.
+ * `code` may be the book id (08-71-01) or the catalog id (PB-08-71-01). Percentage lines are not
+ * unit prices and return null. `remodel` adds the line's existing-home premium when the book has one. */
+export function sharedBookRate(code:string,tier:FinishTier='mid',remodel=false):PlanningRate|null{
+  const row=PRICE_BOOK.find(r=>r[0]===String(code||'').replace(/^PB-/,''));
+  if(!row||!UNITS[row[4]]||!COST_TYPES[row[5]])return null;
+  return priceBookRate(row,tier,remodel);
+}
 export function priceBookRate(row:PriceBookRow,tier:FinishTier,remodel:boolean):PlanningRate{
   const [code,division,section,item,uom,costType,allowance,,,finishSensitive,,,,,premium,notes]=row;
   const kind=COST_TYPES[costType];
-  const withPremium=remodel&&premium>0;
+  const finalHourly=Boolean(projectServiceCode(code));
+  const withPremium=!finalHourly&&remodel&&premium>0;
   const amount=round(tierPrice(row,tier)*(withPremium?1+premium:1));
   // Division 90 prices a whole assembly or project per unit; its parts must not be added to it.
   const assembly=code.startsWith('90-')?'; complete assembly, do not add its component lines':'';
@@ -83,7 +99,7 @@ export function priceBookRate(row:PriceBookRow,tier:FinishTier,remodel:boolean):
     code:`PB-${code}`,
     description:`${item} (${kind.includes}${assembly}${selection}${tierNote}${remodelNote}; ${section}, ${division}).${detail}`,
     type:kind.type,unit:UNITS[uom],amount,
-    source:`${PRICE_BOOK_SOURCE}, ${TIER_LABEL[tier]}${withPremium?' remodel':''} direct cost`,
+    source:finalHourly?`${PRICE_BOOK_SOURCE}; owner-authorized final client rate, no markup`:`${PRICE_BOOK_SOURCE}, ${TIER_LABEL[tier]}${withPremium?' remodel':''} direct cost`,
     basis:'owner-average-cost',
   };
 }

@@ -44,6 +44,7 @@ export const configurationIdentity=(configuration:EstimatorConfiguration)=>diges
   configuration.planningCatalog?.version||null,
   (configuration.planningCatalog?.rates||[]).map(rate=>[rate.code,rate.unit,rate.amount,rate.type,rate.description,rate.source,rate.basis]).sort(),
   configuration.finance,
+  configuration.projectServiceDefaults??null,
   [...(configuration.costBooks||[])].sort((a,b)=>a.service.localeCompare(b.service)),
   [...(configuration.regionalRates||[])].sort((a,b)=>a.id.localeCompare(b.id)),
 ]);

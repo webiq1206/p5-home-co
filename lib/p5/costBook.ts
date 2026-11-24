@@ -5,6 +5,7 @@ import { calculateP5Estimate,customerEstimate,customerSafeProjection,DEFAULT_FIN
 import { scopeText,blockingReviewNote,type ReviewedScope,type ScopeField } from "./scope.ts";
 export { blockingReviewNote };
 import {materializePlanningBook,withSupportedServiceBook,type PlanningCatalog} from './planningBooks.ts';
+import type {ProjectServiceDefaults} from "./projectServices.ts";
 export interface UnitRateContext {currency:'USD';basis:'material-purchase'|'trade-labor'|'subcontractor-installed';includes:string;excludes:string;assumptions:string[]}
 export interface MinorWorkCoverage {taskId:string;description:string;remainingComponent:string}
 export interface CostRule extends Omit<DirectCostLine,"quantity"|"quantitySource"> {unitRateContext?:UnitRateContext;
@@ -15,7 +16,7 @@ export interface CostRule extends Omit<DirectCostLine,"quantity"|"quantitySource
   when?: {field:ScopeField;equals:string};
 }
 export interface ServiceCostBook {service:Service;mode?:'owner-planning';rules:CostRule[];coverage:ScopeCoverage[];assumptions:string[];exclusions:string[];verifiedScope:string;reviewedAt:string}
-export interface EstimatorConfiguration { finance:FinancePolicy;costBooks:ServiceCostBook[];planningCatalog?:PlanningCatalog;regionalRates?:CostRule[];researchLeads?:CostRule[];
+export interface EstimatorConfiguration { finance:FinancePolicy;costBooks:ServiceCostBook[];projectServiceDefaults?:ProjectServiceDefaults;planningCatalog?:PlanningCatalog;regionalRates?:CostRule[];researchLeads?:CostRule[];
   /** The exact catalog an estimate was priced from (saved catalog version plus price book content hash and tier), snapshotted into its audit trail. */
   catalogVersion?:string }
 export const EMPTY_CONFIGURATION:EstimatorConfiguration={finance:DEFAULT_FINANCE,costBooks:[]};
@@ -79,7 +80,7 @@ function priceReviewedScopeInternal(scope:ReviewedScope,configuration:EstimatorC
   if(scope.extraction?.reviewNotes.length)risks.push("incomplete-plans");
   const allowancePriced=lines.some(line=>line.evidence?.basis==='regional-planning-average'||line.evidence?.basis==='sourced-market-average');
   const preliminaryPurpose=preliminaryModel||allowancePriced;
-  const input:PricingInput={service,revision,scopeSummary:summary,lines,coverage:book.coverage,risks,estimatePurpose:preliminaryPurpose?'preliminary':undefined,
+  const input:PricingInput={projectServices:scope.projectServices,service,revision,scopeSummary:summary,lines,coverage:book.coverage,risks,estimatePurpose:preliminaryPurpose?'preliminary':undefined,
     locationProvided:Boolean(scope.answers.location||scope.answers.address),urgency:scope.answers.urgency as PricingInput["urgency"],complexity:scope.answers.complexity as PricingInput["complexity"],
     // Missing information widens the band; reviewer notes alone (a blank completion date, a page
     // citation to confirm) are disclosed as assumptions and do not.

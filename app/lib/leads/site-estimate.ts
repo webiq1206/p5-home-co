@@ -1,3 +1,4 @@
+import {resolveProjectServiceLine} from "../../../lib/p5/projectServices.ts";
 /**
  * Site estimates into QuickBooks (owner decision, 13 and 17 November 2026):
  * "when estimates are provided from the front end of any of the websites,
@@ -195,20 +196,23 @@ export function siteEstimatePricing(brand: Brand, estimate: SiteEstimate): Prici
     ? estimate.lines
     : [{ title: estimate.label ?? "Planning range", description: null, quantity: null, unit: null, amount: estimate.base, division: null }];
   const lines: EstimateLine[] = source.map((line, index) => {
-    const division = siteEstimateDivision(brand, line.division ?? (estimate.lines.length ? line.title : null));
-    const rate = line.quantity ? round2(line.amount / line.quantity) : 0;
+    const service=resolveProjectServiceLine(line);
+    if(service&&line.amount!==service.amount)throw new Error("Project-service amounts must be rounded to cents.");
+    const division = service?"01":siteEstimateDivision(brand, line.division ?? (estimate.lines.length ? line.title : null));
+    const rate = service?service.unitPrice:line.quantity ? round2(line.amount / line.quantity) : 0;
     const exact = Boolean(line.quantity) && rate > 0 && round2(rate * line.quantity!) === line.amount;
     const measure = line.quantity && !exact ? ` (${line.quantity}${line.unit ? ` ${line.unit}` : ""})` : "";
     return {
       id: `site-${index + 1}`,
       taskId: `site-${index + 1}`,
+      ...(service?{sku:service.sku,qboItemId:service.qboItemId}:{}),
       phase: defaultPhase(division),
       division,
-      item: siteEstimateItem(brand, line.division ?? (estimate.lines.length ? line.title : null)),
+      item: service?"Direct Labor":siteEstimateItem(brand, line.division ?? (estimate.lines.length ? line.title : null)),
       title: line.title,
       description: `${line.description ?? line.title}${measure}`,
-      quantity: exact ? line.quantity! : 1,
-      unit: exact ? line.unit ?? "EA" : "LS",
+      quantity: service?service.quantity:exact ? line.quantity! : 1,
+      unit: service?"HR":exact ? line.unit ?? "EA" : "LS",
       unitCost: null,
       cost: null,
       unitPrice: exact ? rate : line.amount,
@@ -292,6 +296,7 @@ export function documentSiteEstimate(record: DocumentRecord | null | undefined):
     base: estimate.base,
     label: estimate.label,
     lines: estimate.lines.map((line) => ({
+      ...(line.sku?{sku:line.sku}:{}),
       title: line.title,
       description: line.description ?? null,
       quantity: line.quantity ?? null,

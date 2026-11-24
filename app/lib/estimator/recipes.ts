@@ -172,6 +172,9 @@ const kitchenRemodel: Builder = ({ answers: a, property }) => {
   } else {
     l.add("00-20-06", 2, "Plumbing and electrical permits", PRE);
     if (scope === "redesign") l.add("00-20-02", 1, "Building permit for the new layout", PRE);
+    // Owner rule (Jared, 24 November 2026): kitchen remodels carry project
+    // supervision at the standard hourly rate, about 24 hours.
+    l.add("01-31-02", 24, "Project supervision, about 24 hours");
     l.add("02-41-03", 1, "Remove and haul away the existing kitchen: cabinets, counters, backsplash and fixtures")
       .est("12-32-01", k.base, "Base cabinets, installed")
       .est("12-32-02", k.upper, "Upper cabinets, installed")
@@ -311,6 +314,9 @@ const bathroomRemodel: Builder = ({ answers: a, property }) => {
   l.add("00-20-06", 2, "Plumbing and electrical permits", PRE);
   if (scope === "relocate") l.add("00-20-02", 1, "Building permit for the new layout", PRE);
   l.add("01-50-04", 1, "Dust barriers and floor protection for the work area");
+  // Owner rule (Jared, 24 November 2026): internal supervision is billed at the
+  // standard hourly rate (01-31-02). Full bath remodels carry about 16 hours.
+  if (type !== "powder") l.add("01-31-02", 16, "Project supervision, about 16 hours");
 
   if (type === "powder") {
     l.add("02-41-22", 1, "Remove and haul away the old vanity")

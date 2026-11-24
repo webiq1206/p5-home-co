@@ -1,3 +1,4 @@
+import {resolveProjectServiceLine,assertProjectServiceSet,type ProjectServiceCode,type ProjectServiceItemId} from "../../../lib/p5/projectServices.ts";
 /**
  * The optional fields of the lead intake contract (docs/lead-intake-contract.md).
  *
@@ -125,6 +126,9 @@ export const SITE_ESTIMATE_KINDS = ["planning-range", "document"] as const;
 export type SiteEstimateKind = (typeof SITE_ESTIMATE_KINDS)[number];
 
 export type SiteEstimateLine = {
+  sku?:ProjectServiceCode;
+  /** Derived from the SKU on P5; a supplied ID is only a consistency hint. */
+  qboItemId?:ProjectServiceItemId;
   title: string;
   description: string | null;
   quantity: number | null;
@@ -221,6 +225,9 @@ export function readSiteEstimate(raw: unknown): { estimate: SiteEstimate | null;
     for (const entry of body.lines) {
       if (typeof entry !== "object" || entry === null || Array.isArray(entry)) return refuse("An estimate line could not be read.");
       const item = entry as Record<string, unknown>;
+      let service:ReturnType<typeof resolveProjectServiceLine>;
+      try{service=resolveProjectServiceLine(item);}
+      catch(error){return refuse(error instanceof Error?error.message:"Invalid project-service line.");}
       // A line priced at nothing adds nothing to the total: it is left out, not fatal.
       if (item.amount === 0 || item.amount === "0") {
         empty++;
@@ -237,16 +244,18 @@ export function readSiteEstimate(raw: unknown): { estimate: SiteEstimate | null;
         continue;
       }
       lines.push({
+        ...(service?{sku:service.sku,qboItemId:service.qboItemId}:{}),
         title,
         description: description && description !== title ? description : null,
-        quantity: positiveNumber(item.quantity),
-        unit: plainText(item.unit, 20),
+        quantity: service?service.quantity:positiveNumber(item.quantity),
+        unit: service?service.unit:plainText(item.unit, 20),
         amount: rounded,
         division: plainText(item.division, 80),
       });
     }
     if (empty) notes.push(`${empty} ${empty === 1 ? "line" : "lines"} with no amount left out`);
   }
+  try{assertProjectServiceSet(lines);}catch(error){return refuse(error instanceof Error?error.message:"Invalid project-service set.");}
 
   const baseSent = body.base !== undefined && body.base !== null && body.base !== "";
   const stated = baseSent ? positiveNumber(body.base) : null;

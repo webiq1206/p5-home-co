@@ -34,6 +34,8 @@ export async function saveManualReview(body:any,actor:Actor){
   const [policy]=await query("SELECT payload FROM p5_estimator_policy WHERE id='current'");
   const finance=policy?.payload?.finance||EMPTY_CONFIGURATION.finance;
   const input={...body.input} as PricingInput;
+  // A legacy/signed draft cannot acquire new charges through an admin refresh.
+  input.projectServices=draft.payload.projectServices?{...draft.payload.projectServices,...(input.projectServices?{hours:input.projectServices.hours}:{})}:undefined;
   if(draft.payload.answers?.complexity==="complex")input.complexity="complex";
   const declaredUrgency=draft.payload.answers?.urgency;
   if(declaredUrgency==="emergency"||declaredUrgency==="priority"&&input.urgency!=="emergency")input.urgency=declaredUrgency;
@@ -83,7 +85,8 @@ export async function publishManualReview(body:any,actor:Actor){
   const [priorCrm]=await query("SELECT status,provider_id FROM p5_estimator_outbox WHERE draft_id=$1 AND destination='crm' ORDER BY revision DESC LIMIT 1",[draft.id]);
   const jobs=[...recipients.map(email=>({id:randomUUID(),destination:`admin:${email}`,payload:record,status:"pending"})),{id:randomUUID(),destination:`customer:${contact.email}`,payload:record,status:"pending"},...(CRM_DELIVERY_ENABLED?[{id:randomUUID(),destination:"crm",payload:record,status:priorCrm?"needs-review":"pending"}]:[])];
   const rows=await withQaWriteFence(draft.id,()=>query(`WITH accepted AS (
-    UPDATE p5_estimator_drafts SET revision=revision+1,status='submitted',submitted_at=now(),updated_at=now(),internal_estimate=$1::jsonb,customer_estimate=$2::jsonb
+    UPDATE p5_estimator_drafts SET revision=revision+1,status='submitted',submitted_at=now(),updated_at=now(),internal_estimate=$1::jsonb,customer_estimate=$2::jsonb,
+    payload=CASE WHEN payload->'projectServices'->>'version'=$1::jsonb->'projectServices'->>'version' THEN jsonb_set(payload,'{projectServices}',$1::jsonb->'projectServices',true) ELSE payload END
     WHERE id=$3 AND revision=$4 AND status IN ('draft','submitted') AND NOT EXISTS(SELECT 1 FROM p5_estimator_outbox WHERE draft_id=$3 AND status='sending') AND COALESCE((SELECT payload->'finance' FROM p5_estimator_policy WHERE id='current'),$9::jsonb)=$8::jsonb RETURNING id
   ), superseded AS (
     UPDATE p5_estimator_outbox SET status='superseded',last_error='A newer reviewed result replaces this undelivered revision.' WHERE draft_id IN (SELECT id FROM accepted) AND revision<$6 AND status IN ('pending','retry')

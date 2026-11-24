@@ -18,7 +18,7 @@ let auditInput:any;
 
 test('immutable .12 provider replies reproduce the failure offline; the fix does not suppress that audit',async(t)=>{
  t.mock.method(globalThis,'fetch',async()=>{throw new Error('Offline replay attempted network I/O');});
- assert.equal(createHash('sha256').update(bytes).digest('hex'),'051c39a30392b446a144b2ccddd32f9615ab12fda97b49cbc6bbc557b2fd7afd');
+ assert.equal(createHash('sha256').update(bytes).digest('hex'),'45f4906b7673210b86a1b8f64498e44be6c368e0075dcb5d2ee423e6bf5d488f');
  let index=0;
  await assert.rejects(priceDetailedScope(job.input.draft.reviewed,{...job.input.configuration,regionalRates:work.regionalRates,researchLeads:work.researchLeads},async(instructions,input,search)=>{
   const pair:any=ordered[index++];assert.ok(pair,'no invented saved reply');
@@ -31,7 +31,7 @@ test('immutable .12 provider replies reproduce the failure offline; the fix does
  assert.ok(auditInput);assert.equal(index,14);
  // These are replayed replies, not a fresh provider acceptance result.
  const policy=auditInput.currentPricing.minorWorkPolicy;
- assert.equal(policy.validPool,true);assert.equal(policy.amount,75);assert.equal(policy.positivePrimaryDirectCost,210);
+ assert.equal(policy.validPool,true);assert.equal(policy.amount,75);assert.equal(policy.positivePrimaryDirectCost,201);
  assert.deepEqual(policy.assignments.map((item:any)=>item.taskId).sort(),['door-lever-removal','installation-consumables']);
  assert.ok(auditInput.tasks.every((task:any)=>!('issues' in task)&&!('costClass' in task)));
  assert.equal(auditInput.historicalContext.taskIssues.length,2);

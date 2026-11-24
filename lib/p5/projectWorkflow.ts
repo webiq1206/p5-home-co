@@ -9,7 +9,7 @@ import type {ProjectChange} from './projectConversation.ts';
 import {verifiedReviewCatalog} from './projectReviewEvidence.ts';
 import {projectSourceContext} from './projectCitations.ts';
 
-export interface ProjectWorkflowOptions {request?:PricingRequest;previous?:ProjectRecord|null;changes?:ProjectChange[];now?:Date;deadline?:number;completionPlan?:ProjectCompletionPlan}
+export interface ProjectWorkflowOptions {request?:PricingRequest;previous?:ProjectRecord|null;changes?:ProjectChange[];now?:Date;deadline?:number;completionPlan?:ProjectCompletionPlan;projectServices?:import('./projectServices.ts').ProjectServicePlan}
 export interface ProjectReadResult {status:'ready'|'questions'|'needs-resolution';record:ProjectRecord|null;problems:RecordProblem[];attempts:number;completionPlan?:ProjectCompletionPlan}
 function shapeProblems(error:unknown):RecordProblem[]{
  if(error instanceof ProjectRecordError)return error.problems;
@@ -89,7 +89,7 @@ export async function priceProjectRecord(record:ProjectRecord,configuration:Esti
   if(!verifiedReview)return {status:'needs-resolution' as const,record,selection,problems:reviewProblems,attempts:attempt};
   try{
    const receipt=projectReviewReceipt(record,selection,verifiedReview,options.completionPlan);
-   const result=calculateProjectEstimate(record,selection,configuration,receipt,now,options.completionPlan);
+   const result=calculateProjectEstimate(record,selection,configuration,receipt,now,options.completionPlan,options.projectServices);
    if(result.status==='estimated')return {...result,attempts:attempt};
    problems=result.problems;
   }catch(error){problems=shapeProblems(error);}
