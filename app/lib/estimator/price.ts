@@ -191,7 +191,7 @@ function compileDoc(input: PriceInput, recipe: Recipe, service: string, summary:
   doc.pricingVersion=NET_POLICY_VERSION;
   doc.handymanAllIn=brand.id==="handyman";
   // Handyman Co bills $95/hour all-in on every job (t2013u), including paint and flooring:
-  // no separate $120 internal-labor lines for the handyman service or the Handyman Co brand.
+  // no separate internal-labor lines for the handyman service or the Handyman Co brand.
   if (service !== "handyman" && brand.id !== "handyman") doc.projectServices = newProjectServices(defaults);
   doc.summary = `${flow.title} requested through the ${brand.name} online estimator: ${summary.join("; ")}.`;
   doc.goals = [flow.title];
@@ -493,7 +493,7 @@ export function internalReport(estimate: PricedEstimate): InternalReport {
   adjustments.push(
     `Customer price = direct cost x ${(1 + p.contingencyRate).toFixed(2)} project reserve / (1 - ${(p.overheadRate * 100).toFixed(1)}% overhead - ${(p.profitRate * 100).toFixed(1)}% profit)`,
   );
-  if(base.some(l=>l.sku))adjustments.push(`Project service exception: final $120/person-hour, no markup. Frozen defaults: ${Object.entries(projectServiceDefaults(estimate.doc.projectServices?.defaults)).map(([code,d])=>`${code}: ${d.hoursPer1000} hours per $1,000 outside costs, whole-project minimum ${d.minimumHours} hours`).join("; ")}. Milestone cost shares or equal allocation; internal overrides prevail. Owner-salary overlap is credited once; distinct outside supervision remains chargeable.`);
+  if(base.some(l=>l.sku))adjustments.push(`Project service exception: final $${estimate.doc.projectServices?.hourlyRate ?? 120}/person-hour, no markup. Frozen defaults: ${Object.entries(projectServiceDefaults(estimate.doc.projectServices?.defaults)).map(([code,d])=>`${code}: ${d.hoursPer1000} hours per $1,000 outside costs, whole-project minimum ${d.minimumHours} hours`).join("; ")}. Milestone cost shares or equal allocation; internal overrides prevail. Owner-salary overlap is credited once; distinct outside supervision remains chargeable.`);
   if (estimate.usesFinish) adjustments.push(`Cost book finish tier: ${p.finishTier}`);
   if (base.some((l) => /remodel premium/i.test(l.source) || / remodel direct cost/.test(l.source))) adjustments.push("Existing-home remodel premium applied where the cost book carries one");
   if (base.some((l) => l.basis === "trip-charge")) adjustments.push("Handyman trip charge shown with an equal credit (owner rule)");

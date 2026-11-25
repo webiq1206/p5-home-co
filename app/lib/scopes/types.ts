@@ -292,7 +292,7 @@ export type ScopeSettings = {
   /**
    * What the customer pays per hour of P5 internal labor (tasks performed by
    * P5): project management, supervision, coordinating subs, administration
-   * and accounting. Owner rule (24 November 2026): $120/hour, the billed rate,
+   * and accounting. Owner rule (24 November 2026): $125/hour, the billed rate,
    * with no overhead, reserve or profit added on top. Trade work is bought from
    * subcontractors at the cost book's trade rates plus the normal markup and
    * never uses this rate. Handyman Co bills $95/hour (HANDYMAN_HOURLY_RATE).
@@ -320,7 +320,7 @@ export type ScopeSettings = {
 /**
  * Handyman Co hourly rate (owner, 24 November 2026): "Handyman is fine at
  * $95/hr but everything else must be billed at our standard hourly rate."
- * Every other service bills internal labor at settings.laborRate ($120).
+ * Every other service bills internal labor at settings.laborRate ($125).
  */
 export const HANDYMAN_HOURLY_RATE = 95;
 
@@ -330,8 +330,8 @@ export function laborRateFor(service: string, settings: Pick<ScopeSettings, "lab
 }
 
 export const DEFAULT_SCOPE_SETTINGS: ScopeSettings = {
-  laborRate: 120,
-  handymanTripCharge: 45,
+  laborRate: 125,
+  handymanTripCharge: 50,
   laborLoadedCost: null,
   productionRates: {},
   taxableItems: [],

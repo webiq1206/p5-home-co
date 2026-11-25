@@ -243,8 +243,8 @@ test("handyman: at today's rate the cost book minimum already exceeds one hour, 
   }
 });
 
-test("handyman: the customer is told labor is billed by the hour with a one-hour minimum", () => {
-  assert.equal(HOURLY_MINIMUM_NOTE, "Labor is billed by the hour with a one-hour minimum.");
+test("handyman: the customer sees the hourly rate and the visit minimum", () => {
+  assert.equal(HOURLY_MINIMUM_NOTE, "Handyman labor is $95 per hour, with a $135 minimum per visit.");
   for (const brand of ["handyman", "p5"] as BrandId[]) {
     const v = view(price("handyman", { tasks: { faucet: 1 } }, { brand }));
     assert.deepEqual(v.guide.rangeNotes, [HOURLY_MINIMUM_NOTE]);
