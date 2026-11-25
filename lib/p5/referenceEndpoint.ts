@@ -43,7 +43,9 @@ export async function postReferenceCheck(request:Request){try{
   const line=estimate.lines.find(l=>l.id===selection.costLineId);
   if(!line)throw new DraftError("Choose a cost line from the saved review.");
   const customerLinePrice=line.sellingAmount;
-  let result;try{validateComparisonLine(selection,line);result={...compareReference(reference,selection,customerLinePrice),directCostBudget:referenceDirectCostBudget(selection.adjustedCustomerUnitPrice,estimate.allocations.total,estimate.targetOperatingProfit,estimate.contingencyRate),reviewedDirectUnitCost:line.unitCost};}catch(e){throw new DraftError(e instanceof Error?e.message:"Invalid comparison.");}
+  const policy = estimate.netPricing;
+  const otherCostRate = policy ? policy.otherCostRate + (policy.price > 0 ? policy.otherCostDollars / policy.price : 0) : estimate.allocations.total;
+  let result;try{validateComparisonLine(selection,line);result={...compareReference(reference,selection,customerLinePrice),directCostBudget:referenceDirectCostBudget(selection.adjustedCustomerUnitPrice,otherCostRate,estimate.targetOperatingProfit,estimate.contingencyRate,policy?.grossTarget),reviewedDirectUnitCost:line.unitCost};}catch(e){throw new DraftError(e instanceof Error?e.message:"Invalid comparison.");}
   await query("INSERT INTO p5_estimator_reference_checks(draft_id,review_id,reference_version,selection,result,actor_id) VALUES($1,$2,$3,$4::jsonb,$5::jsonb,$6)",[review.draft_id,review.id,set.version,JSON.stringify(selection),JSON.stringify(result),actor.id]);
   return json(result);
 }catch(e){return failed(e);}}

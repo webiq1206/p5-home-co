@@ -1,3 +1,4 @@
+import {NET_POLICY_VERSION,allocatePrice,creditVisitMinimum,quoteForScope,checkFixedQuote,residualRate,fixedBookCharge,type NetFinance,type ReviewedJobTerms} from './netPricingPolicy.ts';
 import {publicPricingText} from './customerProjection.ts';
 import {projectServiceLines,projectServiceCode,projectOverheadCredit,billsInternalLaborInFull,PROJECT_OVERHEAD_CREDIT_ID,duplicateOwnerServiceCost,documentProjectServiceBasis} from './projectServices.ts';
 import {tradeForLine,apportionAmount,type TradeCategory} from "./trades.ts";
@@ -29,7 +30,7 @@ export type CostCategory = typeof COST_CATEGORIES[number];
 export const RISK_FACTORS = ["incomplete-plans", "hidden-conditions", "occupied-home", "limited-access", "unknown-utilities", "soil-slope", "long-lead-times", "material-escalation", "jurisdiction-uncertain", "difficult-sequencing", "compressed-schedule", "incomplete-sub-quotes"] as const;
 export type RiskFactor = typeof RISK_FACTORS[number];
 export type PricingWarning = { code: string; message: string; severity: "review" | "block" };
-export interface FinancePolicy {
+export interface FinancePolicy extends NetFinance {
   annualOverhead: number;
   /** Optional quarterly forecast. Its absence does not undo the approved 20% rate. */
   annualRevenue: number | null;
@@ -66,6 +67,8 @@ export interface LandedMaterial {
   waste: number; storage: number; handling: number;
 }
 export interface DirectCostLine {
+  bookCode?:string;
+  fixedSaleUnitPrice?:number;
   milestone?:"planning"|"delivery"|"closeout";
   supervisionProvider?:"owner"|"outside";
   allowance?:boolean;
@@ -98,6 +101,8 @@ export interface OwnerApproval {
   approvedAt: string; estimateRevision: string;
 }
 export interface PricingInput {
+  pricingVersion?: string;
+  reviewedJobTerms?: ReviewedJobTerms;
   /** New-project marker. Its absence keeps legacy/signed pricing unchanged. */
   projectServices?: import("./projectServices.ts").ProjectServicePlan;
   estimatePurpose?:'preliminary';
@@ -221,6 +226,11 @@ export function calculateP5Estimate(input: PricingInput, finance: FinancePolicy,
   const contingencyRate = .10;
   const ids = new Set<string>();
   const directByCategory = Object.fromEntries(COST_CATEGORIES.map(c => [c, 0])) as Record<CostCategory, number>;
+  const useNetPolicy = input.pricingVersion===NET_POLICY_VERSION || input.projectServices?.hourlyRate===125;
+  function fixedChargeFor(line: DirectCostLine) {
+    const code = line.bookCode ?? line.evidence?.reference.match(/\bPB-(\d\d-\d\d-\d\d)\b/)?.[1] ?? line.id;
+    return useNetPolicy ? fixedBookCharge(code) : undefined;
+  }
   const lines = input.lines.map(line => {
     const trade=tradeForLine(line);
     const modeled=input.estimatePurpose==='preliminary'&&((line.evidence?.basis==='owner-estimating-schedule'&&['owner-average-cost','historical-cost-budget'].includes(line.estimatingBasis||''))||(line.evidence?.basis==='sourced-market-average'&&line.estimatingBasis==='sourced-market-average')||(line.evidence?.basis==='regional-planning-average'&&line.estimatingBasis==='regional-planning-average'));
@@ -233,8 +243,9 @@ export function calculateP5Estimate(input: PricingInput, finance: FinancePolicy,
     ids.add(line.id);
     if (!(COST_CATEGORIES as readonly string[]).includes(line.category)) throw new Error("Unknown direct-cost category");
     if (!line.description.trim() || !line.unit.trim() || !line.quantitySource.trim()) throw new Error("Every cost line needs a description, unit and quantity source");
-    finite(line.quantity, "Quantity", true); finite(line.unitCost, "Unit cost", true);
-    const cost = line.quantity * line.unitCost; finite(cost, "Extended cost", true);
+    const needsPositiveCost = !fixedChargeFor(line)?.zeroDirect;
+    finite(line.quantity, "Quantity", true); finite(line.unitCost, "Unit cost", needsPositiveCost);
+    const cost = line.quantity * line.unitCost; finite(cost, "Extended cost", needsPositiveCost);
     if (line.category === "materials") {
       if (!line.landed) warn("landed-cost-missing", `${line.id}: net cost, tax, freight, delivery, waste, storage and handling must be itemized before a firm proposal.`, modeled?"review":"block");
       else if (Math.abs(landedUnitCost(line.landed) - line.unitCost) > 1e-8) throw new Error(`${line.id}: landed cost does not match unit cost`);
@@ -275,9 +286,24 @@ export function calculateP5Estimate(input: PricingInput, finance: FinancePolicy,
   }
   const allocations = companyAllocation(finance, now); warnings.push(...allocations.warnings);
   const directCost = sum(lines.map(l => l.cost)); finite(directCost, "Total direct cost", true);
-  const contingency = directCost * contingencyRate;
+  const minimumIndexes: number[] = [];
+  function fixedPrice(line:DirectCostLine, index:number):number|undefined {
+    if(!useNetPolicy) return undefined;
+    const bookCharge=fixedChargeFor(line);
+    if (bookCharge?.visitMinimum) minimumIndexes.push(index);
+    if(bookCharge?.hours && line.evidence.basis!=="payroll" && line.evidence.basis!=="written-quote" && line.evidence.basis!=="market-replacement")
+      warn("fixed-rate-cost","Verify the loaded labor cost or trade quote for the fixed hourly service.","block");
+    const fixed=bookCharge?.price??line.fixedSaleUnitPrice;
+    if(fixed!==undefined) finite(fixed,"Fixed selling rate");
+    return fixed===undefined?undefined:Math.round(fixed*line.quantity*100)/100;
+  }
+  const fixedAmounts=lines.map(fixedPrice);
+  creditVisitMinimum(fixedAmounts, minimumIndexes);
+  const fixedSell=sum(fixedAmounts.map(value=>value??0));
+  const flexible=lines.map((line,index)=>fixedAmounts[index]===undefined?line.cost:0);
+  const variableCost=sum(flexible);
+  const contingency = variableCost * contingencyRate;
   const riskAdjustedDirectCost = directCost + contingency;
-  const divisor = 1 - allocations.total - margin;
   const ordinaryPrice = priceFromRiskAdjustedCost(riskAdjustedDirectCost, allocations.total, margin);
   const serviceBasis=input.projectServices?(oldServicePolicy?{outsideDirectCost:directCost,milestoneOutsideCosts:undefined}:documentProjectServiceBasis(input.lines,directCost)):undefined;
   // Handyman Co bills $95/hour all-in, so new handyman plans add no separate $120 internal-labor lines.
@@ -285,17 +311,45 @@ export function calculateP5Estimate(input: PricingInput, finance: FinancePolicy,
   const services = input.projectServices && !handymanAllIn ? projectServiceLines(input.projectServices,serviceBasis!.outsideDirectCost,lines.length,serviceBasis!.milestoneOutsideCosts) : [];
   const projectServiceRecovery = sum(services.map(s=>s.price));
   const overlapCredit = projectServiceRecovery>0&&!billsInternalLaborInFull(input.projectServices)?projectOverheadCredit(projectServiceRecovery,ordinaryPrice,allocations.overhead,finance.annualOverhead,oldServicePolicy?finance.annualOverhead:finance.ownerSalaryOverheadAnnual??200000):0;
-  const contractPrice = ordinaryPrice + projectServiceRecovery - overlapCredit;
+  const baselinePrice = ordinaryPrice + projectServiceRecovery - overlapCredit;
+  const residual=useNetPolicy?residualRate(finance,allocations.overhead):{rate:allocations.overhead,confirmed:false};
+  if(useNetPolicy && !input.reviewedJobTerms && !residual.confirmed)
+    warn("net-cost-review","Confirm residual company overhead, both owners' compensation, interest and company taxes before issuing a firm price.",
+      input.estimatePurpose==="preliminary" && !input.firmPrice ? "review":"block");
+  const requestedNet = input.complexity === "complex" ? Math.max(input.targetMargin ?? 0, 0.20) : input.targetMargin;
+  let economics=useNetPolicy?quoteForScope(service,input.scopeSummary,[...riskSet],riskAdjustedDirectCost,
+    residual.rate,Math.max(fixedSell+projectServiceRecovery,input.service==="handyman"?135:0),baselinePrice,input.reviewedJobTerms,requestedNet):undefined;
+  if (economics?.jobClass === "protected" && !input.reviewedJobTerms?.approvedSameScopePrice) {
+    const preliminary = input.estimatePurpose === "preliminary" && !input.firmPrice;
+    warn("protected-price-review", "Record the owner-approved price for this scope before issuing a firm proposal.", preliminary ? "review" : "block");
+  }
+  if(economics && input.targetMargin!==undefined && input.targetMargin<.15) warn("net-floor-enforced","The quote was raised to the required net minimum.");
+  const fixedContract=Math.round((fixedSell+projectServiceRecovery-overlapCredit)*100)/100;
+  const contractPrice = economics && variableCost===0 ? fixedContract : economics?.price??baselinePrice;
+  if(economics && variableCost===0) {
+    const fixed=checkFixedQuote(economics,contractPrice);
+    if(!fixed.meets || contractPrice<(input.reviewedJobTerms?.approvedSameScopePrice??0) ||
+       (service==="handyman"&&contractPrice<135) || economics.jobClass==="protected"&&contractPrice+0.005<baselinePrice)
+      warn("fixed-rate-conflict","The fixed charge falls below the required price. Review the scope before quoting.","block");
+    economics=fixed.quote;
+  }
   // The flat fees recover project-specific overhead labor, not another cost
   // plus margin. Ordinary overhead is never applied to these fees.
-  const allocationDollars = { overhead: ordinaryPrice * allocations.overhead + projectServiceRecovery - overlapCredit };
-  const operatingProfit = ordinaryPrice * margin;
-  const pricedLines=lines.map(line=>{
-    const lineContingency=line.cost*contingencyRate;
+  const allocationDollars = { overhead: economics ? contractPrice*economics.otherCostRate+economics.otherCostDollars : ordinaryPrice * allocations.overhead + projectServiceRecovery - overlapCredit };
+  const operatingProfit = economics ? contractPrice-riskAdjustedDirectCost-allocationDollars.overhead : ordinaryPrice * margin;
+  const netExpenseRate = economics
+    ? economics.otherCostRate + (economics.price > 0 ? economics.otherCostDollars / economics.price : 0)
+    : allocations.total;
+  const divisor = economics
+    ? Math.min(1 - netExpenseRate - economics.netTarget, 1 - economics.grossTarget)
+    : 1 - allocations.total - margin;
+  const allocatedSell=economics?allocatePrice(Math.max(0,contractPrice-fixedContract),flexible):undefined;
+  const pricedLines=lines.map((line,index)=>{
+    const lineContingency=(fixedAmounts[index]===undefined?line.cost:0)*contingencyRate;
     const riskAdjustedCost=line.cost+lineContingency;
-    const sellingAmount=riskAdjustedCost/divisor;
-    const overheadRecovery=sellingAmount*allocations.overhead;
-    const operatingProfit=sellingAmount*margin;
+    const sellingAmount=fixedAmounts[index]??allocatedSell?.[index]??riskAdjustedCost/divisor;
+    const overheadRecovery=economics?(allocationDollars.overhead-projectServiceRecovery+overlapCredit)*line.cost/directCost:sellingAmount*allocations.overhead;
+    const operatingProfit=economics?sellingAmount-riskAdjustedCost-overheadRecovery:sellingAmount*margin;
     return {...line,contingency:lineContingency,riskAdjustedCost,overheadRecovery,operatingProfit,sellingAmount,sellingUnitPrice:sellingAmount/line.quantity};
   });
   for (const service of services) pricedLines.push({
@@ -320,8 +374,9 @@ export function calculateP5Estimate(input: PricingInput, finance: FinancePolicy,
   const width = input.bookPriced ? Math.min(.08, .05 + riskCount * .01) : Math.min(.5, (input.uncertainty === "high" ? .30 : input.uncertainty === "medium" ? .20 : .10) + riskCount * .015);
   const step = contractPrice >= 100000 ? 1000 : contractPrice >= 10000 ? 100 : contractPrice >= 1000 ? 25 : 5;
   // The low endpoint cannot cut known direct costs below the approved floor.
-  const lowFloor = priceFromRiskAdjustedCost(riskAdjustedDirectCost, allocations.total, Math.min(matrix.floor, margin));
+  const lowFloor = economics?.price??priceFromRiskAdjustedCost(riskAdjustedDirectCost, allocations.total, Math.min(matrix.floor, margin));
   const planningRange = { low: Math.ceil(Math.max(lowFloor, contractPrice * (1 - width)) / step) * step, high: Math.ceil(contractPrice * (1 + width) / step) * step };
+  planningRange.high=Math.max(planningRange.low,planningRange.high);
   const planningBandHigh=planningRange.high;
   // Quantity and price bounds are scenario limits, not standard deviations.
   // Without evidence of distributions or independence, root-sum-square
@@ -334,11 +389,15 @@ export function calculateP5Estimate(input: PricingInput, finance: FinancePolicy,
     return Math.max(0,(line.quantityRange?.high??line.quantity)*(range?.high??line.unitCost)-line.cost);
   });
   const sourceHigh=directCost+sum(upsides);
-  planningRange.high=Math.max(planningRange.high,Math.ceil(priceFromRiskAdjustedCost(sourceHigh*(1+contingencyRate),allocations.total,margin)/step)*step);
+  const highCost = sourceHigh + sum(lines.map((line,index)=>fixedAmounts[index]===undefined?(line.cost+upsides[index])*contingencyRate:0));
+  const legacyHigh = priceFromRiskAdjustedCost(highCost,allocations.total,margin);
+  const modeledHigh = economics ? quoteForScope(service,input.scopeSummary,[...riskSet],highCost,residual.rate,projectServiceRecovery+fixedSell,legacyHigh,input.reviewedJobTerms,requestedNet).price : legacyHigh;
+  planningRange.high=Math.max(planningRange.high,Math.ceil(modeledHigh/step)*step);
   // A firm price is the modeled, margin-correct contract price, rounded up to the step: the number the
   // range was built around, never its low end. Quantities a document leaves open are priced at the
   // modeled count and disclosed as assumptions.
-  if(input.firmPrice){const firm=Math.ceil(contractPrice/step)*step;planningRange.low=firm;planningRange.high=firm;}
+  if(economics && variableCost===0){planningRange.low=contractPrice;planningRange.high=contractPrice;}
+  if(input.firmPrice){const firm=economics?contractPrice:Math.ceil(contractPrice/step)*step;planningRange.low=firm;planningRange.high=firm;}
   if (input.missingInformation.length) warn("missing-project-information", "Resolve the recorded missing project information before a firm proposal.");
   if (contractPrice < 100 || contractPrice > 10000000) warn("unusual-total", "The result is outside the broad project review limits. Verify quantities and units.", "block");
   if (input.benchmark) {
@@ -349,13 +408,13 @@ export function calculateP5Estimate(input: PricingInput, finance: FinancePolicy,
   } else warn("benchmark-missing", "Add a current, scope-comparable project benchmark for administrator review.");
   for (const a of input.manualAdjustments ?? []) if (!ids.has(a.costLineId) || !a.reason.trim()) throw new Error("Every manual adjustment needs a valid cost line and written reason");
   return {
-    policyVersion: POLICY_VERSION, revision: input.revision, evaluatedAt: now.toISOString(),
+    ...(economics?{netPricing:economics}:{}),policyVersion: economics?NET_POLICY_VERSION:POLICY_VERSION, revision: input.revision, evaluatedAt: now.toISOString(),
     estimatePurpose: input.estimatePurpose||'verified-cost-review',
     currentCostsConfirmed: !lines.some(line=>['owner-estimating-schedule','sourced-market-average','regional-planning-average','owner-budget-allowance'].includes(line.evidence.basis)),
     service, requestedService: input.service, matrix, lines:pricedLines, coverage: input.coverage,
     ...(input.projectServices?{projectServices:input.projectServices,projectServiceBasis:serviceBasis,projectServiceOverheadCredit:overlapCredit}:{}),
     directByCategory, directCost, contingencyRate, contingency, riskAdjustedDirectCost,
-    allocations, allocationDollars, targetOperatingProfit: margin, operatingProfit, divisor,
+    allocations, allocationDollars, targetOperatingProfit: economics?.netTarget??margin, operatingProfit, divisor,
     contractPrice, planningRange, planningBandHigh, assumptions: input.assumptions, allowances: input.allowances,
     exclusions: input.exclusions, missingInformation: input.missingInformation,
     riskFactors: [...riskSet], manualAdjustments: input.manualAdjustments ?? [],

@@ -28,7 +28,7 @@ await mkdir('p5-verification',{recursive:true});
 const now=new Date();
 const today=now.toISOString().slice(0,10);
 const future=new Date(now.getTime()+86400000*20).toISOString().slice(0,10);
-const finance={annualOverhead:420000,annualRevenue:6000000,forecastSource:'TEST ONLY; never deploy this forecast',reviewedAt:today,approvedBy:['Fixture']};
+const finance={interestRate:0,companyTaxRate:0,netCostSource:'Synthetic all-in owner salary, interest and tax allocations reviewed',annualOverhead:420000,annualRevenue:6000000,forecastSource:'TEST ONLY; never deploy this forecast',reviewedAt:today,approvedBy:['Fixture']};
 const leakingAssumption='$2.00/LF ($200.00 direct cost)';
 const pricing:any={service:'kitchen',revision:'synthetic-fixture',scopeSummary:'TEST ONLY: kitchen planning scope, 200 square feet.',uncertainty:'high',locationProvided:false,
  lines:[{id:'trade',category:'subcontractors',description:'Synthetic written complete trade scope',quantity:1,unit:'package',unitCost:60000,quantitySource:'TEST scope',evidence:{basis:'written-quote',reference:'TEST ONLY',verifiedAt:today,validUntil:future}}],
@@ -168,9 +168,9 @@ try{
  const complexId=randomUUID(),complexKey=randomBytes(32).toString('hex');
  await store.saveDraft(complexId,complexKey,'test',{...payload,answers:{service:brand.services[0],complexity:'complex'}},0);
  const complexReview=await manual.saveManualReview({id:complexId,expectedRevision:1,input:{...pricing,service:brand.services[0],complexity:'standard'},notes:'TEST ONLY: explicitly complex scope must retain the higher default target.'},{id:'fixture-admin',email:'admin@example.invalid'});
- assert.equal(complexReview.estimate.targetOperatingProfit,.15);
+ assert.equal(complexReview.estimate.targetOperatingProfit,.20);
  const complexFromScope=costBook.priceReviewedScope({...unresolvedScope,answers:{service:'kitchen',complexity:'complex'}},{finance,costBooks:[{...conditionalBook,rules:conditionalBook.rules.slice(0,1)}]});
- assert.equal(complexFromScope.internal.targetOperatingProfit,.15);
+ assert.equal(complexFromScope.internal.targetOperatingProfit,.20);
  const manualInput={...pricing,service:brand.services[0],revision:'server-assigned',targetMargin:.01};
  const notes='TEST ONLY: verified uploaded scope, cost evidence, exclusions, allowances and all risk dispositions.';
  const actor={id:'fixture-admin',email:'admin@example.invalid'};

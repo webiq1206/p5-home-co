@@ -8,6 +8,7 @@
  */
 
 import { divisionLabel, groupByPhaseDivision, phaseName } from "../../lib/scopes/divisions.ts";
+import JobPricingTerms from "./JobPricingTerms.tsx";
 import Link from "next/link";
 
 import { money, type Workspace } from "./client.ts";
@@ -22,7 +23,7 @@ const BASIS: Record<string, string> = {
   "site-estimate": "Website estimate",
 };
 
-export default function PricingView({ ws, onDetails }: { ws: Workspace; onDetails: () => void }) {
+export default function PricingView({ ws, onDetails, onWorkspace }: { ws: Workspace; onWorkspace:(value:Workspace)=>void; onDetails: () => void }) {
   const p = ws.pricing;
   // Scopes-only accounts see customer prices, never internal cost, margin or markup.
   const internal = ws.viewer.internal;
@@ -41,6 +42,7 @@ export default function PricingView({ ws, onDetails }: { ws: Workspace; onDetail
           <div><dt>P5 labor hours</dt><dd>{p.totals.laborHours}</dd></div>
         </dl>
         {internal && <ProfitPanel ws={ws} />}
+        {ws.viewer.canManagePricing && ws.doc.pricingVersion && !ws.estimate && <JobPricingTerms key={ws.version?.id} ws={ws} onSave={onWorkspace}/>}
         {blocking.length > 0 && (
           <div className="sc-alert sc-alert-warn">
             <b>{blocking.length} pricing item{blocking.length === 1 ? "" : "s"} still open.</b>{" "}

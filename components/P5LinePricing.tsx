@@ -7,7 +7,7 @@ export function P5LinePricing({estimate}:{estimate:P5Estimate}){
   const [filter,setFilter]=useState("");
   const lines=estimate.lines.filter(line=>`${line.description} ${line.trade}`.toLowerCase().includes(filter.toLowerCase()));
   return <section aria-label="Item pricing breakdown"><h3>Item pricing breakdown</h3>
-    <p>Ordinary items include direct cost, contingency, overhead and operating profit. Project services are final $120/hour without markup; owner-salary overlap is credited separately. The calculations retain full precision; displayed money is rounded to cents.</p>
+    <p>Each item shows its direct cost and selling amount. Project services use the hourly rate recorded on this estimate. Owner pay is counted once.</p>
     <label>Find a priced item<input style={{display:"block",width:"100%",maxWidth:"100%",minHeight:44,fontSize:16,padding:12,color:"#383837",background:"#fff",boxSizing:"border-box"}} value={filter} onChange={e=>setFilter(e.target.value)} placeholder="Description or trade"/></label>
     <p>{lines.length} matching items.</p>
     {lines.map(line=><details key={line.id} style={{border:"1px solid #88928c",borderRadius:8,padding:14,margin:"12px 0"}}><summary style={{minHeight:44,cursor:"pointer"}}>{line.trade}: {line.description} ({money(line.sellingAmount)})</summary>

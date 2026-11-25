@@ -88,8 +88,8 @@ test("pricing and final QBO payload builders independently reject forged service
   const pricing=siteEstimatePricing("P5 Home Co",parsed);
   for(const change of [{qboItemId:"49"},{unitPrice:121},{quantity:1},{sku:"untrusted"}]){
     const forged={...pricing,lines:pricing.lines.map((l,i)=>i?l:{...l,...change})} as PricingResult;
-    assert.throws(()=>payload(forged),/SKU|mapping|120/);
-    assert.throws(()=>requiredEstimateItems(forged),/SKU|mapping|120/);
+    assert.throws(()=>payload(forged),/SKU|mapping|rate/);
+    assert.throws(()=>requiredEstimateItems(forged),/SKU|mapping|rate/);
   }
 });
 

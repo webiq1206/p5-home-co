@@ -1,3 +1,4 @@
+import { DEFAULT_FINANCE } from "../lib/p5/pricing.ts";
 /**
  * Guided estimator: every guard that keeps a wrong or leaked number away
  * from a customer. No network, no database.
@@ -56,7 +57,7 @@ function combinations(projectId: string): Answers[] {
 }
 
 function price(project: string, answers: Answers, tier: Tier = "mid", brand: BrandId = "p5"): PricedEstimate {
-  return priceEstimate({ brand, project, tier, answers, address: "100 Example Ave, Boise, ID 83702", property: null }, { now: NOW });
+  return priceEstimate({ brand, project, tier, answers, address: "100 Example Ave, Boise, ID 83702", property: null }, { now: NOW, finance: {...DEFAULT_FINANCE,interestRate:0,companyTaxRate:0,netCostSource:"Test fixture with all expenses included"} });
 }
 
 const ALL: { project: string; tier: Tier; estimate: PricedEstimate }[] = [];
@@ -148,7 +149,7 @@ test("the range width follows the owner's band rule and the project's real risks
   assert.equal(bath.rangeWidth, 0.08, "itemized estimates never exceed the 8% book band");
   const home = price("custom-home", {}, "mid", "construction");
   assert.ok(home.rangeWidth >= 0.2 && home.rangeWidth <= 0.5, "a budgetary figure gets the wider band");
-  const unaddressed = priceEstimate({ brand: "p5", project: "handyman", tier: "mid", answers: { tasks: { faucet: 2 } }, address: null, property: null }, { now: NOW });
+  const unaddressed = priceEstimate({ brand: "p5", project: "handyman", tier: "mid", answers: { tasks: { faucet: 2 } }, address: null, property: null }, { now: NOW, finance: {...DEFAULT_FINANCE,interestRate:0,companyTaxRate:0,netCostSource:"Test fixture with all expenses included"} });
   assert.ok(unaddressed.risks.includes("jurisdiction-uncertain"));
   assert.ok(unaddressed.rangeWidth > firm.rangeWidth, "an unknown address widens the range");
 });
@@ -371,8 +372,9 @@ test("a whole-project price is spread across divisions without changing it", () 
     assert.ok(!estimate.divisions.some((d) => d.code === "90"), `${project}: a whole-project division is still shown`);
     // The pieces are the price: before widening and rounding they add back to the base to the cent.
     const base = estimate.pricing.totals.basePrice;
-    const mid = estimate.divisions.reduce((s, d) => s + (d.low + d.high) / 2, 0);
-    assert.ok(Math.abs(mid - base) <= 10 * estimate.divisions.length, `${project}: divisions centre on ${mid}, base is ${base}`);
+    assert.equal(estimate.divisions.reduce((n,d)=>n+d.low,0),estimate.range.low);
+    assert.equal(estimate.divisions.reduce((n,d)=>n+d.high,0),estimate.range.high);
+    assert.ok(estimate.range.low>=estimate.pricing.netPricing!.price);
     assert.ok(estimate.range.low <= base && base <= estimate.range.high);
     assert.ok(estimate.guide.overview.includes(SHARE_NOTE), `${project}: the shares are not explained`);
   }
@@ -442,7 +444,7 @@ test("handyman: the minimum service charge is enforced and the trip charge nets 
   const one = price("handyman", { tasks: { "hang-art": 1 } }).pricing.totals.baseCost!;
   // The $135 owner minimum is the customer price (Service Fee rows are stored
   // net of the estimator markup since 24 November 2026).
-  assert.ok(one >= 83.4 && one < 84.9, `direct cost ${one}`);
+  assert.ok(one === 50, `direct cost ${one}`);
   const customerWork = small.pricing.lines
     .filter((l) => l.basis === "cost-book" || l.basis === "trip-charge")
     .reduce((s, l) => s + l.price, 0);
@@ -471,9 +473,9 @@ test("Boise ADU Co is configured but not public", () => {
 
 test("a home built before 1978 adds lead-safe work; an unknown year states the assumption", () => {
   const input = { brand: "p5" as BrandId, project: "bathroom-remodel", tier: "mid" as Tier, answers: { bath: "hall", scope: "full" }, address: null };
-  const old = priceEstimate({ ...input, property: { source: "county tax records", yearBuilt: 1962 } }, { now: NOW });
-  const recent = priceEstimate({ ...input, property: { source: "county tax records", yearBuilt: 2004 } }, { now: NOW });
-  const unknown = priceEstimate({ ...input, property: null }, { now: NOW });
+  const old = priceEstimate({ ...input, property: { source: "county tax records", yearBuilt: 1962 } }, { now: NOW, finance: {...DEFAULT_FINANCE,interestRate:0,companyTaxRate:0,netCostSource:"Test fixture with all expenses included"} });
+  const recent = priceEstimate({ ...input, property: { source: "county tax records", yearBuilt: 2004 } }, { now: NOW, finance: {...DEFAULT_FINANCE,interestRate:0,companyTaxRate:0,netCostSource:"Test fixture with all expenses included"} });
+  const unknown = priceEstimate({ ...input, property: null }, { now: NOW, finance: {...DEFAULT_FINANCE,interestRate:0,companyTaxRate:0,netCostSource:"Test fixture with all expenses included"} });
   assert.ok(old.doc.tasks.some((t) => t.costCode === "02-82-03"));
   assert.ok(!recent.doc.tasks.some((t) => t.costCode === "02-82-03"));
   assert.ok(unknown.recipe.assumptions.some((a) => /1978/.test(a)));
@@ -552,7 +554,7 @@ function memoryStore() {
   };
   return { rows, store };
 }
-const deps = (extra: Record<string, unknown> = {}) => ({ loadContext: async () => ({ now: NOW }), ...extra });
+const deps = (extra: Record<string, unknown> = {}) => ({ loadContext: async () => ({ now: NOW, finance: {...DEFAULT_FINANCE,interestRate:0,companyTaxRate:0,netCostSource:"Test fixture with all expenses included"} }), ...extra });
 
 test("submit returns only the customer's view, and a retry is the same estimate", async () => {
   const memory = memoryStore();

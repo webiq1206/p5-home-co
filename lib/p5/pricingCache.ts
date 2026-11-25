@@ -1,3 +1,4 @@
+import {NET_POLICY_VERSION} from "./netPricingPolicy.ts";
 import {createHash} from 'node:crypto';
 import {ESTIMATOR_BRAND} from './brand.ts';
 import {MODEL_POLICY_VERSION} from './modelPolicy.ts';
@@ -40,7 +41,7 @@ const answerIdentity=(answers:Record<string,unknown>)=>Object.keys(answers).sort
   .map(key=>[key,words(answers[key])] as const).filter(([,value])=>value.length>0);
 /** What the owner is pricing against: every rate, its unit and its amount, plus the margin policy. */
 export const configurationIdentity=(configuration:EstimatorConfiguration)=>digest([
-  POLICY_VERSION,SERVICE_MATRIX,configuration.catalogVersion||null,
+  NET_POLICY_VERSION,POLICY_VERSION,SERVICE_MATRIX,configuration.catalogVersion||null,
   configuration.planningCatalog?.version||null,
   (configuration.planningCatalog?.rates||[]).map(rate=>[rate.code,rate.unit,rate.amount,rate.type,rate.description,rate.source,rate.basis]).sort(),
   configuration.finance,

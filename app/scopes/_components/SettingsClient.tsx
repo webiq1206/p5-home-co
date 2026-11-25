@@ -103,8 +103,8 @@ export default function SettingsClient({ initial, canManage, divisions }: { init
           <span>Handyman trip charge (customer price)</span>
           <input inputMode="decimal" value={tripText} disabled={disabled} onChange={(e) => setTripText(e.target.value)} />
           <small className="sc-muted">
-            Handyman estimates show this trip charge with an equal credit, because it is removed from the total when the client moves forward. Leave blank to
-            leave it off estimates.
+            Applies only to handyman estimates priced under the earlier policy, shown with an equal credit. New estimates carry no trip fee in Ada and
+            Canyon County; the visit minimum, once per dispatch, covers the visit.
           </small>
         </label>
         {s.confirmedBy && <p className="sc-small sc-muted">Last saved by {s.confirmedBy} on {when(s.confirmedAt)}.</p>}

@@ -185,13 +185,14 @@ export async function loadWorkspace(projectId: number, viewer: Pick<ScopeUser, "
     hubspot: { configured: isHubSpotConfigured(), contactLinked: Boolean(project.hubspot_contact_id) },
     versions: versions.map((v) => ({ id: v.id, versionNo: v.version_no, source: v.source, note: v.note, createdAt: iso(v.created_at)! })),
     version: version ? { id: version.id, versionNo: version.version_no, createdAt: iso(version.created_at)! } : null,
-    doc: computed.doc,
+    doc: internal ? computed.doc : {...computed.doc,reviewedJobTerms:undefined},
     viewer: { internal, canManagePricing: internal && Boolean(viewer.role) && can(viewer.role!, "manage_settings") },
     // Internal cost, margin and markup never leave the server for a scopes-only account.
     pricing: internal
       ? computed.pricing
       : {
           ...computed.pricing,
+          netPricing:undefined,
           lines: computed.pricing.lines.map((l) => ({ ...l, unitCost: null, cost: null })),
           totals: { ...computed.pricing.totals, baseCost: null, margin: null, profit: null, costGaps: undefined },
           policy: { ...computed.pricing.policy, overheadRate: 0, profitRate: 0, contingencyRate: 0 },

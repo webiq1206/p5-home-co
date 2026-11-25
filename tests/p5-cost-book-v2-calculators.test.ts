@@ -40,12 +40,12 @@ test("shared book, scope platform and guided estimator agree on v2 unit prices",
   }
 });
 
-test("guided estimator and scope platform return the v2 totals for four scenarios", () => {
+test("guided estimator and scope platform apply the new margins to v2 cost-book inputs for four scenarios", () => {
   const cases = [
-    { name: "small flooring, 200 SF", project: "flooring", answers: { sqft: 200 }, brand: "p5" as const, base: 2422.7, low: 2220, high: 2630 },
-    { name: "S03 hall bath, full, alcove", project: "bathroom-remodel", answers: { bath: "hall", scope: "full", bathing: "combo" }, brand: "p5" as const, base: 21952.71, low: 20150, high: 23760 },
-    { name: "S01 kitchen, same layout, medium", project: "kitchen-remodel", answers: { size: "medium", scope: "replace" }, brand: "p5" as const, base: 47090.21, low: 43270, high: 50900 },
-    { name: "large new home, 2,000 SF", project: "custom-home", answers: { sqft: 2000 }, brand: "construction" as const, base: 789883.11, low: 584460, high: 995320 },
+    { name: "small flooring, 200 SF", project: "flooring", answers: { sqft: 200 }, brand: "p5" as const, base: 2508, low: 2508, high: 2730 },
+    { name: "S03 hall bath, full, alcove", project: "bathroom-remodel", answers: { bath: "hall", scope: "full", bathing: "combo" }, brand: "p5" as const, base: 22728, low: 22728, high: 24600 },
+    { name: "S01 kitchen, same layout, medium", project: "kitchen-remodel", answers: { size: "medium", scope: "replace" }, brand: "p5" as const, base: 48754, low: 48754, high: 52690 },
+    { name: "large new home, 2,000 SF", project: "custom-home", answers: { sqft: 2000 }, brand: "construction" as const, base: 845057, low: 845057, high: 1064830 },
   ];
   for (const item of cases) {
     const estimate = guided(item.project, item.answers, "mid", item.brand);
@@ -75,7 +75,7 @@ test("full hall and primary baths carry 16 hours of supervision at the standard 
     assert.equal(line?.quantity.value, 16);
   }
   assert.equal(powder.doc.tasks.some((task) => task.costCode === "01-31-02"), false);
-  assert.equal(primary.pricing.totals.basePrice, 30405.41);
+  assert.equal(primary.pricing.totals.basePrice, 31479);
 });
 
 test("conversational assembly calculator prices the v2 book, not a local table", () => {
@@ -87,7 +87,7 @@ test("conversational assembly calculator prices the v2 book, not a local table",
   const config = createPlanningConfiguration({ version: PLANNING_MODEL_VERSION, source: "owner", authorizedBy: "owner", importedAt: "2026-11-15T00:00:00.000Z", rates }, ["new-construction"]);
   const priced = priceReviewedScope({ text: "New 2,000 SF home with a 600 SF garage", answers: { location: "Boise", ...answers }, extraction: null, uploads: [], reviewedAt: "2026-11-15", corrections: [] }, config, NOW);
   assert.equal(priced.internal.directCost, 439000);
-  assert.deepEqual(priced.customer.range, { low: 690000, high: 783000 });
+  assert.deepEqual(priced.customer.range, { low: 805000, high: 862000 });
   const lines = (priced.internal as { lines: { unitCost: number; evidence: { reference: string } }[] }).lines;
   assert.equal(lines.find((line) => line.evidence.reference.includes("PB-90-10-01"))?.unitCost, 200);
   assert.equal(lines.find((line) => line.evidence.reference.includes("PB-90-10-03"))?.unitCost, 65);

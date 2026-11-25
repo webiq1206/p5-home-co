@@ -1,3 +1,4 @@
+import {DEFAULT_FINANCE} from "../lib/p5/pricing.ts";
 /**
  * Guided estimator, owner decisions of 21 November 2026:
  *
@@ -33,7 +34,7 @@ const ANSWERS = ["complete", "design", "none"] as const;
 function price(project: string, answers: Answers, opts: { tier?: Tier; brand?: BrandId; settings?: ScopeSettings; address?: string | null } = {}): PricedEstimate {
   return priceEstimate(
     { brand: opts.brand ?? "p5", project, tier: opts.tier ?? "mid", answers, address: opts.address === undefined ? ADDRESS : opts.address, property: null },
-    { now: NOW, settings: opts.settings },
+    { now: NOW, settings: opts.settings, finance:{...DEFAULT_FINANCE,interestRate:0,companyTaxRate:0,netCostSource:"Illustrative all-inclusive overhead allocation"} },
   );
 }
 
@@ -189,7 +190,7 @@ test("design, engineering and permit lines are cost book codes in recipes, never
   for (const code of ["00-10-04", "00-10-06", "00-10-07", "00-10-08", "00-10-12", "00-10-18", "00-20-01", "00-20-02", "00-20-03", "00-20-04", "00-20-05", "00-20-06"]) {
     assert.match(source, new RegExp(`"${code}"`), `${code} is not used`);
   }
-  assert.match(ESTIMATOR_RULES_VERSION, /^2026-11-25\./, "a recipe changed, so the rules version moves");
+  assert.match(ESTIMATOR_RULES_VERSION, /^P5-NET15-2026-11-24$/, "a recipe changed, so the rules version moves");
 });
 
 // ------------------------------------------------------- handyman minimum
@@ -219,9 +220,9 @@ test("handyman: no visit is shown for less than one hour at the Handyman Co rate
   // The general labor setting no longer moves a handyman job: Handyman Co bills
   // $95/hour, so the $135 book minimum service charge is the floor (owner, 24 November 2026).
   const high = price("handyman", { tasks: { "hang-art": 1 } }, { settings: { ...DEFAULT_SCOPE_SETTINGS, laborRate: 400 } });
-  const balance = high.doc.tasks.find((t) => t.id === "gmin");
-  assert.equal(balance?.costCode, "01-01-07");
-  assert.equal(balance?.title, "Minimum service charge, balance");
+  const balance = high.pricing.lines.find(l => l.taskId === "gmin");
+  assert.equal(balance?.cost,0);
+  assert.equal(balance?.description,"Balance to the minimum service charge");
   const work = high.pricing.lines
     .filter((l) => l.basis === "cost-book" || l.basis === "trip-charge")
     .reduce((s, l) => s + l.price, 0);
@@ -229,7 +230,7 @@ test("handyman: no visit is shown for less than one hour at the Handyman Co rate
   assert.ok(high.pricing.totals.basePrice >= 135, `minimum ${high.pricing.totals.basePrice}`);
   // A long list is never padded.
   const long = price("handyman", { tasks: { faucet: 3, "paint-room": 2 } }, { settings: { ...DEFAULT_SCOPE_SETTINGS, laborRate: 400 } });
-  assert.ok(!long.doc.tasks.some((t) => t.id === "gmin"));
+  assert.ok(!long.pricing.lines.some((l) => l.taskId === "gmin"));
 });
 
 test("handyman: at today's rate the cost book minimum already exceeds one hour, so no single job moves", () => {
@@ -242,8 +243,8 @@ test("handyman: at today's rate the cost book minimum already exceeds one hour, 
   }
 });
 
-test("handyman: the customer is told labor is billed by the hour with a one-hour minimum", () => {
-  assert.equal(HOURLY_MINIMUM_NOTE, "Labor is billed by the hour with a one-hour minimum.");
+test("handyman: the customer sees how the visit minimum applies", () => {
+  assert.equal(HOURLY_MINIMUM_NOTE, "Handyman labor is billed by the hour. The visit minimum is included in the total.");
   for (const brand of ["handyman", "p5"] as BrandId[]) {
     const v = view(price("handyman", { tasks: { faucet: 1 } }, { brand }));
     assert.deepEqual(v.guide.rangeNotes, [HOURLY_MINIMUM_NOTE]);

@@ -1,7 +1,8 @@
+import {NET_POLICY_VERSION} from "./netPricingPolicy.ts";
 import {blockingExtractionNotes} from './documentLedger.ts';
 import {scopeAssumptions,deriveScopeAnswers} from "./adaptive.ts";
 import { createHash } from "node:crypto";
-import { calculateP5Estimate,customerEstimate,customerSafeProjection,DEFAULT_FINANCE,POLICY_VERSION,COST_CATEGORIES,SERVICE_MATRIX,type FinancePolicy,type DirectCostLine,type ScopeCoverage,type PricingInput,type Service,type RiskFactor } from "./pricing.ts";
+import { calculateP5Estimate,customerEstimate,customerSafeProjection,DEFAULT_FINANCE,COST_CATEGORIES,SERVICE_MATRIX,type FinancePolicy,type DirectCostLine,type ScopeCoverage,type PricingInput,type Service,type RiskFactor } from "./pricing.ts";
 import { scopeText,blockingReviewNote,type ReviewedScope,type ScopeField } from "./scope.ts";
 export { blockingReviewNote };
 import {materializePlanningBook,withSupportedServiceBook,type PlanningCatalog} from './planningBooks.ts';
@@ -42,7 +43,7 @@ function priceReviewedScopeInternal(scope:ReviewedScope,configuration:EstimatorC
   let book=configuration.costBooks.find(book=>book.service===service);
   const summary=scopeText(scope);
   const explicitExclusions=[...new Set([...(scope.extraction?.instructions?.exclusions||[]),...(scope.answers.exclusions?[scope.answers.exclusions]:[])].filter(Boolean))];
-  const revision=createHash("sha256").update(JSON.stringify({policyVersion:POLICY_VERSION,scope,configuration,resolution})).digest("hex");
+  const revision=createHash("sha256").update(JSON.stringify({policyVersion:NET_POLICY_VERSION,scope,configuration,resolution})).digest("hex");
   if(!book)return {
     internal:{revision,scope,missingInformation:["A current, approved direct-cost book is required for this service."],pricingWarnings:["cost-book-missing"],financeSnapshot:configuration.finance},
     customer:{status:"review-required",range:null,summary,includedCategories:[],categoryRanges:[],lineItems:[],allowances:[],assumptions:[],exclusions:explicitExclusions,factors:[],nextStep:SERVICE_MATRIX[service].method,message:"We have your project details. A specialist needs to confirm current costs before we can provide a reliable planning range.",disclaimer:"Preliminary project information only. This is not a bid, quote, offer or guaranteed price."},
@@ -80,7 +81,7 @@ function priceReviewedScopeInternal(scope:ReviewedScope,configuration:EstimatorC
   if(scope.extraction?.reviewNotes.length)risks.push("incomplete-plans");
   const allowancePriced=lines.some(line=>line.evidence?.basis==='regional-planning-average'||line.evidence?.basis==='sourced-market-average');
   const preliminaryPurpose=preliminaryModel||allowancePriced;
-  const input:PricingInput={projectServices:scope.projectServices,service,revision,scopeSummary:summary,lines,coverage:book.coverage,risks,estimatePurpose:preliminaryPurpose?'preliminary':undefined,
+  const input:PricingInput={pricingVersion:NET_POLICY_VERSION,projectServices:scope.projectServices,service,revision,scopeSummary:summary,lines,coverage:book.coverage,risks,estimatePurpose:preliminaryPurpose?'preliminary':undefined,
     locationProvided:Boolean(scope.answers.location||scope.answers.address),urgency:scope.answers.urgency as PricingInput["urgency"],complexity:scope.answers.complexity as PricingInput["complexity"],
     // Missing information widens the band; reviewer notes alone (a blank completion date, a page
     // citation to confirm) are disclosed as assumptions and do not.

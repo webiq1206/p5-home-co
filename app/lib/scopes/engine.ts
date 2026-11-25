@@ -10,6 +10,7 @@
  */
 
 import { query, queryOne } from "../db.ts";
+import {NET_POLICY_VERSION,validateReviewedTerms,type ReviewedJobTerms} from "../../../lib/p5/netPricingPolicy.ts";
 import {newProjectServices,validateProjectServices,projectServiceHoursEditable,type ProjectServicePlan} from "../../../lib/p5/projectServices.ts";
 import {loadProjectServiceDefaults} from "../../../lib/p5/projectServicePolicy.ts";
 import type { FinancePolicy } from "../../../lib/p5/pricing.ts";
@@ -99,7 +100,7 @@ export async function commitDoc(
   opts: { clearProposal?: boolean } = {},
 ): Promise<{ version: VersionRow; computed: Computed }> {
   let doc = reconcileMeasurements(input);
-  if (!project.current_version_id) doc = {...doc, projectServices: doc.projectServices ?? newProjectServices(await loadProjectServiceDefaults())};
+  if (!project.current_version_id) doc = {...doc, pricingVersion:NET_POLICY_VERSION, projectServices: doc.projectServices ?? newProjectServices(await loadProjectServiceDefaults())};
   doc = { ...doc, tasks: [...doc.tasks, ...supportingSuggestions(doc, project.service)] };
   const computed = await compute(project, doc);
   const version = await saveVersion({
@@ -355,6 +356,7 @@ export async function rejectProposal(projectId: number, userId: number): Promise
 }
 
 export type EditOp =
+  | { op: "pricing-terms"; terms: ReviewedJobTerms }
   | { op: "project-services"; plan: ProjectServicePlan }
   | { op: "task"; task: ScopeTask }
   | { op: "remove-task"; id: string }
@@ -370,6 +372,12 @@ export async function editScope(projectId: number, ops: EditOp[], userId: number
   let note = "Edited by hand";
   for (const o of ops) {
     switch (o.op) {
+      case "pricing-terms": {
+        if(doc.pricingVersion!==NET_POLICY_VERSION) throw new Error("Pricing terms apply to new-policy estimates only.");
+        if(await latestEstimate(projectId)) throw new Error("Prepare revised terms on an unissued estimate.");
+        doc={...doc,reviewedJobTerms:validateReviewedTerms(o.terms)};
+        break;
+      }
       case "project-services": {
         const estimate=await latestEstimate(projectId);
         const raw=estimate?.qbo_snapshot;

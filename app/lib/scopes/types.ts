@@ -114,6 +114,9 @@ export type Conflict = {
 export type ClientField = { value: string | null; certainty: Certainty; evidence: Evidence[] };
 
 export type ScopeDoc = {
+  pricingVersion?:string;
+  handymanAllIn?:boolean;
+  reviewedJobTerms?:import("../../../lib/p5/netPricingPolicy.ts").ReviewedJobTerms;
   /** Absent on legacy versions: never retrofit saved estimates. */
   projectServices?: ProjectServicePlan;
   projectName?: string | null;
@@ -248,6 +251,7 @@ export type PricingIssue = {
     | "missing-quantity"
     | "estimated-quantity"
     | "unmatched-item"
+    | "company-cost-review"
     | "missing-price"
     | "outdated-price"
     | "proposed-hours"
@@ -258,6 +262,7 @@ export type PricingIssue = {
 };
 
 export type PricingResult = {
+  netPricing?:import("../../../lib/p5/netPricingPolicy.ts").NetQuote;
   projectServiceBasis?:ProjectServiceBasis;
   lines: EstimateLine[];
   issues: PricingIssue[];
@@ -287,7 +292,7 @@ export type ScopeSettings = {
   /**
    * What the customer pays per hour of P5 internal labor (tasks performed by
    * P5): project management, supervision, coordinating subs, administration
-   * and accounting. Owner rule (24 November 2026): $120/hour, the billed rate,
+   * and accounting. Owner rule (24 November 2026): $125/hour, the billed rate,
    * with no overhead, reserve or profit added on top. Trade work is bought from
    * subcontractors at the cost book's trade rates plus the normal markup and
    * never uses this rate. Handyman Co bills $95/hour (HANDYMAN_HOURLY_RATE).
@@ -296,8 +301,9 @@ export type ScopeSettings = {
   /** P5's own cost per hour. Optional, used only to show internal margin. */
   laborLoadedCost: number | null;
   /**
-   * Handyman trip charge, as the customer price. Shown on handyman estimates
-   * with an equal credit, because it is removed when the client moves forward.
+   * Handyman trip charge, as the customer price, for estimates priced under the
+   * earlier policy only. Shown with an equal credit. New estimates carry no trip
+   * fee in Ada and Canyon County (owner, 25 November 2026).
    */
   handymanTripCharge?: number | null;
   /** Hours per cost-book unit, keyed by cost code. Approved production rates. */
@@ -315,7 +321,7 @@ export type ScopeSettings = {
 /**
  * Handyman Co hourly rate (owner, 24 November 2026): "Handyman is fine at
  * $95/hr but everything else must be billed at our standard hourly rate."
- * Every other service bills internal labor at settings.laborRate ($120).
+ * Every other service bills internal labor at settings.laborRate ($125).
  */
 export const HANDYMAN_HOURLY_RATE = 95;
 
@@ -325,8 +331,8 @@ export function laborRateFor(service: string, settings: Pick<ScopeSettings, "lab
 }
 
 export const DEFAULT_SCOPE_SETTINGS: ScopeSettings = {
-  laborRate: 120,
-  handymanTripCharge: 45,
+  laborRate: 125,
+  handymanTripCharge: 0,
   laborLoadedCost: null,
   productionRates: {},
   taxableItems: [],

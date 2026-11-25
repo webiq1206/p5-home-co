@@ -4,7 +4,8 @@
  * Kept browser-safe so the internal milestone editor uses the same rules.
  */
 export const PROJECT_SERVICES_VERSION = "project-services-v2";
-export const PROJECT_SERVICE_RATE = 120;
+export const PROJECT_SERVICE_RATE = 125;
+export const HISTORICAL_SERVICE_RATE = 120;
 export const PROJECT_OVERHEAD_CREDIT_ID = "project-services-overhead-credit";
 /** Documented annual owner salaries in the maintained unified-overhead policy.
  * No rent/advertising/profit is misclassified as owner labor. */
@@ -77,11 +78,11 @@ export function resolveProjectServiceLine(line:{
   const number=(v:unknown)=>typeof v==="number"?v:typeof v==="string"&&v.trim()?Number(v):NaN;
   const quantity=number(line.quantity),amount=cents(number(line.amount));
   const unit=typeof line.unit==="string"?line.unit.trim().toUpperCase():"";
+  const approvedRate=[PROJECT_SERVICE_RATE,HISTORICAL_SERVICE_RATE].find(rate=>cents(quantity*rate)===amount && (line.unitPrice===undefined||number(line.unitPrice)===rate));
   if(!["HR","HRS","HOUR","HOURS"].includes(unit)||!Number.isFinite(quantity)||quantity<=0||
-    !Number.isFinite(amount)||amount<=0||cents(quantity*PROJECT_SERVICE_RATE)!==amount||
-    line.unitPrice!==undefined&&number(line.unitPrice)!==PROJECT_SERVICE_RATE)
-    throw new Error("Project-service lines require positive hours and the final $120 hourly rate.");
-  return {sku:role.code,qboItemId:role.qboItemId,quantity,unit:"HR" as const,unitPrice:PROJECT_SERVICE_RATE,amount};
+    !Number.isFinite(amount)||amount<=0||approvedRate===undefined)
+    throw new Error("Project-service lines require positive hours and the rate on the stored estimate.");
+  return {sku:role.code,qboItemId:role.qboItemId,quantity,unit:"HR" as const,unitPrice:approvedRate,amount};
 }
 export type MilestoneHours = Record<typeof PROJECT_MILESTONES[number], number>;
 export type ProjectServiceBasis = {outsideDirectCost:number;milestoneOutsideCosts?:MilestoneHours};
@@ -138,14 +139,16 @@ export type ProjectServicePlan = {
   /** Internal employee overrides only. Missing roles keep their estimated defaults. */
   hours?: Partial<Record<ProjectServiceCode, MilestoneHours>>;
   /** "none" (owner instruction 2026-11-24, t2013u/t2015u): internal labor is billed in full at
-   * $120/hour with no overhead credit. Plans saved without it keep their original credit, so
+   * $125/hour on new estimates with no overhead credit. Plans saved without it keep their original credit, so
    * already-priced jobs never change. */
   overheadCredit?: "none";
+  /** Frozen on new estimates. Historical plans predate this field. */
+  hourlyRate?: 125;
 };
 /** True when a plan bills internal labor in full, with no salary-overlap credit. */
 export const billsInternalLaborInFull=(plan?:ProjectServicePlan)=>plan?.overheadCredit==="none";
 export const newProjectServices = (defaults?:ProjectServiceDefaults): ProjectServicePlan =>
-  ({ version: PROJECT_SERVICES_VERSION,overheadCredit:"none",...(defaults?{defaults:validateProjectServiceDefaults(defaults)}:{}) });
+  ({ version: PROJECT_SERVICES_VERSION,hourlyRate:PROJECT_SERVICE_RATE,overheadCredit:"none",...(defaults?{defaults:validateProjectServiceDefaults(defaults)}:{}) });
 /** Editing a draft version never updates the existing estimate itself.
  * Legacy, sent, accepted and invoiced estimates remain locked. */
 export function projectServiceHoursEditable(plan:ProjectServicePlan|undefined,estimate?:{
@@ -161,6 +164,7 @@ const hoursPrecision=(n:number)=>Math.round(n*1e9)/1e9;
 
 export function validateProjectServices(value: ProjectServicePlan): ProjectServicePlan {
   if (!value || ![PROJECT_SERVICES_VERSION,"project-services-v1"].includes(value.version)) throw new Error("Unsupported project service hours version.");
+  if(value.hourlyRate!==undefined && (value.hourlyRate!==PROJECT_SERVICE_RATE || value.version==="project-services-v1")) throw new Error("Unsupported project-service rate.");
   if(value.defaults!==undefined){
     if(value.version==="project-services-v1")throw new Error("Historical project-service defaults cannot be changed.");
     validateProjectServiceDefaults(value.defaults);
@@ -186,6 +190,7 @@ export function projectServiceLines(plan: ProjectServicePlan, directCost: number
   const weights=PROJECT_MILESTONES.map(m=>milestoneOutsideCosts?.[m]??0);
   if(weights.some(n=>!Number.isFinite(n)||n<0))throw new Error("Invalid milestone outside costs.");
   const weightTotal=weights.reduce((n,v)=>n+v,0);
+  const hourlyRate=plan.hourlyRate??HISTORICAL_SERVICE_RATE;
   const legacy=plan.version==="project-services-v1";
   const defaults=projectServiceDefaults(plan.defaults);
   return PROJECT_SERVICE_ROLES.map((role,index) => {
@@ -197,10 +202,10 @@ export function projectServiceLines(plan: ProjectServicePlan, directCost: number
     const quantity = hoursPrecision(PROJECT_MILESTONES.reduce((n, m) => n + hours[m], 0));
     return {
       code: role.code, description: role.name, hours, quantity, unit: "HR",
-      unitPrice: PROJECT_SERVICE_RATE, price: cents(quantity * PROJECT_SERVICE_RATE),
+      unitPrice: hourlyRate, price: cents(quantity * hourlyRate),
       estimated: !plan.hours?.[role.code],
-      source: legacy?`${plan.version}; ${plan.hours?.[role.code]?"internally reviewed":"scope-scaled estimated"} hours; planning ${hours.planning}, delivery ${hours.delivery}, closeout ${hours.closeout}; final $120/hour, no markup. Project-specific coordination only, not company overhead or separate superintendent labor.`:
-        `${plan.version}; ${plan.hours?.[role.code] ? "internally reviewed" : `editable outside-cost planning assumption on $${directCost}; ${defaults[role.code].hoursPer1000} hours per $1,000, project minimum ${defaults[role.code].minimumHours}`} hours; planning ${hours.planning}, delivery ${hours.delivery}, closeout ${hours.closeout}; final $120/hour, no markup. No task-count or per-milestone minimum.`,
+      source: legacy?`${plan.version}; ${plan.hours?.[role.code]?"internally reviewed":"scope-scaled estimated"} hours; planning ${hours.planning}, delivery ${hours.delivery}, closeout ${hours.closeout}; final $${hourlyRate}/hour, no markup. Project-specific coordination only, not company overhead or separate superintendent labor.`:
+        `${plan.version}; ${plan.hours?.[role.code] ? "internally reviewed" : `editable outside-cost planning assumption on $${directCost}; ${defaults[role.code].hoursPer1000} hours per $1,000, project minimum ${defaults[role.code].minimumHours}`} hours; planning ${hours.planning}, delivery ${hours.delivery}, closeout ${hours.closeout}; final $${hourlyRate}/hour, no markup. No task-count or per-milestone minimum.`,
     };
   });
 }

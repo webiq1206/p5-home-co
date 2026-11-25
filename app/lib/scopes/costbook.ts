@@ -10,9 +10,9 @@
  * Server only: the price book is about 250 KB.
  */
 
-import { PRICE_BOOK, PRICE_BOOK_SOURCE, type PriceBookRow } from "../../../lib/p5/priceBookData.ts";
+import { PRICE_BOOK_SOURCE, type PriceBookRow } from "../../../lib/p5/priceBookData.ts";
 import {
-  PRICE_BOOK_VERSION,
+  PRICE_BOOK, PRICE_BOOK_VERSION,
   priceBookRate,
   serviceContext,
   type FinishTier,
