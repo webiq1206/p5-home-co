@@ -297,7 +297,6 @@ export function calculateP5Estimate(input: PricingInput, finance: FinancePolicy,
   const variableCost=sum(flexible);
   const contingency = variableCost * contingencyRate;
   const riskAdjustedDirectCost = directCost + contingency;
-  const divisor = 1 - allocations.total - margin;
   const ordinaryPrice = priceFromRiskAdjustedCost(riskAdjustedDirectCost, allocations.total, margin);
   const serviceBasis=input.projectServices?(oldServicePolicy?{outsideDirectCost:directCost,milestoneOutsideCosts:undefined}:documentProjectServiceBasis(input.lines,directCost)):undefined;
   // Handyman Co bills $95/hour all-in, so new handyman plans add no separate $120 internal-labor lines.
@@ -310,8 +309,9 @@ export function calculateP5Estimate(input: PricingInput, finance: FinancePolicy,
   if(useNetPolicy && !input.reviewedJobTerms && !residual.confirmed)
     warn("net-cost-review","Confirm residual company overhead, both owners' compensation, interest and company taxes before issuing a firm price.",
       input.estimatePurpose==="preliminary" && !input.firmPrice ? "review":"block");
+  const requestedNet = input.complexity === "complex" ? Math.max(input.targetMargin ?? 0, 0.20) : input.targetMargin;
   let economics=useNetPolicy?quoteForScope(service,input.scopeSummary,[...riskSet],riskAdjustedDirectCost,
-    residual.rate,Math.max(fixedSell+projectServiceRecovery,input.service==="handyman"?135:0),baselinePrice,input.reviewedJobTerms,input.targetMargin):undefined;
+    residual.rate,Math.max(fixedSell+projectServiceRecovery,input.service==="handyman"?135:0),baselinePrice,input.reviewedJobTerms,requestedNet):undefined;
   if(economics && input.targetMargin!==undefined && input.targetMargin<.15) warn("net-floor-enforced","The quote was raised to the required net minimum.");
   const fixedContract=Math.round((fixedSell+projectServiceRecovery-overlapCredit)*100)/100;
   const contractPrice = economics && variableCost===0 ? fixedContract : economics?.price??baselinePrice;
@@ -326,6 +326,12 @@ export function calculateP5Estimate(input: PricingInput, finance: FinancePolicy,
   // plus margin. Ordinary overhead is never applied to these fees.
   const allocationDollars = { overhead: economics ? contractPrice*economics.otherCostRate+economics.otherCostDollars : ordinaryPrice * allocations.overhead + projectServiceRecovery - overlapCredit };
   const operatingProfit = economics ? contractPrice-riskAdjustedDirectCost-allocationDollars.overhead : ordinaryPrice * margin;
+  const netExpenseRate = economics
+    ? economics.otherCostRate + (economics.price > 0 ? economics.otherCostDollars / economics.price : 0)
+    : allocations.total;
+  const divisor = economics
+    ? Math.min(1 - netExpenseRate - economics.netTarget, 1 - economics.grossTarget)
+    : 1 - allocations.total - margin;
   const allocatedSell=economics?allocatePrice(Math.max(0,contractPrice-fixedContract),flexible):undefined;
   const pricedLines=lines.map((line,index)=>{
     const lineContingency=(fixedAmounts[index]===undefined?line.cost:0)*contingencyRate;
@@ -374,7 +380,7 @@ export function calculateP5Estimate(input: PricingInput, finance: FinancePolicy,
   const sourceHigh=directCost+sum(upsides);
   const highCost = sourceHigh + sum(lines.map((line,index)=>fixedAmounts[index]===undefined?(line.cost+upsides[index])*contingencyRate:0));
   const legacyHigh = priceFromRiskAdjustedCost(highCost,allocations.total,margin);
-  const modeledHigh = economics ? quoteForScope(service,input.scopeSummary,[...riskSet],highCost,residual.rate,projectServiceRecovery+fixedSell,legacyHigh,input.reviewedJobTerms,input.targetMargin).price : legacyHigh;
+  const modeledHigh = economics ? quoteForScope(service,input.scopeSummary,[...riskSet],highCost,residual.rate,projectServiceRecovery+fixedSell,legacyHigh,input.reviewedJobTerms,requestedNet).price : legacyHigh;
   planningRange.high=Math.max(planningRange.high,Math.ceil(modeledHigh/step)*step);
   // A firm price is the modeled, margin-correct contract price, rounded up to the step: the number the
   // range was built around, never its low end. Quantities a document leaves open are priced at the

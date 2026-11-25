@@ -49,8 +49,8 @@ export function compareReference(reference:PriceReference,selection:ComparableSe
     note:"Comparison only. No source selling price is added to direct costs, and profit is not reduced automatically."};
 }
 /** A target cost ceiling derived from a comparable selling price, not a supplier quote. */
-export function referenceDirectCostBudget(customerUnitPrice:number,overheadRate:number,profitMargin:number,contingencyRate:number){
-  if(!Number.isFinite(customerUnitPrice)||customerUnitPrice<=0||![overheadRate,profitMargin,contingencyRate].every(n=>Number.isFinite(n)&&n>=0)||overheadRate+profitMargin>=1)throw new Error("Invalid reference cost-budget inputs.");
-  const divisor=1-overheadRate-profitMargin;
+export function referenceDirectCostBudget(customerUnitPrice:number,overheadRate:number,profitMargin:number,contingencyRate:number,grossMargin=0){
+  if(!Number.isFinite(customerUnitPrice)||customerUnitPrice<=0||![overheadRate,profitMargin,contingencyRate,grossMargin].every(n=>Number.isFinite(n)&&n>=0)||overheadRate+profitMargin>=1||grossMargin>=1)throw new Error("Invalid reference cost-budget inputs.");
+  const divisor=Math.min(1-overheadRate-profitMargin,1-grossMargin);
   return {maximumDirectUnitCost:customerUnitPrice*divisor/(1+contingencyRate),customerUnitPrice,overheadRate,profitMargin,contingencyRate,divisor,note:"Cost ceiling at the reviewed selling price. This is not an observed supplier, subcontractor or payroll cost. Confirm the actual cost before adding it to a direct-cost book."};
 }
