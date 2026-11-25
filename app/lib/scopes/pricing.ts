@@ -20,7 +20,7 @@ import {
   companyAllocation,
   type FinancePolicy,
 } from "../../../lib/p5/pricing.ts";
-import {NET_POLICY_VERSION, quoteForScope, allocatePrice, fixedBookCharge, residualRate, type NetQuote} from "../../../lib/p5/netPricingPolicy.ts";
+import {NET_POLICY_VERSION, quoteForScope, checkFixedQuote, allocatePrice, fixedBookCharge, residualRate, type NetQuote} from "../../../lib/p5/netPricingPolicy.ts";
 import type { FinishTier } from "../../../lib/p5/priceBook.ts";
 import { projectServiceLines, projectServiceCode, isSuperintendentCode,projectOverheadCredit,billsInternalLaborInFull,PROJECT_OVERHEAD_CREDIT_ID,projectServiceCostBasis,type ProjectServiceBasis } from "../../../lib/p5/projectServices.ts";
 import {
@@ -600,8 +600,11 @@ export function priceScope(doc: ScopeDoc, ctx: PricingContext): PricingResult {
         line.unitPrice = line.price / line.quantity;
       });
       basePrice = economics.price;
-    } else if (Math.abs(basePrice - economics.price) > 0.005) {
-      issue({key:"fixed-net-floor", kind:"missing-price", blocking:true, message:"The agreed service price cannot cover the required margins and visit minimum. Review costs and scope before quoting."});
+    } else {
+      const fixed=checkFixedQuote(economics,basePrice);
+      if(!fixed.meets || basePrice<minimum || basePrice<(doc.reviewedJobTerms?.approvedSameScopePrice??0))
+        issue({key:"fixed-net-floor", kind:"missing-price", blocking:true, message:"The agreed service price cannot cover the required margins and visit minimum. Review costs and scope before quoting."});
+      economics=fixed.quote;
     }
   }
   if (newPolicy && baseCost === null) {

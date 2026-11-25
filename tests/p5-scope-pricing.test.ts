@@ -279,6 +279,7 @@ test('smoke-alarm labor cannot use a video-doorbell rate, and a verified repair 
   {code:'QA-BELL',description:'Video doorbell install (labor only)',type:'Labor',unit:'EA',amount:140,source:'Synthetic approved book',basis:'owner-average-cost'},
  ]});
  const alarmScope:ReviewedScope={...scope,text:'Install 2 owner-supplied battery-powered smoke alarms. Labor only.',answers:{service:'re10',location:'Boise'}};
+ deviceConfig.finance={...deviceConfig.finance,interestRate:0,companyTaxRate:0,netCostSource:"Test budget includes company overhead and residual expenses"};
  const wrong={...extra,id:'alarms',description:'Install 2 owner-supplied battery-powered smoke alarms.',evidence:'Install 2 battery-powered smoke alarms; owner supplies alarms.',researchDescription:'',additions:[{code:'QA-BELL',quantity:2,quantityEvidence:'Two alarms requested'}]};
  const correct={...wrong,additions:[{...wrong.additions[0],code:'QA-SMOKE'}]};
  const mapping=(t:typeof wrong)=>({tasks:[t],issues:[],notes:[],replacements:[],removeExclusions:[]});

@@ -1,4 +1,4 @@
-import {NET_POLICY_VERSION,allocatePrice,quoteForScope,residualRate,fixedBookCharge,type NetFinance,type ReviewedJobTerms} from './netPricingPolicy.ts';
+import {NET_POLICY_VERSION,allocatePrice,quoteForScope,checkFixedQuote,residualRate,fixedBookCharge,type NetFinance,type ReviewedJobTerms} from './netPricingPolicy.ts';
 import {publicPricingText} from './customerProjection.ts';
 import {projectServiceLines,projectServiceCode,projectOverheadCredit,billsInternalLaborInFull,PROJECT_OVERHEAD_CREDIT_ID,duplicateOwnerServiceCost,documentProjectServiceBasis} from './projectServices.ts';
 import {tradeForLine,apportionAmount,type TradeCategory} from "./trades.ts";
@@ -310,12 +310,18 @@ export function calculateP5Estimate(input: PricingInput, finance: FinancePolicy,
   if(useNetPolicy && !input.reviewedJobTerms && !residual.confirmed)
     warn("net-cost-review","Confirm residual company overhead, both owners' compensation, interest and company taxes before issuing a firm price.",
       input.estimatePurpose==="preliminary" && !input.firmPrice ? "review":"block");
-  const economics=useNetPolicy?quoteForScope(service,input.scopeSummary,[...riskSet],riskAdjustedDirectCost,
+  let economics=useNetPolicy?quoteForScope(service,input.scopeSummary,[...riskSet],riskAdjustedDirectCost,
     residual.rate,Math.max(fixedSell+projectServiceRecovery,input.service==="handyman"?135:0),baselinePrice,input.reviewedJobTerms,input.targetMargin):undefined;
   if(economics && input.targetMargin!==undefined && input.targetMargin<.15) warn("net-floor-enforced","The quote was raised to the required net minimum.");
   const fixedContract=Math.round((fixedSell+projectServiceRecovery-overlapCredit)*100)/100;
   const contractPrice = economics && variableCost===0 ? fixedContract : economics?.price??baselinePrice;
-  if(economics && variableCost===0 && contractPrice+0.005<economics.price) warn("fixed-rate-conflict","The fixed charge falls below the required margins. Review the scope before quoting.","block");
+  if(economics && variableCost===0) {
+    const fixed=checkFixedQuote(economics,contractPrice);
+    if(!fixed.meets || contractPrice<(input.reviewedJobTerms?.approvedSameScopePrice??0) ||
+       (service==="handyman"&&contractPrice<135) || economics.jobClass==="protected"&&contractPrice+0.005<baselinePrice)
+      warn("fixed-rate-conflict","The fixed charge falls below the required price. Review the scope before quoting.","block");
+    economics=fixed.quote;
+  }
   // The flat fees recover project-specific overhead labor, not another cost
   // plus margin. Ordinary overhead is never applied to these fees.
   const allocationDollars = { overhead: economics ? contractPrice*economics.otherCostRate+economics.otherCostDollars : ordinaryPrice * allocations.overhead + projectServiceRecovery - overlapCredit };

@@ -87,6 +87,15 @@ export function residualRate(finance:NetFinance, overhead:number) {
 }
 export type NetQuote = ReturnType<typeof netQuotePrice>;
 
+/** Fixed unit prices may produce fractional dollars. Compare the actual cents to both unrounded requirements. */
+export function checkFixedQuote(quote:NetQuote,price:number) {
+  const netProfit=price*(1-quote.otherCostRate)-quote.direct-quote.otherCostDollars;
+  const netMargin=price>0?netProfit/price:0;
+  const grossMargin=price>0?(price-quote.direct)/price:0;
+  return {meets:price>0 && netMargin+1e-10>=quote.netTarget && grossMargin+1e-10>=quote.grossTarget,
+    quote:{...quote,price,netProfit,netMargin}};
+}
+
 /** Preserve exact totals by allocating integer cents cumulatively across flexible lines. */
 export function allocatePrice(total: number, weights: readonly number[], scale=100): number[] {
   if (!Number.isFinite(total) || total < 0 || weights.some(x=>!Number.isFinite(x)||x<0)) throw new Error("Invalid price allocation.");

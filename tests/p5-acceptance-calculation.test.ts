@@ -222,7 +222,7 @@ test("conditional alternatives select one option and never charge both alternati
     verifiedScope: "Synthetic reviewed scope.",
     reviewedAt: date,
   };
-  const config = { finance: DEFAULT_FINANCE, costBooks: [book] };
+  const config = { finance: {...DEFAULT_FINANCE, interestRate:0,companyTaxRate:0,netCostSource:"All fixed costs covered by fixture overhead"}, costBooks: [book] };
   const standard = priceReviewedScope(
     scope({ service: "kitchen", finish: "mid-range", location: "Boise" }),
     config,

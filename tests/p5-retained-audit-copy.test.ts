@@ -22,7 +22,7 @@ test('saved .9 shared-line allegation is reconciled to final one-charge evidence
  assert.doesNotMatch(notes(out),/Duplicate labor charge|consolidate to one per-door charge/i);
  assert.match(notes(out),/removal and installation.*share.*one.*labor charge/i);
  assert.equal(out.internal.directCost,276);
- assert.deepEqual(out.customer.range,{low:435,high:540});
+ assert.deepEqual(out.customer.range,{low:510,high:610});
  assert.equal(JSON.stringify(f),before);
  const decisions=(out.internal.scopePricing as any).customerCopyDecisions;
  assert.equal(decisions.length,3);

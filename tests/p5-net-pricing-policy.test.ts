@@ -57,6 +57,8 @@ test("fixed rate and pass-through lines retain their amounts and a loss is withh
   const q=calculateP5Estimate(doc,finance,[],new Date("2026-11-24"));
   assert.equal(q.contractPrice,135);assert.equal(q.lines[0].sellingAmount,135);
   assert.ok(!q.publishable && q.warnings.some(w=>w.code==="fixed-rate-conflict"));
+  const cents=calculateP5Estimate({...doc,lines:[{...doc.lines[0],unitCost:40,fixedSaleUnitPrice:156.25}]},finance,[],new Date("2026-11-24"));
+  assert.equal(cents.publishable,true);assert.equal(cents.netPricing!.price,156.25);
   const mixed=calculateP5Estimate({...doc,lines:[...doc.lines,{...doc.lines[0],id:"trade",fixedSaleUnitPrice:undefined,unitCost:450}]},finance,[],new Date("2026-11-24"));
   assert.equal(mixed.lines[0].sellingAmount,135);assert.equal(mixed.lines.reduce((n,l)=>n+l.sellingAmount,0),mixed.contractPrice);
   assert.ok(mixed.netPricing!.netMargin>=.15);assert.ok(Math.abs(mixed.reconciliation)<.00001);
