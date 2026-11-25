@@ -190,7 +190,7 @@ test("design, engineering and permit lines are cost book codes in recipes, never
   for (const code of ["00-10-04", "00-10-06", "00-10-07", "00-10-08", "00-10-12", "00-10-18", "00-20-01", "00-20-02", "00-20-03", "00-20-04", "00-20-05", "00-20-06"]) {
     assert.match(source, new RegExp(`"${code}"`), `${code} is not used`);
   }
-  assert.match(ESTIMATOR_RULES_VERSION, /^P5-NET15-2026-11-24$/, "a recipe changed, so the rules version moves");
+  assert.equal(ESTIMATOR_RULES_VERSION, "P5-NET15-2026-11-24.2026-11-25.handyman-toilet-removal", "the version identifies both the pricing policy and current recipe");
 });
 
 // ------------------------------------------------------- handyman minimum
