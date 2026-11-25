@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {NET_POLICY_VERSION,LEGACY_NET_POLICY_VERSION,allocatePrice,netQuotePrice,quoteForScope,residualRate,type ReviewedJobTerms} from "../lib/p5/netPricingPolicy.ts";
+import {STANDING_NET_POLICY_VERSION,NET_POLICY_VERSION,LEGACY_NET_POLICY_VERSION,allocatePrice,netQuotePrice,quoteForScope,residualRate,type ReviewedJobTerms} from "../lib/p5/netPricingPolicy.ts";
 import {newProjectServices,projectServiceLines,resolveProjectServiceLine} from "../lib/p5/projectServices.ts";
 import {priceEstimate,customerEstimate,priceWithheld} from "../app/lib/estimator/price.ts";
 import {BRAND_CONFIGS} from "../app/lib/estimator/brands.ts";
@@ -31,11 +31,24 @@ test("verified terms, owner return, unallocated sales expenses and protected quo
 });
 test("standing prices apply to new quotes, including verified builder orders",()=>{
   const base={direct:7000,otherCostDollars:1400,otherCostRate:0};
-  assert.equal(netQuotePrice({...base,jobClass:"builder-cabinets",competitive}).price,11200);
+  assert.equal(netQuotePrice({...base,policyVersion:STANDING_NET_POLICY_VERSION,jobClass:"builder-cabinets",competitive}).price,11200);
   assert.equal(netQuotePrice({...base,jobClass:"builder-cabinets"}).price,12000);
   assert.equal(netQuotePrice({...base,jobClass:"installed-cabinets",competitive}).price,12000);
   assert.equal(netQuotePrice({...base,jobClass:"simple-addition",competitive}).netTarget,.18);
   assert.equal(netQuotePrice({...base,jobClass:"complex-remodel",competitive}).grossTarget,.35);
+});
+test("private bid and builder eligibility match released cost-book rules",()=>{
+  const base={direct:7000,otherCostDollars:1400,otherCostRate:0,competitive};
+  for(const builder of [{steady:false,priorBookedProjects:2},{steady:true,priorBookedProjects:0}])
+    assert.equal(netQuotePrice({...base,jobClass:"builder-cabinets",builder}).price,10770);
+  assert.equal(netQuotePrice({...base,jobClass:"builder-cabinets",builder:{steady:false,priorBookedProjects:1}}).price,12000);
+  const eligible={...base,jobClass:"standard-remodel" as const,direct:67000,otherCostDollars:15000};
+  assert.equal(netQuotePrice(eligible).price,100000);
+  const ownerConcession={approvedBy:"Nick",netTarget:.15};
+  assert.equal(netQuotePrice({...eligible,ownerConcession}).price,96471);
+  assert.throws(()=>netQuotePrice({...eligible,jobClass:"installed-cabinets",ownerConcession}));
+  assert.throws(()=>netQuotePrice({...eligible,jobClass:"protected",ownerConcession}));
+  assert.throws(()=>netQuotePrice({...eligible,ownerConcession:{approvedBy:"Nick",netTarget:.14}}));
 });
 test("every guided brand and project returns a protected range or withholds pricing",()=>{
   for(const brand of Object.values(BRAND_CONFIGS)) for(const project of brand.projects){

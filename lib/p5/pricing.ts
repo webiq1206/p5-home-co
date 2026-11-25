@@ -1,4 +1,4 @@
-import {LEGACY_NET_POLICY_VERSION,NET_POLICY_VERSION,isNetPricingVersion,JOB_POLICIES,defaultJobClass,allocatePrice,creditVisitMinimum,quoteForScope,checkFixedQuote,residualRate,fixedBookCharge,type NetFinance,type ReviewedJobTerms} from './netPricingPolicy.ts';
+import {STANDING_NET_POLICY_VERSION,LEGACY_NET_POLICY_VERSION,NET_POLICY_VERSION,isNetPricingVersion,JOB_POLICIES,defaultJobClass,allocatePrice,creditVisitMinimum,quoteForScope,checkFixedQuote,residualRate,fixedBookCharge,type NetFinance,type ReviewedJobTerms} from './netPricingPolicy.ts';
 import {publicPricingText} from './customerProjection.ts';
 import {projectServiceLines,projectServiceCode,projectOverheadCredit,billsInternalLaborInFull,PROJECT_OVERHEAD_CREDIT_ID,duplicateOwnerServiceCost,documentProjectServiceBasis} from './projectServices.ts';
 import {tradeForLine,apportionAmount,type TradeCategory} from "./trades.ts";
@@ -317,13 +317,13 @@ export function calculateP5Estimate(input: PricingInput, finance: FinancePolicy,
   if(useNetPolicy && !input.reviewedJobTerms && !residual.confirmed)
     warn("net-cost-review","Confirm residual company overhead, both owners' compensation, interest and company taxes before issuing a firm price.",
       input.estimatePurpose==="preliminary" && !input.firmPrice ? "review":"block");
-  const serviceNet = service === "rush" && netVersion === NET_POLICY_VERSION
+  const serviceNet = service === "rush" && (netVersion === NET_POLICY_VERSION || netVersion === STANDING_NET_POLICY_VERSION)
     ? JOB_POLICIES[defaultJobClass(input.service, input.scopeSummary, [...riskSet])][2] : 0;
   const requestedNet = Math.max(input.targetMargin ?? 0, input.complexity === "complex" ? 0.20 : 0, serviceNet);
-  const reviewedTerms = netVersion === NET_POLICY_VERSION && service === "rush" && input.service !== "rush" && input.reviewedJobTerms
+  const reviewedTerms = (netVersion === NET_POLICY_VERSION || netVersion === STANDING_NET_POLICY_VERSION) && service === "rush" && input.service !== "rush" && input.reviewedJobTerms
     ? { ...input.reviewedJobTerms, jobClass: "protected" as const } : input.reviewedJobTerms;
   let economics=useNetPolicy?quoteForScope(service,input.scopeSummary,[...riskSet],riskAdjustedDirectCost,
-    residual.rate,Math.max(fixedSell+projectServiceRecovery,input.service==="handyman"?135:0),baselinePrice,reviewedTerms,requestedNet,netVersion):undefined;
+    residual.rate,Math.max(fixedSell+projectServiceRecovery,(input.service==="handyman" || netVersion===NET_POLICY_VERSION && input.service==="re10")?135:0),baselinePrice,reviewedTerms,requestedNet,netVersion):undefined;
   if (economics?.jobClass === "protected" && !input.reviewedJobTerms?.approvedSameScopePrice) {
     const preliminary = input.estimatePurpose === "preliminary" && !input.firmPrice;
     warn("protected-price-review", "Record the owner-approved price for this scope before issuing a firm proposal.", preliminary ? "review" : "block");
@@ -334,7 +334,7 @@ export function calculateP5Estimate(input: PricingInput, finance: FinancePolicy,
   if(economics && variableCost===0) {
     const fixed=checkFixedQuote(economics,contractPrice);
     if(!fixed.meets || contractPrice<(input.reviewedJobTerms?.approvedSameScopePrice??0) ||
-       (service==="handyman"&&contractPrice<135) || economics.jobClass==="protected"&&contractPrice+0.005<baselinePrice)
+       ((service==="handyman" || netVersion===NET_POLICY_VERSION && input.service==="re10")&&contractPrice<135) || economics.jobClass==="protected"&&contractPrice+0.005<baselinePrice)
       warn("fixed-rate-conflict","The fixed charge falls below the required price. Review the scope before quoting.","block");
     economics=fixed.quote;
   }

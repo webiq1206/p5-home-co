@@ -10,7 +10,7 @@ const LABELS: Record<JobClass,string> = {
 };
 const CHECKS = [
   ["costsVerified","Current supplier and trade costs verified"],["scopeDefined","Scope and selections defined"],
-  ["capacityOrRepeat","Repeat stock order with an approved layout and confirmed order efficiency"],["ownerReturnConfirmed","Profit dollars per owner hour accepted"],
+  ["capacityOrRepeat","Available capacity or documented repeat efficiency. For repairs, confirm an efficient bundled visit"],["ownerReturnConfirmed","Profit dollars per owner hour accepted"],
   ["cashCovered","Cash available through the next collection"],
 ] as const;
 
@@ -27,6 +27,9 @@ export default function JobPricingTerms({ws,onSave}:{ws:Workspace;onSave:(value:
       jobClass:String(data.get("jobClass")) as JobClass, otherCostDollars:Number(data.get("dollars")),otherCostRate:Number(data.get("rate"))/100,
       costSource:String(data.get("source")??"").trim(),
       ...(data.get("protectedPrice")?{approvedSameScopePrice:Number(data.get("protectedPrice"))}:{}),
+      rush:data.has("rush"), bundledVisit:data.has("bundledVisit"),
+      builder:{priorBookedProjects:Number(data.get("priorJobs") || 0),steady:data.has("steady")},
+      ...(data.get("privateTarget") ? {ownerConcession:{netTarget:Number(data.get("privateTarget")) / 100,approvedBy:""}} : {}),
       competitive:{costsVerified:data.has("costsVerified"),scopeDefined:data.has("scopeDefined"),capacityOrRepeat:data.has("capacityOrRepeat"),
         ownerReturnConfirmed:data.has("ownerReturnConfirmed"),cashCovered:data.has("cashCovered"),reason}
     };
@@ -45,9 +48,15 @@ export default function JobPricingTerms({ws,onSave}:{ws:Workspace;onSave:(value:
       <label>Additional expenses as a percent of sales <input required type="number" min="0" max="84.99" step="0.01" name="rate" defaultValue={((saved?.otherCostRate??ws.pricing.policy.overheadRate)*100).toFixed(2)}/></label>
       <label>Cost source and calculation <input name="source" required defaultValue={saved?.costSource}/></label>
       <label>Previously approved price for this scope <input type="number" name="protectedPrice" min="0.01" step="0.01" defaultValue={saved?.approvedSameScopePrice}/></label>
-      <p>For a repeat builder stock order, confirm all five items and document the repeat order, approved layout, landed supplier cost and payment covering the order. Other work uses its job class rate.</p>
+      <label><input name="rush" type="checkbox" defaultChecked={saved?.rush}/> Rush schedule</label>
+      <label><input name="bundledVisit" type="checkbox" defaultChecked={saved?.bundledVisit}/> Repair tasks bundled into one efficient visit</label>
+      <label>Previously booked cabinet projects <input name="priorJobs" type="number" min="0" step="1" defaultValue={saved?.builder?.priorBookedProjects ?? 0}/></label>
+      <label><input name="steady" type="checkbox" defaultChecked={saved?.builder?.steady}/> Established steady builder</label>
+      <p>Stock supply qualifies on project three or for a steady builder. Verify the layout, costs, owner hours and payment covering the order.</p>
+      <label>Private owner-approved net target (%) <input name="privateTarget" type="number" min="15" max="17.99" step="0.01" defaultValue={saved?.ownerConcession ? Number((saved.ownerConcession.netTarget * 100).toFixed(2)) : ""}/></label>
+      <p>Leave the target blank for standard pricing. An owner can approve a concession on defined routine work after confirming all five items.</p>
       {CHECKS.map(([key,label])=><label key={key}><input type="checkbox" name={key} defaultChecked={saved?.competitive?.[key]}/>{label}</label>)}
-      <label>Order eligibility and supporting evidence <input name="reason" defaultValue={saved?.competitive?.reason}/></label>
+      <label>Pricing decision and supporting evidence <input name="reason" defaultValue={saved?.competitive?.reason}/></label>
       {error&&<p role="alert">{error}</p>}<button type="submit">{saving?"Saving":"Save pricing review"}</button>
     </fieldset></form></details>;
 }
