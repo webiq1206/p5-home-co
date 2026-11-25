@@ -77,3 +77,14 @@ test("a protected firm proposal requires an approved same-scope price", () => {
   assert.ok(reviewed.contractPrice >= 100000);
   assert.ok(!reviewed.warnings.some(w => w.code === "protected-price-review"));
 });
+
+test("fixed handyman labor counts toward one minimum per dispatch", () => {
+  for (const [visits, expected] of [[1, 190], [2, 270]]) {
+    const estimate = calculateP5Estimate({...doc, lines:[
+      {...doc.lines[0], id:"labor", bookCode:"01-01-01", quantity:2, unitCost:30, fixedSaleUnitPrice:undefined},
+      {...doc.lines[0], id:"minimum", bookCode:"01-01-07", quantity:visits, unitCost:0, fixedSaleUnitPrice:undefined},
+    ]}, finance, [], new Date("2026-11-24"));
+    assert.equal(estimate.contractPrice, expected);
+    assert.equal(estimate.lines.reduce((sum,line)=>sum+line.sellingAmount,0), expected);
+  }
+});

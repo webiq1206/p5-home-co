@@ -20,7 +20,7 @@ import {
   companyAllocation,
   type FinancePolicy,
 } from "../../../lib/p5/pricing.ts";
-import {NET_POLICY_VERSION, quoteForScope, checkFixedQuote, allocatePrice, fixedBookCharge, residualRate, type NetQuote} from "../../../lib/p5/netPricingPolicy.ts";
+import {NET_POLICY_VERSION, quoteForScope, checkFixedQuote, allocatePrice, creditVisitMinimum, fixedBookCharge, residualRate, type NetQuote} from "../../../lib/p5/netPricingPolicy.ts";
 import type { FinishTier } from "../../../lib/p5/priceBook.ts";
 import { projectServiceLines, projectServiceCode, isSuperintendentCode,projectOverheadCredit,billsInternalLaborInFull,PROJECT_OVERHEAD_CREDIT_ID,projectServiceCostBasis,type ProjectServiceBasis } from "../../../lib/p5/projectServices.ts";
 import {
@@ -142,6 +142,7 @@ export function priceScope(doc: ScopeDoc, ctx: PricingContext): PricingResult {
   const newPolicy = doc.pricingVersion === NET_POLICY_VERSION;
   const laborRate = newPolicy ? (ctx.service === "handyman" || doc.handymanAllIn ? 95 : 125) : laborRateFor(ctx.service, settings);
   const fixedLines = new Set<string>();
+  const visitMinimumIds = new Set<string>();
   const lines: EstimateLine[] = [];
   const issues: PricingIssue[] = [];
   const issue = (i: PricingIssue) => {
@@ -398,6 +399,7 @@ export function priceScope(doc: ScopeDoc, ctx: PricingContext): PricingResult {
     const unitCost = fixed ? (hours !== undefined && settings.laborLoadedCost !== null ? hours * settings.laborLoadedCost : fixed.zeroDirect ? 0 : null) : rate.amount;
     const unitPrice = fixed?.price ?? sell(rate.amount);
     if (fixed) fixedLines.add(task.id + ":main");
+    if (fixed?.visitMinimum) visitMinimumIds.add(task.id + ":main");
     const quantity = round2(qty.value);
     if (entry.bundled && internal && task.laborHours?.value) {
       notes.push("Labor is included in this bundled cost book item; internal hours were not added.");
@@ -559,6 +561,17 @@ export function priceScope(doc: ScopeDoc, ctx: PricingContext): PricingResult {
   }
 
   const base = lines.filter((l) => !l.optional);
+  const fixedLine = (line: EstimateLine) => fixedLines.has(line.id) || ["internal-labor", "trip-charge", "project-service", "project-service-credit"].includes(line.basis);
+  if (visitMinimumIds.size) {
+    const amounts = base.map(line => fixedLine(line) ? line.price : undefined);
+    const indexes = base.flatMap((line, index) => visitMinimumIds.has(line.id) ? [index] : []);
+    creditVisitMinimum(amounts, indexes);
+    for (const index of indexes) {
+      const line = base[index];
+      line.price = amounts[index] ?? 0;
+      line.unitPrice = line.price / line.quantity;
+    }
+  }
   const baseCostKnown = base.every((l) => l.cost !== null);
   let basePrice = round2(base.reduce((s, l) => s + l.price, 0));
   const baseCost = baseCostKnown ? round2(base.reduce((s, l) => s + (l.cost ?? 0), 0)) : null;
@@ -572,7 +585,6 @@ export function priceScope(doc: ScopeDoc, ctx: PricingContext): PricingResult {
 
   // Where the money goes: direct cost, overhead, the reserve, and what is left.
   let economics: NetQuote | undefined;
-  const fixedLine = (line: EstimateLine) => fixedLines.has(line.id) || ["internal-labor", "trip-charge", "project-service", "project-service-credit"].includes(line.basis);
   const reserve = round2(base.filter(line => !fixedLine(line)).reduce((sum, line) => sum + (line.cost ?? 0) * CONTINGENCY_RATE, 0));
   if (newPolicy && basePrice > 0 && baseCost !== null) {
     const flexible = base.filter(line => !fixedLine(line));

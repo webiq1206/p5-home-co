@@ -1,4 +1,4 @@
-import {NET_POLICY_VERSION,allocatePrice,quoteForScope,checkFixedQuote,residualRate,fixedBookCharge,type NetFinance,type ReviewedJobTerms} from './netPricingPolicy.ts';
+import {NET_POLICY_VERSION,allocatePrice,creditVisitMinimum,quoteForScope,checkFixedQuote,residualRate,fixedBookCharge,type NetFinance,type ReviewedJobTerms} from './netPricingPolicy.ts';
 import {publicPricingText} from './customerProjection.ts';
 import {projectServiceLines,projectServiceCode,projectOverheadCredit,billsInternalLaborInFull,PROJECT_OVERHEAD_CREDIT_ID,duplicateOwnerServiceCost,documentProjectServiceBasis} from './projectServices.ts';
 import {tradeForLine,apportionAmount,type TradeCategory} from "./trades.ts";
@@ -226,6 +226,11 @@ export function calculateP5Estimate(input: PricingInput, finance: FinancePolicy,
   const contingencyRate = .10;
   const ids = new Set<string>();
   const directByCategory = Object.fromEntries(COST_CATEGORIES.map(c => [c, 0])) as Record<CostCategory, number>;
+  const useNetPolicy = input.pricingVersion===NET_POLICY_VERSION || input.projectServices?.hourlyRate===125;
+  function fixedChargeFor(line: DirectCostLine) {
+    const code = line.bookCode ?? line.evidence?.reference.match(/\bPB-(\d\d-\d\d-\d\d)\b/)?.[1] ?? line.id;
+    return useNetPolicy ? fixedBookCharge(code) : undefined;
+  }
   const lines = input.lines.map(line => {
     const trade=tradeForLine(line);
     const modeled=input.estimatePurpose==='preliminary'&&((line.evidence?.basis==='owner-estimating-schedule'&&['owner-average-cost','historical-cost-budget'].includes(line.estimatingBasis||''))||(line.evidence?.basis==='sourced-market-average'&&line.estimatingBasis==='sourced-market-average')||(line.evidence?.basis==='regional-planning-average'&&line.estimatingBasis==='regional-planning-average'));
@@ -238,8 +243,9 @@ export function calculateP5Estimate(input: PricingInput, finance: FinancePolicy,
     ids.add(line.id);
     if (!(COST_CATEGORIES as readonly string[]).includes(line.category)) throw new Error("Unknown direct-cost category");
     if (!line.description.trim() || !line.unit.trim() || !line.quantitySource.trim()) throw new Error("Every cost line needs a description, unit and quantity source");
-    finite(line.quantity, "Quantity", true); finite(line.unitCost, "Unit cost", true);
-    const cost = line.quantity * line.unitCost; finite(cost, "Extended cost", true);
+    const needsPositiveCost = !fixedChargeFor(line)?.zeroDirect;
+    finite(line.quantity, "Quantity", true); finite(line.unitCost, "Unit cost", needsPositiveCost);
+    const cost = line.quantity * line.unitCost; finite(cost, "Extended cost", needsPositiveCost);
     if (line.category === "materials") {
       if (!line.landed) warn("landed-cost-missing", `${line.id}: net cost, tax, freight, delivery, waste, storage and handling must be itemized before a firm proposal.`, modeled?"review":"block");
       else if (Math.abs(landedUnitCost(line.landed) - line.unitCost) > 1e-8) throw new Error(`${line.id}: landed cost does not match unit cost`);
@@ -280,11 +286,11 @@ export function calculateP5Estimate(input: PricingInput, finance: FinancePolicy,
   }
   const allocations = companyAllocation(finance, now); warnings.push(...allocations.warnings);
   const directCost = sum(lines.map(l => l.cost)); finite(directCost, "Total direct cost", true);
-  const useNetPolicy = input.pricingVersion===NET_POLICY_VERSION || input.projectServices?.hourlyRate===125;
-  function fixedPrice(line:DirectCostLine):number|undefined {
+  const minimumIndexes: number[] = [];
+  function fixedPrice(line:DirectCostLine, index:number):number|undefined {
     if(!useNetPolicy) return undefined;
-    const code=line.bookCode??line.evidence?.reference.match(/\bPB-(\d\d-\d\d-\d\d)\b/)?.[1]??line.id;
-    const bookCharge=fixedBookCharge(code);
+    const bookCharge=fixedChargeFor(line);
+    if (bookCharge?.visitMinimum) minimumIndexes.push(index);
     if(bookCharge?.hours && line.evidence.basis!=="payroll" && line.evidence.basis!=="written-quote" && line.evidence.basis!=="market-replacement")
       warn("fixed-rate-cost","Verify the loaded labor cost or trade quote for the fixed hourly service.","block");
     const fixed=bookCharge?.price??line.fixedSaleUnitPrice;
@@ -292,6 +298,7 @@ export function calculateP5Estimate(input: PricingInput, finance: FinancePolicy,
     return fixed===undefined?undefined:Math.round(fixed*line.quantity*100)/100;
   }
   const fixedAmounts=lines.map(fixedPrice);
+  creditVisitMinimum(fixedAmounts, minimumIndexes);
   const fixedSell=sum(fixedAmounts.map(value=>value??0));
   const flexible=lines.map((line,index)=>fixedAmounts[index]===undefined?line.cost:0);
   const variableCost=sum(flexible);

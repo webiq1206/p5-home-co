@@ -134,12 +134,23 @@ export function quoteForScope(service:string,scope:string,risks:readonly string[
 }
 
 /** The book retains historic back-solved costs. Never present those as actual wages. */
-export function fixedBookCharge(rawCode:string): {price:number;hours?:number;zeroDirect?:boolean}|undefined {
+export function fixedBookCharge(rawCode:string): {price:number;hours?:number;zeroDirect?:boolean;visitMinimum?:boolean}|undefined {
   const code=rawCode.replace(/^PB-/,"");
   if (["01-01-01","01-01-02","01-01-03"].includes(code)) return {price:95,hours:1};
   if (code==="01-01-04") return {price:380,hours:4};
   if (code==="01-01-05") return {price:760,hours:8};
-  if (code==="01-01-07") return {price:135,zeroDirect:true};
+  if (code==="01-01-07") return {price:135,zeroDirect:true,visitMinimum:true};
   if (code==="01-01-08") return {price:50,zeroDirect:true};
   return undefined;
+}
+
+/** Credit other fixed charges against the dispatch minimum before flexible scope is priced. */
+export function creditVisitMinimum(amounts: (number | undefined)[], minimumIndexes: number[]) {
+  if (!minimumIndexes.length) return;
+  const charges = minimumIndexes.map(index => amounts[index] ?? 0);
+  const totalMinimum = charges.reduce((sum, amount) => sum + amount, 0);
+  const allFixed = amounts.reduce<number>((sum, amount) => sum + (amount ?? 0), 0);
+  const balance = Math.max(0, totalMinimum - (allFixed - totalMinimum));
+  const shares = allocatePrice(balance, charges);
+  minimumIndexes.forEach((index, position) => { amounts[index] = shares[position]; });
 }
