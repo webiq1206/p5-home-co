@@ -340,8 +340,10 @@ export function priceScope(doc: ScopeDoc, ctx: PricingContext): PricingResult {
     // Handyman trip charge from the cost book: when a trip charge is set in
     // Pricing setup, that one is used and this task is not charged a second
     // time; otherwise it is priced here and credited below.
+    // Owner, 25 November 2026: no trip fee in Ada and Canyon County on new
+    // estimates. The visit minimum (about $135, one per dispatch) covers the visit.
     if (ctx.service === "handyman" && entry.code === TRIP_CHARGE_CODE) {
-      if ((settings.handymanTripCharge ?? 0) > 0) continue;
+      if (newPolicy || (settings.handymanTripCharge ?? 0) > 0) continue;
       tripTaskIds.add(task.id);
     }
 
@@ -470,8 +472,10 @@ export function priceScope(doc: ScopeDoc, ctx: PricingContext): PricingResult {
   // from the total when the client moves forward with the work. The estimate
   // is the price of moving forward, so every trip charge on it carries an
   // equal credit and the two net to zero.
-  if (ctx.service === "handyman" && lines.some((l) => !l.optional)) {
-    const configured = newPolicy ? 50 : settings.handymanTripCharge ?? 0;
+  // Owner, 25 November 2026: new estimates carry no trip fee in Ada and Canyon
+  // County, so this applies only to estimates priced under the earlier policy.
+  if (!newPolicy && ctx.service === "handyman" && lines.some((l) => !l.optional)) {
+    const configured = settings.handymanTripCharge ?? 0;
     const tripLine = (id: string, text: string, amount: number, source: string): EstimateLine => ({
       id,
       taskId: "trip-charge",

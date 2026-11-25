@@ -301,8 +301,9 @@ export type ScopeSettings = {
   /** P5's own cost per hour. Optional, used only to show internal margin. */
   laborLoadedCost: number | null;
   /**
-   * Handyman trip charge, as the customer price. Shown on handyman estimates
-   * with an equal credit, because it is removed when the client moves forward.
+   * Handyman trip charge, as the customer price, for estimates priced under the
+   * earlier policy only. Shown with an equal credit. New estimates carry no trip
+   * fee in Ada and Canyon County (owner, 25 November 2026).
    */
   handymanTripCharge?: number | null;
   /** Hours per cost-book unit, keyed by cost code. Approved production rates. */
@@ -331,7 +332,7 @@ export function laborRateFor(service: string, settings: Pick<ScopeSettings, "lab
 
 export const DEFAULT_SCOPE_SETTINGS: ScopeSettings = {
   laborRate: 125,
-  handymanTripCharge: 50,
+  handymanTripCharge: 0,
   laborLoadedCost: null,
   productionRates: {},
   taxableItems: [],

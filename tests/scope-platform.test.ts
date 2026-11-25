@@ -498,10 +498,11 @@ test("editor input is sanitized and cannot overwrite quotes, evidence or edit hi
   assert.deepEqual(markEdited(before, same).edited, ["title"]);
 });
 
-test("the default handyman trip charge is $50, shown and credited", () => {
+test("handyman estimates carry no trip fee by default (owner, 25 November 2026)", () => {
   const work = task({ costCode: null, performer: "internal", laborHours: { value: 1, basis: "confirmed" } });
   const r = priceScope(doc([work]), ctx({ service: "handyman" }));
-  assert.deepEqual(r.lines.map((l) => l.price), [95, 50, -50]);
+  assert.deepEqual(r.lines.map((l) => l.price), [95]);
+  assert.equal(r.lines.some((l) => l.basis === "trip-charge"), false);
   assert.equal(r.totals.basePrice, 95);
 });
 
