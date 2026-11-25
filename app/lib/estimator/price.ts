@@ -252,6 +252,8 @@ export function qualify(pricing: PricingResult, estimateClass: EstimateClass, cr
   const disclosed = new Set(["allowance-unapproved", "estimated-quantity"]);
   for (const issue of pricing.issues) {
     if (disclosed.has(issue.kind)) continue;
+    // A budgetary draft may be itemized in QuickBooks while its firm price awaits approval.
+    if (issue.key === "protected-price-review" && estimateClass === "budgetary") continue;
     reasons.push({ code: issue.kind, message: issue.message });
   }
   const priced = pricing.lines.filter((l) => l.basis !== "trip-charge" && !l.basis.startsWith("project-service") && l.taskId !== "gmin").length;
@@ -269,7 +271,8 @@ export function qualify(pricing: PricingResult, estimateClass: EstimateClass, cr
     });
   }
   if (estimateClass === "budgetary") {
-    reasons.push({ code: "budgetary", message: "Budgetary estimates are priced in detail by the team before an official estimate is issued." });
+    const protectedPrice = pricing.issues.find(issue => issue.key === "protected-price-review");
+    reasons.push({ code: "budgetary", message: protectedPrice?.message ?? "Budgetary estimates are priced in detail by the team before an official estimate is issued." });
   }
   return reasons;
 }
