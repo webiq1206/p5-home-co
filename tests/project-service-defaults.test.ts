@@ -100,7 +100,7 @@ test("project snapshots and overrides survive later defaults edits, with minimum
   const original=projectServiceLines(newProjectServices(),10000,999);
   const small=projectServiceLines(plan,100,999,{planning:1,delivery:1,closeout:1});
   assert.deepEqual(small.map(l=>l.quantity),[.375,.2,.15]);
-  assert.deepEqual(small.map(l=>l.price),[45,24,18]);
+  assert.deepEqual(small.map(l=>l.price),[46.88,25,18.75]);
   for(const line of small)assert.ok(Math.abs(Object.values(line.hours).reduce((a,b)=>a+b,0)-line.quantity)<1e-8);
   const large=projectServiceLines(plan,10000,1);
   assert.deepEqual(large.map(l=>l.quantity),[6.25,3.75,2.5]);
@@ -112,7 +112,7 @@ test("project snapshots and overrides survive later defaults edits, with minimum
   assert.notEqual(configurationIdentity(configuration()),configurationIdentity({...configuration(),projectServiceDefaults:projectServiceDefaults()}));
 });
 
-test("four shared embed pricing paths and intake/QBO receiver retain saved default hours once at $120",async()=>{
+test("four shared embed pricing paths and intake/QBO receiver retain saved default hours once at $125",async()=>{
   const settings=await loadProjectServiceDefaults(async()=>({configured:true,defaults:edited}));
   for(const brand of ["remodeling","construction","handyman","cabinet"] as const){
     const project={remodeling:"kitchen-remodel",construction:"custom-home",handyman:"handyman",cabinet:"kitchen-cabinets"}[brand];
@@ -136,7 +136,7 @@ test("four shared embed pricing paths and intake/QBO receiver retain saved defau
     for(const role of PROJECT_SERVICE_ROLES){
       const stored=roles.find(l=>l.sku===role.code)!;
       const matches=qbo.Line.filter(l=>l.SalesItemLineDetail?.ItemRef.value===role.qboItemId);
-      assert.equal(matches.length,1);assert.equal(matches[0].SalesItemLineDetail!.UnitPrice,120);
+      assert.equal(matches.length,1);assert.equal(matches[0].SalesItemLineDetail!.UnitPrice,125);
       assert.equal(matches[0].SalesItemLineDetail!.Qty,stored.quantity);
       assert.equal(matches[0].Amount,stored.price);
     }
@@ -180,5 +180,5 @@ test("Scopes and document pricing consume the same frozen defaults, preserving p
     risks:[],assumptions:[],exclusions:[],missingInformation:[],allowances:[],uncertainty:"low",locationProvided:true,
   },DEFAULT_FINANCE,[],now);
   assert.deepEqual(PROJECT_SERVICE_ROLES.map(r=>document.lines.find(l=>l.id===r.code)!.quantity),[6.25,.3,2.5]);
-  assert.ok(document.lines.filter(l=>PROJECT_SERVICE_ROLES.some(r=>r.code===l.id)).every(l=>l.sellingUnitPrice===120));
+  assert.ok(document.lines.filter(l=>PROJECT_SERVICE_ROLES.some(r=>r.code===l.id)).every(l=>l.sellingUnitPrice===125));
 });

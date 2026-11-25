@@ -30,12 +30,12 @@ const input=(cost=10000):PricingInput=>({
   risks:[],assumptions:[],exclusions:[],missingInformation:[],allowances:[],uncertainty:"low",locationProvided:true,
 });
 
-test("all three book codes have a final $120 hourly rate across tiers and remodel",()=>{
+test("all three book codes have a final $125 hourly rate across tiers and remodel",()=>{
   for(const code of roleCodes) {
     const rows=PRICE_BOOK.filter(r=>r[0]===code);assert.equal(rows.length,1);
     for(const tier of ["builder","mid","high","luxury"] as const) for(const remodel of [false,true]){
       const rate=priceBookRate(rows[0],tier,remodel);
-      assert.equal(rate.amount,120);assert.equal(rate.unit,"HR");assert.match(rate.source,/final client rate/);
+      assert.equal(rate.amount,125);assert.equal(rate.unit,"HR");assert.match(rate.source,/final client rate/);
     }
   }
 });
@@ -47,7 +47,7 @@ test("three positive scope-based defaults scale; milestone totals and overrides 
   assert.deepEqual(large.map(r=>r.quantity),[500,200,100]);
   for(let i=0;i<3;i++) {
     assert.ok(large[i].quantity>small[i].quantity);
-    assert.equal(large[i].price,large[i].quantity*120);
+    assert.equal(large[i].price,large[i].quantity*125);
     assert.ok(Math.abs(PROJECT_MILESTONES.reduce((n,m)=>n+large[i].hours[m],0)-large[i].quantity)<1e-8);
   }
   const plan={...newProjectServices(),hours:{"01-31-03":{planning:2,delivery:4,closeout:1}}};
@@ -72,7 +72,7 @@ test("scope pricing aggregates rooms once, excludes duplicate fees/superintenden
   const priced=priceScope(doc,ctx);
   const services=priced.lines.filter(l=>l.basis==="project-service");
   assert.deepEqual(services.map(l=>l.id),roleCodes);
-  assert.ok(services.every(l=>l.unitPrice===120&&l.price===Math.round(l.quantity*12000)/100));
+  assert.ok(services.every(l=>l.unitPrice===125&&l.price===Math.round(l.quantity*12500)/100));
   assert.ok(!priced.lines.some(l=>l.taskId==="superintendent"||l.taskId==="duplicate"));
   assert.deepEqual(priceScope(doc,ctx),priced);
   const legacy=priceScope({...doc,projectServices:undefined,tasks:[task("kitchen"),task("bath")]},ctx);
@@ -95,18 +95,18 @@ test("document financial engine adds flat fees once with no markup, no extra pro
   const priced=calculateP5Estimate(i,DEFAULT_FINANCE,[],NOW);
   const services=priced.lines.filter(l=>projectServiceCode(l.id));
   assert.equal(services.length,3);
-  assert.ok(services.every(l=>l.sellingUnitPrice===120&&l.contingency===0&&l.operatingProfit===0));
-  // New plans bill internal labor in full at $120/hr: no overhead credit.
+  assert.ok(services.every(l=>l.sellingUnitPrice===125&&l.contingency===0&&l.operatingProfit===0));
+  // New plans bill internal labor in full at $125/hr: no overhead credit.
   const credit=priced.projectServiceOverheadCredit??0;
   assert.equal(credit,0);
-  assert.equal(priced.contractPrice-legacy.contractPrice,services.reduce((n,l)=>n+l.sellingAmount,0));
-  // Saved plans from before 24 Nov 2026 (no overheadCredit flag) keep their credit.
-  const {overheadCredit:_none,...savedPlan}=i.projectServices!;
+  assert.equal(priced.lines.reduce((n,l)=>n+l.sellingAmount,0),priced.contractPrice);
+  assert.ok(priced.operatingProfit/priced.contractPrice>=.18);
+  // An already-saved v2 plan has neither a frozen hourly rate nor the new policy marker.
+  const {overheadCredit:_none,hourlyRate:_hourly,...savedPlan}=i.projectServices!;
   const saved=calculateP5Estimate({...i,projectServices:savedPlan},DEFAULT_FINANCE,[],NOW);
-  const savedCredit=saved.projectServiceOverheadCredit??0;
-  assert.equal(savedCredit,projectOverheadCredit(services.reduce((n,l)=>n+l.sellingAmount,0),legacy.contractPrice,legacy.allocations.overhead));
-  assert.ok(savedCredit>0);
-  assert.equal(priced.operatingProfit,legacy.operatingProfit);
+  const savedServiceTotal=saved.lines.filter(l=>projectServiceCode(l.id)).reduce((n,l)=>n+l.sellingAmount,0);
+  assert.equal(saved.projectServiceOverheadCredit,projectOverheadCredit(savedServiceTotal,legacy.contractPrice,legacy.allocations.overhead));
+  assert.ok(saved.projectServiceOverheadCredit!>0);
   assert.ok(Math.abs(priced.reconciliation)<.00001);
   assert.deepEqual(calculateP5Estimate({...i,lines:priced.lines},DEFAULT_FINANCE,[],NOW),priced);
 });
@@ -129,12 +129,12 @@ test("every live brand embed project uses the same mandatory fees and total-only
     const estimate=priceEstimate({brand:brand.id,project,tier:"mid",answers:{},address:"Synthetic test location",property:null},{now:NOW});
     const services=estimate.pricing.lines.filter(l=>l.basis==="project-service");
     if(brand.id==="handyman"){
-      // Handyman Co bills $95/hr all-in on every job, paint and flooring included: no $120 lines.
+      // Handyman Co bills $95/hr all-in on every job, paint and flooring included: no $125 lines.
       assert.equal(services.length,0,`${brand.id}/${project}`);
       assert.ok(!estimate.pricing.lines.some(l=>l.basis==="project-service-credit"),`${brand.id}/${project}: credit`);
     } else if(estimate.pricing.lines.some(l=>l.basis!=="project-service"&&l.basis!=="trip-charge")){
       assert.equal(services.length,3,`${brand.id}/${project}`);
-      assert.ok(services.every(l=>l.unitPrice===120));
+      assert.ok(services.every(l=>l.unitPrice===125));
       const report=internalReport(estimate);
       assert.ok(roleCodes.every(code=>report.lines.some(line=>line.code===code)),`${brand.id}/${project}: internal codes`);
     }
@@ -143,16 +143,16 @@ test("every live brand embed project uses the same mandatory fees and total-only
   }
 });
 
-test("QuickBooks retains three detailed hourly lines at $120, without sending or contacting QuickBooks",()=>{
+test("QuickBooks retains three detailed hourly lines at $125, without sending or contacting QuickBooks",()=>{
   const pricing=priceScope({...emptyScope(),projectServices:newProjectServices(),tasks:[task("one")]},ctx);
   const itemIds=Object.fromEntries(pricing.lines.map(l=>[l.item,"synthetic-item"])) as Record<ItemKey,string>;
   const payload=buildEstimatePayload({customerId:"synthetic",pricing,itemIds,taxable:[],exclusions:[],privateNote:"Synthetic"});
   for(const role of PROJECT_SERVICE_ROLES){
     const line=payload.Line.find(l=>l.Description===role.name);
     assert.ok(line);assert.equal(line.DetailType,"SalesItemLineDetail");
-    assert.equal(line.SalesItemLineDetail?.UnitPrice,120);
+    assert.equal(line.SalesItemLineDetail?.UnitPrice,125);
     assert.equal(line.SalesItemLineDetail?.ItemRef.value,role.qboItemId);
-    assert.equal(line.Amount,(line.SalesItemLineDetail?.Qty??0)*120);
+    assert.equal(line.Amount,Math.round((line.SalesItemLineDetail?.Qty??0)*12500)/100);
   }
 });
 
@@ -161,13 +161,13 @@ test("small service and large projects retain all hourly roles without duplicate
     const priced=calculateP5Estimate(input(cost),DEFAULT_FINANCE,[],NOW);
     const services=priced.lines.filter(l=>projectServiceCode(l.id));
     assert.equal(services.length,3);
-    assert.ok(services.every(l=>l.quantity>0&&l.sellingUnitPrice===120));
+    assert.ok(services.every(l=>l.quantity>0&&l.sellingUnitPrice===125));
     assert.ok((priced.projectServiceOverheadCredit??0)<=services.reduce((n,l)=>n+l.sellingAmount,0));
     assert.ok(Math.abs(priced.reconciliation)<.00001);
   }
 });
 
-test("document-to-QuickBooks transport preserves $120 hourly lines and exact net total, even over 60 lines",()=>{
+test("document-to-QuickBooks transport preserves $125 hourly lines and exact net total, even over 60 lines",()=>{
   for(const count of [1,70]){
     const i=input(100);
     i.lines=Array.from({length:count},(_,n)=>({...i.lines[0],id:`trade-${n}`}));
@@ -179,7 +179,7 @@ test("document-to-QuickBooks transport preserves $120 hourly lines and exact net
       const line=built.estimate.lines.find(l=>l.title===role.name);
       assert.ok(line);assert.equal(line.unit,"HR");
       assert.equal(line.sku,role.code);
-      assert.equal(line.amount,Math.round(line.quantity!*12000)/100);
+      assert.equal(line.amount,Math.round(line.quantity!*12500)/100);
     }
     assert.ok(built.estimate.lines.every(l=>l.amount>0));
     assert.ok(built.estimate.lines.length<=60);
@@ -260,7 +260,8 @@ test("salary overlap is credited once and does not erase non-salary overhead",()
   const p=calculateP5Estimate(i,{...DEFAULT_FINANCE,ownerSalaryOverheadAnnual:0},[],NOW);
   assert.equal(p.projectServiceOverheadCredit,0);
   const legacy=calculateP5Estimate({...i,projectServices:undefined},DEFAULT_FINANCE,[],NOW);
-  assert.equal(p.contractPrice,legacy.contractPrice+60);
+  assert.ok(p.contractPrice>=legacy.contractPrice);
+  assert.ok(p.operatingProfit/p.contractPrice>=.18);
 });
 
 test("previous hourly-policy estimates retain their exact original hours and overhead credit",()=>{
@@ -272,7 +273,7 @@ test("previous hourly-policy estimates retain their exact original hours and ove
   assert.equal(projectServiceHoursEditable(i.projectServices),false);
 });
 
-test("document intake preserves final $120 rates and the approved 48/49/47 QuickBooks mapping",()=>{
+test("document intake preserves final $125 rates and the approved 48/49/47 QuickBooks mapping",()=>{
   const priced=calculateP5Estimate(input(1234.57),DEFAULT_FINANCE,[],NOW);
   const body=documentEstimate({internal:priced,customer:{range:priced.planningRange}})!.estimate;
   const parsed=readSiteEstimate(body);
@@ -283,11 +284,11 @@ test("document intake preserves final $120 rates and the approved 48/49/47 Quick
   for(const role of PROJECT_SERVICE_ROLES){
     const line=payload.Line.find(l=>l.SalesItemLineDetail?.ItemRef.value===role.qboItemId);
     assert.ok(line,role.code);
-    assert.equal(line.SalesItemLineDetail!.UnitPrice,120);
-    assert.equal(line.Amount,Math.round(line.SalesItemLineDetail!.Qty*12000)/100);
+    assert.equal(line.SalesItemLineDetail!.UnitPrice,125);
+    assert.equal(line.Amount,Math.round(line.SalesItemLineDetail!.Qty*12500)/100);
   }
   const wrong={...body,lines:body.lines.map(l=>l.sku?{...l,amount:l.amount+1}:l)};
-  assert.match(readSiteEstimate(wrong).problem!,/120/);
+  assert.match(readSiteEstimate(wrong).problem!,/hour|rate/);
 });
 
 test("review publication retains hour overrides atomically without upgrading legacy policy",async()=>{

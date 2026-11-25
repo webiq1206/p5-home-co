@@ -259,8 +259,8 @@ export function qualify(pricing: PricingResult, estimateClass: EstimateClass, cr
   else if (priced < recipeLineCount) reasons.push({ code: "unpriced-lines", message: `${recipeLineCount - priced} selected item(s) could not be priced from the cost book.` });
   if (pricing.totals.basePrice <= 0 && recipeLineCount > 0) reasons.push({ code: "zero-total", message: "The estimate total is zero." });
   if (pricing.totals.margin === null) reasons.push({ code: "margin-unknown", message: "Internal cost is unknown for at least one line, so margin cannot be checked." });
-  else if (!pricing.netPricing && pricing.totals.margin < MARGIN_FLOOR) {
-    reasons.push({ code: "margin-floor", message: `Gross margin ${(pricing.totals.margin * 100).toFixed(1)}% is under the ${MARGIN_FLOOR * 100}% floor.` });
+  else if (pricing.netPricing ? pricing.totals.margin < pricing.netPricing.grossTarget-0.00005 || (pricing.totals.profit?.netMargin??0)<0.15-0.00005 : pricing.totals.margin < MARGIN_FLOOR) {
+    reasons.push({ code: "margin-floor", message: `Gross margin ${(pricing.totals.margin * 100).toFixed(1)}% is below the applicable gross or net requirement.` });
   }
   if (crossCheck && !crossCheck.within) {
     reasons.push({

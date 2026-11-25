@@ -117,6 +117,7 @@ export function quoteForScope(service:string,scope:string,risks:readonly string[
   if (reviewed && !(validClasses[service]??["protected"]).includes(jobClass)) throw new Error("The reviewed job class does not match the service.");
   if (["new-construction","construction","rush","change-order"].includes(service) ||
       (["addition","adu"].includes(service) && (/second[- ]stor|detached|underpinn|uncertain foundation|unknown utilit|complex tie[- ]in/i.test(scope) || risks.some(r=>["unknown-utilities","soil-slope","incomplete-plans"].includes(r))))) jobClass="protected";
+  if (service==="kitchen" && /structural|moving walls|load[- ]bearing|relocat(?:e|ing) (?:the )?(?:plumbing|utilities)/i.test(scope)) jobClass="complex-remodel";
   return netQuotePrice({jobClass,direct,otherCostDollars:reviewed?.otherCostDollars??0,
     otherCostRate:reviewed?.otherCostRate??rate,fixedSell,
     protectedPrice:Math.max(reviewed?.approvedSameScopePrice??0,jobClass==="protected"?oldPrice:0),

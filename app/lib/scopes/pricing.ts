@@ -583,9 +583,18 @@ export function priceScope(doc: ScopeDoc, ctx: PricingContext): PricingResult {
     if (!residual.confirmed && !doc.reviewedJobTerms) {
       issue({key:"net-cost-review", kind:"company-cost-review", blocking:true, message:"Confirm owner compensation, residual overhead, interest and company taxes before issuing a firm price."});
     }
-    economics = quoteForScope(ctx.service, scopeText, [], baseCost + reserve, residual.rate, Math.max(minimum, fixedTotal), basePrice, doc.reviewedJobTerms);
+    const ordinary = quoteForScope(ctx.service, scopeText, [], baseCost + reserve, residual.rate, fixedTotal, basePrice, doc.reviewedJobTerms);
+    const subtotal = flexible.length ? ordinary.price : basePrice;
+    const visitBalance = Math.max(0,minimum - subtotal);
+    if (visitBalance) {
+      const line:EstimateLine={id:"gmin:charge",taskId:"gmin",phase:"construction",division:"01",item:"Handyman Service Work",
+        description:"Balance to the minimum service charge",quantity:1,unit:"EA",unitCost:0,cost:0,unitPrice:visitBalance,price:visitBalance,
+        basis:"cost-book",source:"One minimum charge for the visit",optional:false,allowance:false,notes:[]};
+      base.push(line);lines.push(line);basePrice=round2(basePrice+visitBalance);
+    }
+    economics = visitBalance ? quoteForScope(ctx.service,scopeText,[],baseCost+reserve,residual.rate,minimum,basePrice,doc.reviewedJobTerms) : ordinary;
     if (flexible.some(line => line.price > 0)) {
-      const amounts = allocatePrice(economics.price - fixedTotal, flexible.map(line => line.price));
+      const amounts = allocatePrice(economics.price - fixedTotal - visitBalance, flexible.map(line => line.price));
       flexible.forEach((line, index) => {
         line.price = amounts[index];
         line.unitPrice = line.price / line.quantity;
