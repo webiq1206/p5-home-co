@@ -20,6 +20,7 @@ import {
   companyAllocation,
   type FinancePolicy,
 } from "../../../lib/p5/pricing.ts";
+import {NET_POLICY_VERSION, quoteForScope, allocatePrice, fixedBookCharge, residualRate, type NetQuote} from "../../../lib/p5/netPricingPolicy.ts";
 import type { FinishTier } from "../../../lib/p5/priceBook.ts";
 import { projectServiceLines, projectServiceCode, isSuperintendentCode,projectOverheadCredit,billsInternalLaborInFull,PROJECT_OVERHEAD_CREDIT_ID,projectServiceCostBasis,type ProjectServiceBasis } from "../../../lib/p5/projectServices.ts";
 import {
@@ -138,7 +139,9 @@ export function priceScope(doc: ScopeDoc, ctx: PricingContext): PricingResult {
   const now = ctx.now ?? new Date();
   const { multiplier, overhead, profit } = priceMultiplier(ctx.service, now, ctx.finance);
   const settings = ctx.settings;
-  const laborRate = laborRateFor(ctx.service, settings);
+  const newPolicy = doc.pricingVersion === NET_POLICY_VERSION;
+  const laborRate = newPolicy ? (ctx.service === "handyman" || doc.handymanAllIn ? 95 : 125) : laborRateFor(ctx.service, settings);
+  const fixedLines = new Set<string>();
   const lines: EstimateLine[] = [];
   const issues: PricingIssue[] = [];
   const issue = (i: PricingIssue) => {
@@ -390,8 +393,11 @@ export function priceScope(doc: ScopeDoc, ctx: PricingContext): PricingResult {
       continue;
     }
 
-    const unitCost = rate.amount;
-    const unitPrice = sell(unitCost);
+    const fixed = newPolicy ? fixedBookCharge(entry.code) : undefined;
+    const hours = fixed?.hours;
+    const unitCost = fixed ? (hours !== undefined && settings.laborLoadedCost !== null ? hours * settings.laborLoadedCost : fixed.zeroDirect ? 0 : null) : rate.amount;
+    const unitPrice = fixed?.price ?? sell(rate.amount);
+    if (fixed) fixedLines.add(task.id + ":main");
     const quantity = round2(qty.value);
     if (entry.bundled && internal && task.laborHours?.value) {
       notes.push("Labor is included in this bundled cost book item; internal hours were not added.");
@@ -407,7 +413,7 @@ export function priceScope(doc: ScopeDoc, ctx: PricingContext): PricingResult {
       quantity,
       unit: rate.unit,
       unitCost,
-      cost: round2(unitCost * quantity),
+      cost: unitCost === null ? null : round2(unitCost * quantity),
       unitPrice,
       price: round2(unitPrice * quantity),
       basis: "cost-book",
@@ -463,7 +469,7 @@ export function priceScope(doc: ScopeDoc, ctx: PricingContext): PricingResult {
   // is the price of moving forward, so every trip charge on it carries an
   // equal credit and the two net to zero.
   if (ctx.service === "handyman" && lines.some((l) => !l.optional)) {
-    const configured = settings.handymanTripCharge ?? 0;
+    const configured = newPolicy ? 50 : settings.handymanTripCharge ?? 0;
     const tripLine = (id: string, text: string, amount: number, source: string): EstimateLine => ({
       id,
       taskId: "trip-charge",
@@ -554,7 +560,7 @@ export function priceScope(doc: ScopeDoc, ctx: PricingContext): PricingResult {
 
   const base = lines.filter((l) => !l.optional);
   const baseCostKnown = base.every((l) => l.cost !== null);
-  const basePrice = round2(base.reduce((s, l) => s + l.price, 0));
+  let basePrice = round2(base.reduce((s, l) => s + l.price, 0));
   const baseCost = baseCostKnown ? round2(base.reduce((s, l) => s + (l.cost ?? 0), 0)) : null;
 
   // What stops cost and margin from being known, in plain counts.
@@ -565,20 +571,45 @@ export function priceScope(doc: ScopeDoc, ctx: PricingContext): PricingResult {
   };
 
   // Where the money goes: direct cost, overhead, the reserve, and what is left.
+  let economics: NetQuote | undefined;
+  const fixedLine = (line: EstimateLine) => fixedLines.has(line.id) || ["internal-labor", "trip-charge", "project-service", "project-service-credit"].includes(line.basis);
+  const reserve = round2(base.filter(line => !fixedLine(line)).reduce((sum, line) => sum + (line.cost ?? 0) * CONTINGENCY_RATE, 0));
+  if (newPolicy && basePrice > 0 && baseCost !== null) {
+    const flexible = base.filter(line => !fixedLine(line));
+    const fixedTotal = round2(base.filter(fixedLine).reduce((sum, line) => sum + line.price, 0));
+    const minimum = ctx.service === "handyman" ? 135 : 0;
+    const scopeText = [doc.summary, ...doc.siteConditions, ...doc.goals].join(" ");
+    const residual = residualRate(ctx.finance ?? DEFAULT_FINANCE, overhead);
+    if (!residual.confirmed && !doc.reviewedJobTerms) {
+      issue({key:"net-cost-review", kind:"company-cost-review", blocking:true, message:"Confirm owner compensation, residual overhead, interest and company taxes before issuing a firm price."});
+    }
+    economics = quoteForScope(ctx.service, scopeText, [], baseCost + reserve, residual.rate, Math.max(minimum, fixedTotal), basePrice, doc.reviewedJobTerms);
+    if (flexible.some(line => line.price > 0)) {
+      const amounts = allocatePrice(economics.price - fixedTotal, flexible.map(line => line.price));
+      flexible.forEach((line, index) => {
+        line.price = amounts[index];
+        line.unitPrice = line.price / line.quantity;
+      });
+      basePrice = economics.price;
+    } else if (Math.abs(basePrice - economics.price) > 0.005) {
+      issue({key:"fixed-net-floor", kind:"missing-price", blocking:true, message:"The agreed service price cannot cover the required margins and visit minimum. Review costs and scope before quoting."});
+    }
+  }
+  if (newPolicy && baseCost === null) {
+    issue({key:"unknown-direct-cost", kind:"missing-price", blocking:true, message:"Enter the actual loaded labor or supplier cost before quoting a fixed-rate service."});
+  }
   let profitCheck: ProfitCheck | null = null;
   if (baseCost !== null && basePrice > 0) {
     const grossProfit = round2(basePrice - baseCost);
     const serviceRecovery = base.filter(l => l.basis === "project-service"||l.basis==="project-service-credit").reduce((n, l) => n + l.price, 0);
-    const overheadShare = round2((basePrice - serviceRecovery) * overhead + serviceRecovery);
+    const overheadShare = economics ? round2(basePrice * economics.otherCostRate + economics.otherCostDollars) : round2((basePrice - serviceRecovery) * overhead + serviceRecovery);
     // Only marked-up lines carry the reserve; P5 labor and the trip charge are billed as is.
-    const reserve = round2(
-      base.filter((l) => l.basis !== "internal-labor" && l.basis !== "trip-charge" && l.basis !== "project-service").reduce((s, l) => s + (l.cost ?? 0) * CONTINGENCY_RATE, 0),
-    );
+    const target = economics?.netTarget ?? profit;
     const netProfit = round2(grossProfit - overheadShare - reserve);
     const netMargin = Math.round((netProfit / basePrice) * 10000) / 10000;
     const notes: string[] = [];
     const status: ProfitCheck["status"] =
-      netMargin >= profit * 2 ? "high" : netMargin >= profit ? "on-target" : netMargin >= profit / 2 ? "thin" : "below";
+      netMargin >= target * 2 ? "high" : netMargin >= target ? "on-target" : netMargin >= target / 2 ? "thin" : "below";
     if (settings.laborLoadedCost !== null && settings.laborLoadedCost >= laborRate) {
       notes.push(`P5 labor costs $${settings.laborLoadedCost}/hour and is billed at $${laborRate}/hour, so every labor hour loses money.`);
     }
@@ -586,14 +617,15 @@ export function priceScope(doc: ScopeDoc, ctx: PricingContext): PricingResult {
     if (underwater.length) notes.push(`${underwater.length} line${underwater.length === 1 ? " is" : "s are"} priced below cost: ${underwater.slice(0, 3).map((l) => l.description).join("; ")}.`);
     if (status === "below" || status === "thin") {
       // The price that would return the target profit with the same costs.
-      const needed = round2((baseCost + reserve) / (1 - overhead - profit));
-      if (needed > basePrice) notes.push(`To reach the ${Math.round(profit * 100)}% profit target with these costs the base estimate would need to be about $${needed.toLocaleString("en-US", { maximumFractionDigits: 0 })}.`);
+      const needed = economics?.price ?? round2((baseCost + reserve) / (1 - overhead - profit));
+      if (needed > basePrice) notes.push(`To reach the ${Math.round(target * 100)}% profit target with these costs the base estimate would need to be about $${needed.toLocaleString("en-US", { maximumFractionDigits: 0 })}.`);
     }
     if (status === "high") notes.push("Profit is more than double the target. Check the price against what the market will bear before sending.");
-    profitCheck = { grossProfit, overhead: overheadShare, reserve, netProfit, netMargin, targetNetMargin: profit, status, notes };
+    profitCheck = { grossProfit, overhead: overheadShare, reserve, netProfit, netMargin, targetNetMargin: target, status, notes };
   }
 
   return {
+    ...(economics?{netPricing:economics}:{}),
     ...(serviceBasis?{projectServiceBasis:serviceBasis}:{}),
     lines,
     issues,
@@ -607,8 +639,8 @@ export function priceScope(doc: ScopeDoc, ctx: PricingContext): PricingResult {
       laborHours: round2(base.reduce((s, l) => s + (l.laborHours ?? 0), 0)),
     },
     policy: {
-      overheadRate: overhead,
-      profitRate: profit,
+      overheadRate: economics?.otherCostRate ?? overhead,
+      profitRate: economics?.netTarget ?? profit,
       contingencyRate: CONTINGENCY_RATE,
       laborRate,
       finishTier: ctx.finishTier,

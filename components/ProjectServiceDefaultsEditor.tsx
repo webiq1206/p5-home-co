@@ -53,7 +53,7 @@ export default function ProjectServiceDefaultsEditor({value,onChange,onSave,busy
     <h2 className="sc-h2" id="project-service-defaults-title">New-project service defaults</h2>
     <p>These assumptions apply only when a new project is created. Existing estimates keep their frozen service assumptions.</p>
     <p>Hours are calculated for the whole project, not separately for each milestone. The minimum is a whole-project floor.</p>
-    <p>Service pricing is fixed at <strong>$120 per person-hour</strong>. Rates and accounting items are system-managed and cannot be edited here.</p>
+    <p>Service pricing is fixed at <strong>$125 per person-hour</strong>. Rates and accounting items are system-managed and cannot be edited here.</p>
     <p>Changes apply after you save. Only these six defaults are saved; financial forecasts and cost books stay unchanged. Existing projects keep their saved assumptions.</p>
 
     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(100%,300px),1fr))",gap:12,margin:"18px 0"}}>

@@ -13,6 +13,10 @@ export function P5OverheadReview({configuration,onChange,onSave,busy,rate,warnin
       <label>Conservative annual earned-revenue forecast, optional ($)<input type="number" min="1" step="1" style={control} value={finance.annualRevenue??""} onChange={e=>update("annualRevenue",e.target.value===""?null:Number(e.target.value))}/></label>
       <label>Forecast source and review period<input style={control} value={finance.forecastSource||""} onChange={e=>update("forecastSource",e.target.value)}/></label>
       <p>At the $2.4 million sales goal, the budget needs 17.5%. The standard remains 20%. A conservative forecast below $2.1 million raises the applied rate automatically. A reduction below 20% requires documented earned-revenue and overhead results in the financial configuration.</p>
+      <label>Additional interest as a percent of sales<input type="number" min="0" step="0.01" style={control} value={finance.interestRate==null?"":Number((finance.interestRate*100).toFixed(4))} onChange={e=>update("interestRate",e.target.value===""?null:Number(e.target.value)/100)}/></label>
+      <label>Additional company taxes as a percent of sales<input type="number" min="0" step="0.01" style={control} value={finance.companyTaxRate==null?"":Number((finance.companyTaxRate*100).toFixed(4))} onChange={e=>update("companyTaxRate",e.target.value===""?null:Number(e.target.value)/100)}/></label>
+      <label>Cost basis and review date<input style={control} value={finance.netCostSource??""} onChange={e=>update("netCostSource",e.target.value)}/></label>
+      <p>Confirm both owners’ compensation is included. Enter zero when the budget already covers an expense. Leave a rate blank until reviewed. Exclude owner distributions and personal income taxes.</p>
       <button style={{minHeight:44,padding:12}} onClick={onSave}>Save quarterly overhead review</button>
     </fieldset>
     {warnings.length>0&&<ul>{warnings.map((w,i)=><li key={i}>{w.message}</li>)}</ul>}

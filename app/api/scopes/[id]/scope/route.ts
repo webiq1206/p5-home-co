@@ -1,5 +1,6 @@
 /** Edit the scope by hand, or accept / reject proposed changes from new material. */
 
+import { can } from "../../../../lib/leads/permissions.ts";
 import { fail, ok, requireProject } from "../../../../lib/scopes/http.ts";
 import { acceptProposal, editScope, rejectProposal, type EditOp } from "../../../../lib/scopes/engine.ts";
 import { loadWorkspace } from "../../../../lib/scopes/workspace.ts";
@@ -16,6 +17,8 @@ export async function POST(request: Request, { params }: Ctx) {
     const body = (await request.json()) as { action: string; ops?: EditOp[]; ids?: string[] };
     if (body.action === "edit") {
       if (!Array.isArray(body.ops) || !body.ops.length) throw new Error("Nothing to save.");
+      if (body.ops.some(op => op.op === "pricing-terms") && (g.user.scopesOnly || !g.user.role || !can(g.user.role,"manage_settings")))
+        return fail(new Error("Managing pricing requires pricing settings access."),403);
       await editScope(g.project.id, body.ops, g.user.id);
     } else if (body.action === "accept") {
       await acceptProposal(g.project.id, Array.isArray(body.ids) ? body.ids.map(String) : [], g.user.id);

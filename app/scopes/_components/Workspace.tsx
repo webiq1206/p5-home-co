@@ -218,7 +218,7 @@ export default function Workspace({ initial, initialTab }: { initial: WS; initia
   const panel: Record<Exclude<Step, "record">, () => React.ReactNode> = {
     scope: () => <ScopeView ws={ws} onWorkspace={setWs} onPlay={play} />,
     details: () => <Wizard ws={ws} onWorkspace={setWs} onPlay={play} onDone={() => show("pricing")} />,
-    pricing: () => <PricingView ws={ws} onDetails={() => show("details")} />,
+    pricing: () => <PricingView ws={ws} onWorkspace={setWs} onDetails={() => show("details")} />,
     estimate: () => <EstimatePanel ws={ws} onWorkspace={setWs} onScope={() => show(blocking ? "details" : "scope")} />,
     project: () => <FilesAndHistory ws={ws} onWorkspace={setWs} onPlay={play} onError={setError} />,
   };

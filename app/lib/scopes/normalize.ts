@@ -222,6 +222,7 @@ export function carryForward(current: ScopeDoc | null, generated: ScopeDoc): Sco
   const cur = new Map(current.tasks.map((t) => [t.id, t]));
   return {
     ...generated,
+    pricingVersion: current.pricingVersion, handymanAllIn:current.handymanAllIn, reviewedJobTerms: current.reviewedJobTerms,
     projectServices: current.projectServices,
     tasks: generated.tasks.map((g) => {
       const c = cur.get(g.id);

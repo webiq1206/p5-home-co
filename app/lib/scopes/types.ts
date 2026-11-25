@@ -114,6 +114,9 @@ export type Conflict = {
 export type ClientField = { value: string | null; certainty: Certainty; evidence: Evidence[] };
 
 export type ScopeDoc = {
+  pricingVersion?:string;
+  handymanAllIn?:boolean;
+  reviewedJobTerms?:import("../../../lib/p5/netPricingPolicy.ts").ReviewedJobTerms;
   /** Absent on legacy versions: never retrofit saved estimates. */
   projectServices?: ProjectServicePlan;
   projectName?: string | null;
@@ -248,6 +251,7 @@ export type PricingIssue = {
     | "missing-quantity"
     | "estimated-quantity"
     | "unmatched-item"
+    | "company-cost-review"
     | "missing-price"
     | "outdated-price"
     | "proposed-hours"
@@ -258,6 +262,7 @@ export type PricingIssue = {
 };
 
 export type PricingResult = {
+  netPricing?:import("../../../lib/p5/netPricingPolicy.ts").NetQuote;
   projectServiceBasis?:ProjectServiceBasis;
   lines: EstimateLine[];
   issues: PricingIssue[];

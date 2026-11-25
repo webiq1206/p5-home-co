@@ -17,6 +17,7 @@
  * customer saw.
  */
 
+import {NET_POLICY_VERSION, allocatePrice} from "../../../lib/p5/netPricingPolicy.ts";
 import type { FinancePolicy } from "../../../lib/p5/pricing.ts";
 import {newProjectServices,projectServiceCode,projectServiceDefaults,isSuperintendentCode,type ProjectServiceDefaults} from "../../../lib/p5/projectServices.ts";
 import { COST_BOOK_SOURCE, COST_BOOK_VERSION, costBookEntry, costBookRate } from "../scopes/costbook.ts";
@@ -45,7 +46,7 @@ import {
 } from "./types.ts";
 
 /** Bumped whenever a recipe or a qualification rule changes, and stored with every estimate. */
-export const ESTIMATOR_RULES_VERSION = "2026-11-24.project-services-v2";
+export const ESTIMATOR_RULES_VERSION = NET_POLICY_VERSION;
 
 /**
  * Gross margin floor. Owner business plan (lib/p5/pricing.ts): 20% overhead
@@ -160,7 +161,7 @@ export const HANDYMAN_MINIMUM_HOURS = 1;
 export { HANDYMAN_HOURLY_RATE } from "../scopes/types.ts";
 import { HANDYMAN_HOURLY_RATE } from "../scopes/types.ts";
 
-function compileDoc(input: PriceInput, recipe: Recipe, service: string, summary: string[], visitFloor = 0,defaults?:ProjectServiceDefaults): ScopeDoc {
+function compileDoc(input: PriceInput, recipe: Recipe, service: string, summary: string[], defaults?:ProjectServiceDefaults): ScopeDoc {
   const flow = flowById(input.project)!;
   const brand = brandConfig(input.brand)!;
   const tasks: ScopeTask[] = [];
@@ -186,35 +187,9 @@ function compileDoc(input: PriceInput, recipe: Recipe, service: string, summary:
     });
   });
 
-  // Handyman minimum: when the listed jobs cost less than the book's minimum
-  // service charge, or than the one-hour minimum (visitFloor, a direct cost),
-  // the balance up to the higher of the two is charged on the book's minimum
-  // service charge line, so its cost and margin stay known.
-  if (service === "handyman" && tasks.length) {
-    const direct = directCost(recipe.lines.map((l) => ({ code: l.code, qty: l.qty })), input.tier, service);
-    const minimum = costBookRate(HANDYMAN_MINIMUM_CODE, input.tier, service);
-    const floor = minimum ? Math.max(minimum.amount, visitFloor) : 0;
-    if (direct !== null && minimum && direct < floor) {
-      const quantity = Math.ceil(((floor - direct) / minimum.amount) * 100) / 100;
-      const hourly = visitFloor > minimum.amount;
-      tasks.push({
-        id: "gmin",
-        title: hourly ? "One-hour minimum, balance" : "Minimum service charge, balance",
-        description: hourly ? "Balance up to our one-hour minimum" : "Balance up to our minimum service charge",
-        phase: "construction",
-        division: "01",
-        bucket: "approved",
-        certainty: "confirmed",
-        costCode: HANDYMAN_MINIMUM_CODE,
-        quantity: { value: quantity, unit: "EA", estimated: false },
-        performer: "subcontractor",
-        evidence: [],
-        origin: "generated",
-      });
-    }
-  }
-
   const doc = emptyScope();
+  doc.pricingVersion=NET_POLICY_VERSION;
+  doc.handymanAllIn=brand.id==="handyman";
   // Handyman Co bills $95/hour all-in on every job (t2013u), including paint and flooring:
   // no separate $120 internal-labor lines for the handyman service or the Handyman Co brand.
   if (service !== "handyman" && brand.id !== "handyman") doc.projectServices = newProjectServices(defaults);
@@ -284,7 +259,7 @@ export function qualify(pricing: PricingResult, estimateClass: EstimateClass, cr
   else if (priced < recipeLineCount) reasons.push({ code: "unpriced-lines", message: `${recipeLineCount - priced} selected item(s) could not be priced from the cost book.` });
   if (pricing.totals.basePrice <= 0 && recipeLineCount > 0) reasons.push({ code: "zero-total", message: "The estimate total is zero." });
   if (pricing.totals.margin === null) reasons.push({ code: "margin-unknown", message: "Internal cost is unknown for at least one line, so margin cannot be checked." });
-  else if (pricing.totals.margin < MARGIN_FLOOR) {
+  else if (!pricing.netPricing && pricing.totals.margin < MARGIN_FLOOR) {
     reasons.push({ code: "margin-floor", message: `Gross margin ${(pricing.totals.margin * 100).toFixed(1)}% is under the ${MARGIN_FLOOR * 100}% floor.` });
   }
   if (crossCheck && !crossCheck.within) {
@@ -319,10 +294,10 @@ export function priceEstimate(input: PriceInput, ctx: PriceContext = {}): Priced
     finance: ctx.finance,
     now: ctx.now,
   };
-  let doc = compileDoc(resolved, recipe, flow.service, summary,0,ctx.projectServiceDefaults);
-  let pricing = priceScope(doc, pricingContext);
+  const doc = compileDoc(resolved, recipe, flow.service, summary,ctx.projectServiceDefaults);
+  const pricing = priceScope(doc, pricingContext);
   const crossCheck = crossCheckResult(recipe.crossCheck, recipe, tier, flow.service);
-  let base = pricing.lines.filter((l) => !l.optional);
+  const base = pricing.lines.filter((l) => !l.optional);
   const narrativeFor = () => ({
     brand,
     project: flow.id,
@@ -338,35 +313,26 @@ export function priceEstimate(input: PriceInput, ctx: PriceContext = {}): Priced
     address: input.address,
     property: input.property,
   });
-  let narrative = narrativeFor();
+  const narrative = narrativeFor();
   const risks = projectRisks(narrative);
   const width = rangeWidth(flow.estimateClass, risks);
   // A whole-project assembly line is shown across the divisions it is made of.
   // The pieces add up to the line, so the price itself is untouched.
-  let codeOf = new Map(doc.tasks.map((t) => [t.id, String(t.costCode ?? "")]));
+  const codeOf = new Map(doc.tasks.map((t) => [t.id, String(t.costCode ?? "")]));
   const rangeOf = () => divisionRanges(base, width, (line) => (line.division === "90" ? splitByDivision(codeOf.get(line.taskId) ?? "", line.price, tier, flow.service) : null));
-  let ranged = rangeOf();
+  const ranged = rangeOf();
   // Handyman one-hour minimum: the low end of the range the customer sees is
   // never under one hour at the labor rate. When it would be, the balance on
   // the minimum service charge line is raised until it is not.
-  const oneHour = HANDYMAN_HOURLY_RATE * HANDYMAN_MINIMUM_HOURS;
+  const oneHour = 135;
   const hourlyVisit = flow.service === "handyman" && recipe.lines.length > 0 && oneHour > 0;
-  if (hourlyVisit) {
-    const { multiplier } = priceMultiplier(flow.service, ctx.now ?? new Date(), ctx.finance);
-    // Coordination fees cannot replace the existing minimum field-service
-    // labor charge. Apply that floor before adding the project fees.
-    const visitLow = () => divisionRanges(base.filter(l=>!l.basis.startsWith("project-service")), width, (line) =>
-      line.division==="90"?splitByDivision(codeOf.get(line.taskId)??"",line.price,tier,flow.service):null).low;
-    for (let attempt = 0; attempt < 5 && visitLow() < oneHour && pricing.totals.baseCost !== null; attempt++) {
-      // Each division's low end is rounded down to $10, so allow that much again.
-      const shortfall = (oneHour - visitLow()) / (1 - width) + 10;
-      doc = compileDoc(resolved, recipe, flow.service, summary, pricing.totals.baseCost + shortfall / multiplier,ctx.projectServiceDefaults);
-      pricing = priceScope(doc, pricingContext);
-      base = pricing.lines.filter((l) => !l.optional);
-      codeOf = new Map(doc.tasks.map((t) => [t.id, String(t.costCode ?? "")]));
-      narrative = narrativeFor();
-      ranged = rangeOf();
-    }
+  if(pricing.netPricing && ranged.low<pricing.netPricing.price && ranged.divisions.length) {
+    const low=pricing.netPricing.price;
+    const portions=allocatePrice(low,ranged.divisions.map(d=>d.low || d.high),1);
+    ranged.divisions.forEach((d,i)=>{d.low=portions[i];d.high=Math.max(d.high,d.low);});
+    ranged.low=low;
+    ranged.high=ranged.divisions.reduce((s,d)=>s+d.high,0);
+    if(ranged.high===low){ranged.divisions[0].high+=1;ranged.high+=1;}
   }
   const range = { low: ranged.low, high: ranged.high };
   const guide = buildGuide(narrative, ranged.divisions, range, risks, ranged.shares);
@@ -375,7 +341,7 @@ export function priceEstimate(input: PriceInput, ctx: PriceContext = {}): Priced
   const recipeLineCount = recipe.lines.filter((l) => !projectServiceCode(l.code) && !isSuperintendentCode(l.code)).length;
   const review = qualify(pricing, flow.estimateClass, crossCheck, recipeLineCount);
   if (hourlyVisit && range.low < oneHour) {
-    review.push({ code: "hourly-minimum", message: `The range starts under the one-hour minimum of $${oneHour.toLocaleString("en-US")}.` });
+    review.push({ code: "hourly-minimum", message: `The range starts under the visit minimum of $${oneHour.toLocaleString("en-US")}.` });
   }
   // The words are checked against the priced scope before anyone sees them.
   const pricedCodes = base.map((l) => codeOf.get(l.taskId) ?? "").filter(Boolean);
