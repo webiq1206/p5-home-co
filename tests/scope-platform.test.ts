@@ -121,15 +121,15 @@ test("bundled installed items never also get internal labor", () => {
   assert.match(r.lines[0].notes.join(" "), /not added/);
 });
 
-test("labor-only cost book line is replaced by internal labor at $120/hour", () => {
+test("labor-only cost book line is replaced by internal labor at $125/hour", () => {
   const d = doc([
     task({ costCode: "06-20-26", performer: "internal", quantity: { value: 40, unit: "LF" }, laborHours: { value: 4, basis: "stated" } }),
   ]);
   const r = priceScope(d, ctx());
   assert.equal(r.lines.length, 1);
   assert.equal(r.lines[0].basis, "internal-labor");
-  assert.equal(r.lines[0].price, 480);
-  assert.equal(r.lines[0].unitPrice, 120);
+  assert.equal(r.lines[0].price, 500);
+  assert.equal(r.lines[0].unitPrice, 125);
   assert.equal(r.totals.laborHours, 4);
   assert.equal(r.totals.margin, null, "billed rate with no loaded cost leaves margin unknown");
 });
@@ -145,20 +145,22 @@ test("material only plus internal crew adds material and labor once each", () =>
   assert.ok(qs.some((q) => q.key === "hours:t1" && q.suggested === 8), "proposed hours go to review with the proposal pre-filled");
 });
 
-test("P5 labor is never marked up: $120/hour is the customer's price on every service but Handyman Co", () => {
+test("P5 labor is never marked up: $125/hour is the customer's price on every service but Handyman Co", () => {
   const d = doc([task({ costCode: null, performer: "internal", laborHours: { value: 2, basis: "confirmed" } })]);
   for (const service of ["kitchen", "remodel", "new-construction", "cabinet-install"]) {
     const r = priceScope(d, ctx({ service }));
-    assert.equal(r.lines[0].unitPrice, 120, service);
-    assert.equal(r.lines[0].price, 240, service);
+    assert.equal(r.lines[0].unitPrice, 125, service);
+    assert.equal(r.lines[0].price, 250, service);
     assert.equal(r.issues.length, 0, "nothing to confirm about the rate");
   }
   // Knowing P5's own cost changes the margin shown internally, never the price.
   const withCost = priceScope(d, ctx({ settings: { ...SETTINGS, laborLoadedCost: 80 } }));
-  assert.equal(withCost.lines[0].price, 240);
+  assert.equal(withCost.lines[0].price, 250);
   // Handyman Co bills $95/hour (owner, 24 November 2026).
   assert.equal(priceScope(d, ctx({ service: "handyman" })).lines[0].unitPrice, 95);
   assert.equal(withCost.lines[0].cost, 160);
+  const saved = priceScope(d, ctx({ settings: { ...SETTINGS, laborRate:120 } }));
+  assert.equal(saved.lines[0].price, 240, "a saved historical hourly rate stays in force");
   assert.equal(readiness(d, withCost, []).status, "ready");
 });
 
@@ -398,7 +400,7 @@ test("P5 crew labor-only work asks for hours, never a quantity", () => {
   const r = priceScope(answered, ctx());
   assert.equal(r.lines.length, 1);
   assert.equal(r.lines[0].basis, "internal-labor");
-  assert.equal(r.lines[0].price, 1200);
+  assert.equal(r.lines[0].price, 1250);
 });
 
 // ---- Review pass: regressions for issues found on re-reading the logic ----
@@ -496,10 +498,10 @@ test("editor input is sanitized and cannot overwrite quotes, evidence or edit hi
   assert.deepEqual(markEdited(before, same).edited, ["title"]);
 });
 
-test("the default handyman trip charge is $45, shown and credited", () => {
+test("the default handyman trip charge is $50, shown and credited", () => {
   const work = task({ costCode: null, performer: "internal", laborHours: { value: 1, basis: "confirmed" } });
   const r = priceScope(doc([work]), ctx({ service: "handyman" }));
-  assert.deepEqual(r.lines.map((l) => l.price), [95, 45, -45]);
+  assert.deepEqual(r.lines.map((l) => l.price), [95, 50, -50]);
   assert.equal(r.totals.basePrice, 95);
 });
 
