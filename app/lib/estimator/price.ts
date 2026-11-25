@@ -45,7 +45,7 @@ import {
 } from "./types.ts";
 
 /** Bumped whenever a recipe or a qualification rule changes, and stored with every estimate. */
-export const ESTIMATOR_RULES_VERSION = "2026-11-24.project-services-v2";
+export const ESTIMATOR_RULES_VERSION = "2026-11-25.handyman-toilet-removal";
 
 /**
  * Gross margin floor. Owner business plan (lib/p5/pricing.ts): 20% overhead

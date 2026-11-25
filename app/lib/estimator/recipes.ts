@@ -626,6 +626,9 @@ const handyman: Builder = ({ answers: a }) => {
     const count = counts[o.id] ?? 0;
     const code = HANDYMAN_CODES[o.id];
     if (count > 0 && code) l.add(code, count, o.label);
+    // Replacing a toilet means the old one comes out and leaves the house; the
+    // set line is labor to set the new one only.
+    if (count > 0 && o.id === "toilet-replace") l.add("02-41-21", count, "Remove and haul away the old toilet");
   }
   return {
     lines: l.lines,
