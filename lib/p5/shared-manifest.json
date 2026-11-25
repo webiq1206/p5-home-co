@@ -353,7 +353,7 @@
     "scripts/test-p5-unit-rate-store.mts": "f9d95d84ec8a785ba1ceb1ede37c1f15311c3fd1c2f460f7c1c0182b6e0b0003",
     "scripts/test-p5-upload-adversarial.mts": "11ffdf2bfd3d606454e6fb3a9c5d337d063435dc7cc4ab44153c4a3d25e9662f",
     "scripts/test-p5-upload.mts": "04c7baca5d2d07bb37e1374d59115f9a1161380e3e585136e868d9e0633d76de",
-    "scripts/test-p5-workflow.mts": "6f307ffa98ec3b40b384b4fcbf40b2ff2232e3597c6abfdf4e3e965b45d3fc93",
+    "scripts/test-p5-workflow.mts": "ab9fa45f4d5125a045fda8f29e02785488e566114c3346e52153951114958c69",
     "tests/fixtures/crmReceiverValidation571c6f6d.ts": "75bb102dcb5d85d929a85014e7574ac22669f34944ac0ff9a200b347bd23bef7",
     "tests/fixtures/p5-final-minor-work-copy.json": "28bfcb8d9252e7f010aa2b8d96f686fbe326720746f681493889774be6a9356e",
     "tests/fixtures/p5-main11-saved-failure.json": "e363fd7a08d1b0ceb4e4d4b9ccc16df22882911c4bdba80d8a3f8eb547152ec7",

@@ -168,7 +168,8 @@ try{
  const complexId=randomUUID(),complexKey=randomBytes(32).toString('hex');
  await store.saveDraft(complexId,complexKey,'test',{...payload,answers:{service:brand.services[0],complexity:'complex'}},0);
  const complexReview=await manual.saveManualReview({id:complexId,expectedRevision:1,input:{...pricing,service:brand.services[0],complexity:'standard'},notes:'TEST ONLY: explicitly complex scope must retain the higher default target.'},{id:'fixture-admin',email:'admin@example.invalid'});
- assert.equal(complexReview.estimate.targetOperatingProfit,.20);
+ const expectedComplexNet = brand.services[0].startsWith('cabinet-') ? .30 : .20;
+ assert.equal(complexReview.estimate.targetOperatingProfit,expectedComplexNet);
  const complexFromScope=costBook.priceReviewedScope({...unresolvedScope,answers:{service:'kitchen',complexity:'complex'}},{finance,costBooks:[{...conditionalBook,rules:conditionalBook.rules.slice(0,1)}]});
  assert.equal(complexFromScope.internal.targetOperatingProfit,.20);
  const manualInput={...pricing,service:brand.services[0],revision:'server-assigned',targetMargin:.01};
