@@ -1,11 +1,14 @@
 /** Internal estimate economics for new work. Money inputs are dollars, rates are fractions of revenue. */
-export const NET_POLICY_VERSION = "P5-NET15-2026-11-24";
+export const LEGACY_NET_POLICY_VERSION = "P5-NET15-2026-11-24";
+export const NET_POLICY_VERSION = "P5-STANDING-2026-11-25";
+export const isNetPricingVersion = (version?: string) =>
+  version === NET_POLICY_VERSION || version === LEGACY_NET_POLICY_VERSION;
 export const MINIMUM_NET_MARGIN = 0.15;
 
 export const JOB_POLICIES = {
-  "builder-cabinets": [0.25, 0.22, 0.18],
-  "retail-cabinets": [0.30, 0.27, 0.18],
-  "installed-cabinets": [0.32, 0.30, 0.18],
+  "builder-cabinets": [0.25, 0.22, 0.25],
+  "retail-cabinets": [0.30, 0.27, 0.30],
+  "installed-cabinets": [0.32, 0.30, 0.30],
   "same-layout-kitchen": [0.30, 0.28, 0.18],
   "standard-remodel": [0.32, 0.30, 0.18],
   "complex-remodel": [0.35, 0.35, 0.20],
@@ -55,19 +58,27 @@ export function validateReviewedTerms(value: ReviewedJobTerms): ReviewedJobTerms
 export type QuoteEconomics = {
   jobClass: JobClass; direct: number; otherCostDollars: number; otherCostRate: number;
   fixedSell?: number; protectedPrice?: number; competitive?: ReviewedJobTerms["competitive"];
+  policyVersion?: string;
   minimumNetTarget?: number; minimumGrossTarget?: number;
 };
 
 export function netQuotePrice(input: QuoteEconomics) {
-  const {jobClass,direct,otherCostDollars,otherCostRate,fixedSell=0,protectedPrice=0} = input;
+  const {direct,otherCostDollars,otherCostRate,fixedSell=0,protectedPrice=0} = input;
   const amounts = [direct,otherCostDollars,otherCostRate,fixedSell,protectedPrice];
-  if (!Object.hasOwn(JOB_POLICIES, jobClass) || amounts.some(x=>!Number.isFinite(x)||x<0))
+  if (!Object.hasOwn(JOB_POLICIES, input.jobClass) || amounts.some(x=>!Number.isFinite(x)||x<0))
     throw new Error("A valid project class and nonnegative job costs are required.");
-  const rule=JOB_POLICIES[jobClass];
+  const version = input.policyVersion ?? NET_POLICY_VERSION;
+  const legacy = version === LEGACY_NET_POLICY_VERSION;
   const approval=input.competitive;
-  const lowerTier=jobClass!=="protected" && approval?.costsVerified===true && approval.scopeDefined===true &&
+  const verified = approval?.costsVerified===true && approval.scopeDefined===true &&
     approval.capacityOrRepeat===true && approval.ownerReturnConfirmed===true && approval.cashCovered===true && Boolean(approval.reason?.trim());
-  const netTarget=Math.max(lowerTier?MINIMUM_NET_MARGIN:rule[2],input.minimumNetTarget??0);
+  // Builder stock pricing is only available after staff document the order terms.
+  const jobClass = !legacy && input.jobClass === "builder-cabinets" && !verified
+    ? "retail-cabinets" : input.jobClass;
+  const rule=JOB_POLICIES[jobClass];
+  const lowerTier=legacy && jobClass!=="protected" && verified;
+  const normalNet = legacy && jobClass.endsWith("-cabinets") ? 0.18 : rule[2];
+  const netTarget=Math.max(lowerTier?MINIMUM_NET_MARGIN:normalNet,input.minimumNetTarget??0);
   const grossTarget=Math.max(lowerTier?rule[1]:rule[0],input.minimumGrossTarget??0);
   if (!Number.isFinite(netTarget)||!Number.isFinite(grossTarget)||otherCostRate+netTarget>=1||grossTarget>=1)
     throw new Error("The selected margins and company cost rate leave no room to cover direct costs.");
@@ -75,7 +86,7 @@ export function netQuotePrice(input: QuoteEconomics) {
   const grossFloor=direct/(1-grossTarget);
   const price=Math.ceil(Math.max(netFloor,grossFloor,fixedSell,protectedPrice)-1e-8);
   const netProfit=price*(1-otherCostRate)-direct-otherCostDollars;
-  return {version:NET_POLICY_VERSION,jobClass,lowerTier,netTarget,grossTarget,direct,otherCostDollars,otherCostRate,
+  return {version,jobClass,lowerTier,netTarget,grossTarget,direct,otherCostDollars,otherCostRate,
     price,netProfit,netMargin:price>0?netProfit/price:0};
 }
 /** Fractions of sales for costs outside budgeted overhead. A confirmed zero is valid. */
@@ -112,7 +123,7 @@ export function allocatePrice(total: number, weights: readonly number[], scale=1
 }
 
 export function quoteForScope(service:string,scope:string,risks:readonly string[],direct:number,rate:number,
-  fixedSell:number,oldPrice:number,terms?:ReviewedJobTerms,requestedNet?:number) {
+  fixedSell:number,oldPrice:number,terms?:ReviewedJobTerms,requestedNet?:number,policyVersion=NET_POLICY_VERSION) {
   const reviewed=terms?validateReviewedTerms(terms):undefined;
   let jobClass=reviewed?.jobClass??defaultJobClass(service,scope,risks);
   // A review can confirm a simple tie-in or verified conversion, but can never
@@ -127,7 +138,7 @@ export function quoteForScope(service:string,scope:string,risks:readonly string[
   if (["new-construction","construction","rush","change-order"].includes(service) ||
       (["addition","adu"].includes(service) && (/second[- ]stor|detached|underpinn|uncertain foundation|unknown utilit|major structural|complex tie[- ]in/i.test(scope) || risks.some(r=>["unknown-utilities","soil-slope","incomplete-plans"].includes(r))))) jobClass="protected";
   if (service==="kitchen" && /structural|moving walls|load[- ]bearing|relocat(?:e|ing) (?:the )?(?:plumbing|utilities)/i.test(scope)) jobClass="complex-remodel";
-  return netQuotePrice({jobClass,direct,otherCostDollars:reviewed?.otherCostDollars??0,
+  return netQuotePrice({policyVersion,jobClass,direct,otherCostDollars:reviewed?.otherCostDollars??0,
     otherCostRate:reviewed?.otherCostRate??rate,fixedSell,
     protectedPrice:Math.max(reviewed?.approvedSameScopePrice??0,jobClass==="protected"?oldPrice:0),
     competitive:reviewed?.competitive,minimumNetTarget:Math.max(requestedNet??0,service==="rush"?.25:0)});

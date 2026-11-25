@@ -4,7 +4,7 @@ import {createHash,randomUUID} from "node:crypto";
 import {query} from "./database.ts";
 import {DraftError,ensureSchema} from "./store.ts";
 import {EMPTY_CONFIGURATION} from "./costBook.ts";
-import {NET_POLICY_VERSION} from "./netPricingPolicy.ts";
+import {NET_POLICY_VERSION,LEGACY_NET_POLICY_VERSION,isNetPricingVersion} from "./netPricingPolicy.ts";
 import {calculateP5Estimate,customerEstimate,POLICY_VERSION,type PricingInput,type OwnerApproval} from "./pricing.ts";
 import {adminRecipients} from "./deliveryAdapter.ts";
 import {ESTIMATOR_BRAND as brand} from "./brand.ts";
@@ -35,7 +35,10 @@ export async function saveManualReview(body:any,actor:Actor){
   const [policy]=await query("SELECT payload FROM p5_estimator_policy WHERE id='current'");
   const finance=policy?.payload?.finance||EMPTY_CONFIGURATION.finance;
   const historicalSubmission = draft.status === "submitted" && draft.payload.projectServices && !draft.payload.projectServices.hourlyRate;
-  const input = {...body.input, pricingVersion: historicalSubmission ? undefined : NET_POLICY_VERSION} as PricingInput;
+  const savedVersion = draft.internal_estimate?.policyVersion;
+  const submittedVersion = isNetPricingVersion(savedVersion) ? savedVersion
+    : draft.payload.projectServices?.hourlyRate === 125 ? LEGACY_NET_POLICY_VERSION : undefined;
+  const input = {...body.input, pricingVersion: draft.status === "submitted" ? (historicalSubmission ? undefined : submittedVersion) : NET_POLICY_VERSION} as PricingInput;
   // A legacy/signed draft cannot acquire new charges through an admin refresh.
   input.projectServices=draft.payload.projectServices?{...draft.payload.projectServices,...(input.projectServices?{hours:input.projectServices.hours}:{})}:undefined;
   if(draft.payload.answers?.complexity==="complex")input.complexity="complex";
