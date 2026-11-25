@@ -34,7 +34,8 @@ export async function saveManualReview(body:any,actor:Actor){
   if(!(brand.services as readonly string[]).includes(body.input?.service))throw new DraftError("Choose a service offered by this company.");
   const [policy]=await query("SELECT payload FROM p5_estimator_policy WHERE id='current'");
   const finance=policy?.payload?.finance||EMPTY_CONFIGURATION.finance;
-  const input={...body.input,pricingVersion:draft.payload.projectServices && !draft.payload.projectServices.hourlyRate ? undefined : NET_POLICY_VERSION} as PricingInput;
+  const historicalSubmission = draft.status === "submitted" && draft.payload.projectServices && !draft.payload.projectServices.hourlyRate;
+  const input = {...body.input, pricingVersion: historicalSubmission ? undefined : NET_POLICY_VERSION} as PricingInput;
   // A legacy/signed draft cannot acquire new charges through an admin refresh.
   input.projectServices=draft.payload.projectServices?{...draft.payload.projectServices,...(input.projectServices?{hours:input.projectServices.hours}:{})}:undefined;
   if(draft.payload.answers?.complexity==="complex")input.complexity="complex";
