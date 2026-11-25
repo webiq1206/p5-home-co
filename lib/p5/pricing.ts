@@ -1,4 +1,4 @@
-import {NET_POLICY_VERSION,allocatePrice,creditVisitMinimum,quoteForScope,checkFixedQuote,residualRate,fixedBookCharge,type NetFinance,type ReviewedJobTerms} from './netPricingPolicy.ts';
+import {LEGACY_NET_POLICY_VERSION,NET_POLICY_VERSION,isNetPricingVersion,JOB_POLICIES,defaultJobClass,allocatePrice,creditVisitMinimum,quoteForScope,checkFixedQuote,residualRate,fixedBookCharge,type NetFinance,type ReviewedJobTerms} from './netPricingPolicy.ts';
 import {publicPricingText} from './customerProjection.ts';
 import {projectServiceLines,projectServiceCode,projectOverheadCredit,billsInternalLaborInFull,PROJECT_OVERHEAD_CREDIT_ID,duplicateOwnerServiceCost,documentProjectServiceBasis} from './projectServices.ts';
 import {tradeForLine,apportionAmount,type TradeCategory} from "./trades.ts";
@@ -226,7 +226,8 @@ export function calculateP5Estimate(input: PricingInput, finance: FinancePolicy,
   const contingencyRate = .10;
   const ids = new Set<string>();
   const directByCategory = Object.fromEntries(COST_CATEGORIES.map(c => [c, 0])) as Record<CostCategory, number>;
-  const useNetPolicy = input.pricingVersion===NET_POLICY_VERSION || input.projectServices?.hourlyRate===125;
+  const netVersion = input.pricingVersion ?? (input.projectServices?.hourlyRate===125 ? LEGACY_NET_POLICY_VERSION : undefined);
+  const useNetPolicy = isNetPricingVersion(netVersion);
   function fixedChargeFor(line: DirectCostLine) {
     const code = line.bookCode ?? line.evidence?.reference.match(/\bPB-(\d\d-\d\d-\d\d)\b/)?.[1] ?? line.id;
     return useNetPolicy ? fixedBookCharge(code) : undefined;
@@ -316,9 +317,13 @@ export function calculateP5Estimate(input: PricingInput, finance: FinancePolicy,
   if(useNetPolicy && !input.reviewedJobTerms && !residual.confirmed)
     warn("net-cost-review","Confirm residual company overhead, both owners' compensation, interest and company taxes before issuing a firm price.",
       input.estimatePurpose==="preliminary" && !input.firmPrice ? "review":"block");
-  const requestedNet = input.complexity === "complex" ? Math.max(input.targetMargin ?? 0, 0.20) : input.targetMargin;
+  const serviceNet = service === "rush" && netVersion === NET_POLICY_VERSION
+    ? JOB_POLICIES[defaultJobClass(input.service, input.scopeSummary, [...riskSet])][2] : 0;
+  const requestedNet = Math.max(input.targetMargin ?? 0, input.complexity === "complex" ? 0.20 : 0, serviceNet);
+  const reviewedTerms = netVersion === NET_POLICY_VERSION && service === "rush" && input.service !== "rush" && input.reviewedJobTerms
+    ? { ...input.reviewedJobTerms, jobClass: "protected" as const } : input.reviewedJobTerms;
   let economics=useNetPolicy?quoteForScope(service,input.scopeSummary,[...riskSet],riskAdjustedDirectCost,
-    residual.rate,Math.max(fixedSell+projectServiceRecovery,input.service==="handyman"?135:0),baselinePrice,input.reviewedJobTerms,requestedNet):undefined;
+    residual.rate,Math.max(fixedSell+projectServiceRecovery,input.service==="handyman"?135:0),baselinePrice,reviewedTerms,requestedNet,netVersion):undefined;
   if (economics?.jobClass === "protected" && !input.reviewedJobTerms?.approvedSameScopePrice) {
     const preliminary = input.estimatePurpose === "preliminary" && !input.firmPrice;
     warn("protected-price-review", "Record the owner-approved price for this scope before issuing a firm proposal.", preliminary ? "review" : "block");
@@ -391,7 +396,7 @@ export function calculateP5Estimate(input: PricingInput, finance: FinancePolicy,
   const sourceHigh=directCost+sum(upsides);
   const highCost = sourceHigh + sum(lines.map((line,index)=>fixedAmounts[index]===undefined?(line.cost+upsides[index])*contingencyRate:0));
   const legacyHigh = priceFromRiskAdjustedCost(highCost,allocations.total,margin);
-  const modeledHigh = economics ? quoteForScope(service,input.scopeSummary,[...riskSet],highCost,residual.rate,projectServiceRecovery+fixedSell,legacyHigh,input.reviewedJobTerms,requestedNet).price : legacyHigh;
+  const modeledHigh = economics ? quoteForScope(service,input.scopeSummary,[...riskSet],highCost,residual.rate,projectServiceRecovery+fixedSell,legacyHigh,reviewedTerms,requestedNet,netVersion).price : legacyHigh;
   planningRange.high=Math.max(planningRange.high,Math.ceil(modeledHigh/step)*step);
   // A firm price is the modeled, margin-correct contract price, rounded up to the step: the number the
   // range was built around, never its low end. Quantities a document leaves open are priced at the
@@ -408,7 +413,7 @@ export function calculateP5Estimate(input: PricingInput, finance: FinancePolicy,
   } else warn("benchmark-missing", "Add a current, scope-comparable project benchmark for administrator review.");
   for (const a of input.manualAdjustments ?? []) if (!ids.has(a.costLineId) || !a.reason.trim()) throw new Error("Every manual adjustment needs a valid cost line and written reason");
   return {
-    ...(economics?{netPricing:economics}:{}),policyVersion: economics?NET_POLICY_VERSION:POLICY_VERSION, revision: input.revision, evaluatedAt: now.toISOString(),
+    ...(economics?{netPricing:economics}:{}),policyVersion: economics?.version??POLICY_VERSION, revision: input.revision, evaluatedAt: now.toISOString(),
     estimatePurpose: input.estimatePurpose||'verified-cost-review',
     currentCostsConfirmed: !lines.some(line=>['owner-estimating-schedule','sourced-market-average','regional-planning-average','owner-budget-allowance'].includes(line.evidence.basis)),
     service, requestedService: input.service, matrix, lines:pricedLines, coverage: input.coverage,

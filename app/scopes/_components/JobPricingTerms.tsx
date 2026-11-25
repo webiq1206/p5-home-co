@@ -37,7 +37,7 @@ export default function JobPricingTerms({ws,onSave}:{ws:Workspace;onSave:(value:
     } catch (e) {setError(e instanceof Error?e.message:"Pricing could not be saved.");}
     finally {setSaving(false);}
   }
-  return <details className="sc-card"><summary>Review job pricing and competitive eligibility</summary>
+  return <details className="sc-card"><summary>Review job pricing and order eligibility</summary>
     <form onSubmit={submit}><fieldset disabled={saving}>
       <label>Job class <select name="jobClass" defaultValue={current}>{Object.keys(JOB_POLICIES).map(id=><option key={id} value={id}>{LABELS[id as JobClass]}</option>)}</select></label>
       <p>Include both owners’ compensation, overhead, company interest and taxes once. Enter expenses already included in direct costs as zero here.</p>
@@ -45,9 +45,9 @@ export default function JobPricingTerms({ws,onSave}:{ws:Workspace;onSave:(value:
       <label>Additional expenses as a percent of sales <input required type="number" min="0" max="84.99" step="0.01" name="rate" defaultValue={((saved?.otherCostRate??ws.pricing.policy.overheadRate)*100).toFixed(2)}/></label>
       <label>Cost source and calculation <input name="source" required defaultValue={saved?.costSource}/></label>
       <label>Previously approved price for this scope <input type="number" name="protectedPrice" min="0.01" step="0.01" defaultValue={saved?.approvedSameScopePrice}/></label>
-      <p>Competitive pricing requires all five checks and a written reason.</p>
+      <p>For a repeat builder stock order, confirm all five items and document the repeat order, approved layout, landed supplier cost and payment covering the order. Other work uses its job class rate.</p>
       {CHECKS.map(([key,label])=><label key={key}><input type="checkbox" name={key} defaultChecked={saved?.competitive?.[key]}/>{label}</label>)}
-      <label>Reason for competitive pricing <input name="reason" defaultValue={saved?.competitive?.reason}/></label>
+      <label>Order eligibility and supporting evidence <input name="reason" defaultValue={saved?.competitive?.reason}/></label>
       {error&&<p role="alert">{error}</p>}<button type="submit">{saving?"Saving":"Save pricing review"}</button>
     </fieldset></form></details>;
 }

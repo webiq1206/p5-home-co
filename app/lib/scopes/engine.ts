@@ -10,7 +10,7 @@
  */
 
 import { query, queryOne } from "../db.ts";
-import {NET_POLICY_VERSION,validateReviewedTerms,type ReviewedJobTerms} from "../../../lib/p5/netPricingPolicy.ts";
+import {NET_POLICY_VERSION,isNetPricingVersion,validateReviewedTerms,type ReviewedJobTerms} from "../../../lib/p5/netPricingPolicy.ts";
 import {newProjectServices,validateProjectServices,projectServiceHoursEditable,type ProjectServicePlan} from "../../../lib/p5/projectServices.ts";
 import {loadProjectServiceDefaults} from "../../../lib/p5/projectServicePolicy.ts";
 import type { FinancePolicy } from "../../../lib/p5/pricing.ts";
@@ -373,7 +373,7 @@ export async function editScope(projectId: number, ops: EditOp[], userId: number
   for (const o of ops) {
     switch (o.op) {
       case "pricing-terms": {
-        if(doc.pricingVersion!==NET_POLICY_VERSION) throw new Error("Pricing terms apply to new-policy estimates only.");
+        if(!isNetPricingVersion(doc.pricingVersion)) throw new Error("Pricing terms apply to new-policy estimates only.");
         if(await latestEstimate(projectId)) throw new Error("Prepare revised terms on an unissued estimate.");
         doc={...doc,reviewedJobTerms:validateReviewedTerms(o.terms)};
         break;

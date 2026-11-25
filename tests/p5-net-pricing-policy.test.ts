@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {NET_POLICY_VERSION,allocatePrice,netQuotePrice,quoteForScope,residualRate,type ReviewedJobTerms} from "../lib/p5/netPricingPolicy.ts";
+import {NET_POLICY_VERSION,LEGACY_NET_POLICY_VERSION,allocatePrice,netQuotePrice,quoteForScope,residualRate,type ReviewedJobTerms} from "../lib/p5/netPricingPolicy.ts";
 import {newProjectServices,projectServiceLines,resolveProjectServiceLine} from "../lib/p5/projectServices.ts";
 import {priceEstimate,customerEstimate,priceWithheld} from "../app/lib/estimator/price.ts";
 import {BRAND_CONFIGS} from "../app/lib/estimator/brands.ts";
@@ -9,17 +9,17 @@ import {calculateP5Estimate,DEFAULT_FINANCE,COST_CATEGORIES,type PricingInput} f
 const competitive = {costsVerified:true,scopeDefined:true,capacityOrRepeat:true,ownerReturnConfirmed:true,cashCovered:true,reason:"Repeat work, confirmed hours and funded materials."};
 const finance = {...DEFAULT_FINANCE,interestRate:.01, companyTaxRate:.005,netCostSource:"Illustrative confirmed company budget, owner payroll included."};
 test("approved examples match the Drive worksheet after gross and net checks",()=>{
-  const cabinet=netQuotePrice({jobClass:"builder-cabinets",direct:7000,otherCostDollars:1400,otherCostRate:0,competitive,minimumGrossTarget:.25});
-  const kitchen=netQuotePrice({jobClass:"same-layout-kitchen",direct:32000,otherCostDollars:4000,otherCostRate:0,competitive});
-  const addition=netQuotePrice({jobClass:"simple-addition",direct:140000,otherCostDollars:30000,otherCostRate:0,competitive});
+  const cabinet=netQuotePrice({policyVersion:LEGACY_NET_POLICY_VERSION,jobClass:"builder-cabinets",direct:7000,otherCostDollars:1400,otherCostRate:0,competitive,minimumGrossTarget:.25});
+  const kitchen=netQuotePrice({policyVersion:LEGACY_NET_POLICY_VERSION,jobClass:"same-layout-kitchen",direct:32000,otherCostDollars:4000,otherCostRate:0,competitive});
+  const addition=netQuotePrice({policyVersion:LEGACY_NET_POLICY_VERSION,jobClass:"simple-addition",direct:140000,otherCostDollars:30000,otherCostRate:0,competitive});
   assert.deepEqual([cabinet.price,kitchen.price,addition.price],[9883,44445,200000]);
   for(const q of [cabinet,kitchen,addition]) assert.ok(q.netMargin>=.15);
 });
 test("verified terms, owner return, unallocated sales expenses and protected quotes",()=>{
   const terms:ReviewedJobTerms={jobClass:"simple-addition",otherCostDollars:30000,otherCostRate:.015,costSource:"Site verified",competitive};
-  const floor=quoteForScope("addition","One story",[],140000,.20,0,150000,terms);
+  const floor=quoteForScope("addition","One story",[],140000,.20,0,150000,terms,undefined,LEGACY_NET_POLICY_VERSION);
   assert.ok(floor.lowerTier&&floor.netMargin>=.15);
-  const normal=quoteForScope("addition","One story",[],140000,.20,0,150000,{...terms,competitive:{...competitive,cashCovered:false}});
+  const normal=quoteForScope("addition","One story",[],140000,.20,0,150000,{...terms,competitive:{...competitive,cashCovered:false}},undefined,LEGACY_NET_POLICY_VERSION);
   assert.ok(normal.price>floor.price && !normal.lowerTier);
   for(const risk of ["Second story","Underpinning","Unknown utilities","Major structural tie-in"]){
     const q=quoteForScope("addition",risk,[],140000,.20,0,235000,terms);
@@ -28,6 +28,14 @@ test("verified terms, owner return, unallocated sales expenses and protected quo
   assert.equal(residualRate(finance,.20).rate,.21500000000000002);
   assert.equal(residualRate(DEFAULT_FINANCE,.20).confirmed,false);
   assert.deepEqual(allocatePrice(10,[1,1,1]),[3.33,3.34,3.33]);
+});
+test("standing prices apply to new quotes, including verified builder orders",()=>{
+  const base={direct:7000,otherCostDollars:1400,otherCostRate:0};
+  assert.equal(netQuotePrice({...base,jobClass:"builder-cabinets",competitive}).price,11200);
+  assert.equal(netQuotePrice({...base,jobClass:"builder-cabinets"}).price,12000);
+  assert.equal(netQuotePrice({...base,jobClass:"installed-cabinets",competitive}).price,12000);
+  assert.equal(netQuotePrice({...base,jobClass:"simple-addition",competitive}).netTarget,.18);
+  assert.equal(netQuotePrice({...base,jobClass:"complex-remodel",competitive}).grossTarget,.35);
 });
 test("every guided brand and project returns a protected range or withholds pricing",()=>{
   for(const brand of Object.values(BRAND_CONFIGS)) for(const project of brand.projects){

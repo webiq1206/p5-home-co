@@ -20,7 +20,7 @@ import {
   companyAllocation,
   type FinancePolicy,
 } from "../../../lib/p5/pricing.ts";
-import {NET_POLICY_VERSION, quoteForScope, checkFixedQuote, allocatePrice, creditVisitMinimum, fixedBookCharge, residualRate, type NetQuote} from "../../../lib/p5/netPricingPolicy.ts";
+import {isNetPricingVersion, quoteForScope, checkFixedQuote, allocatePrice, creditVisitMinimum, fixedBookCharge, residualRate, type NetQuote} from "../../../lib/p5/netPricingPolicy.ts";
 import type { FinishTier } from "../../../lib/p5/priceBook.ts";
 import { projectServiceLines, projectServiceCode, isSuperintendentCode,projectOverheadCredit,billsInternalLaborInFull,PROJECT_OVERHEAD_CREDIT_ID,projectServiceCostBasis,type ProjectServiceBasis } from "../../../lib/p5/projectServices.ts";
 import {
@@ -139,7 +139,7 @@ export function priceScope(doc: ScopeDoc, ctx: PricingContext): PricingResult {
   const now = ctx.now ?? new Date();
   const { multiplier, overhead, profit } = priceMultiplier(ctx.service, now, ctx.finance);
   const settings = ctx.settings;
-  const newPolicy = doc.pricingVersion === NET_POLICY_VERSION;
+  const newPolicy = isNetPricingVersion(doc.pricingVersion);
   const laborRate = newPolicy ? (ctx.service === "handyman" || doc.handymanAllIn ? 95 : 125) : laborRateFor(ctx.service, settings);
   const fixedLines = new Set<string>();
   const visitMinimumIds = new Set<string>();
@@ -599,7 +599,7 @@ export function priceScope(doc: ScopeDoc, ctx: PricingContext): PricingResult {
     if (!residual.confirmed && !doc.reviewedJobTerms) {
       issue({key:"net-cost-review", kind:"company-cost-review", blocking:true, message:"Confirm owner compensation, residual overhead, interest and company taxes before issuing a firm price."});
     }
-    const ordinary = quoteForScope(ctx.service, scopeText, [], baseCost + reserve, residual.rate, fixedTotal, basePrice, doc.reviewedJobTerms);
+    const ordinary = quoteForScope(ctx.service, scopeText, [], baseCost + reserve, residual.rate, fixedTotal, basePrice, doc.reviewedJobTerms, undefined, doc.pricingVersion);
     if (ordinary.jobClass === "protected" && !doc.reviewedJobTerms?.approvedSameScopePrice) {
       issue({key:"protected-price-review", kind:"company-cost-review", blocking:true, message:"Record the owner-approved price for this scope before issuing a firm proposal."});
     }
@@ -611,7 +611,7 @@ export function priceScope(doc: ScopeDoc, ctx: PricingContext): PricingResult {
         basis:"cost-book",source:"One minimum charge for the visit",optional:false,allowance:false,notes:[]};
       base.push(line);lines.push(line);basePrice=round2(basePrice+visitBalance);
     }
-    economics = visitBalance ? quoteForScope(ctx.service,scopeText,[],baseCost+reserve,residual.rate,minimum,basePrice,doc.reviewedJobTerms) : ordinary;
+    economics = visitBalance ? quoteForScope(ctx.service,scopeText,[],baseCost+reserve,residual.rate,minimum,basePrice,doc.reviewedJobTerms,undefined,doc.pricingVersion) : ordinary;
     if (flexible.some(line => line.price > 0)) {
       const amounts = allocatePrice(economics.price - fixedTotal - visitBalance, flexible.map(line => line.price));
       flexible.forEach((line, index) => {
