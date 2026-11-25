@@ -10,7 +10,7 @@ const LABELS: Record<JobClass,string> = {
 };
 const CHECKS = [
   ["costsVerified","Current supplier and trade costs verified"],["scopeDefined","Scope and selections defined"],
-  ["capacityOrRepeat","Repeat efficiency or open crew capacity confirmed"],["ownerReturnConfirmed","Profit dollars per owner hour accepted"],
+  ["capacityOrRepeat","Repeat stock order with an approved layout and confirmed order efficiency"],["ownerReturnConfirmed","Profit dollars per owner hour accepted"],
   ["cashCovered","Cash available through the next collection"],
 ] as const;
 

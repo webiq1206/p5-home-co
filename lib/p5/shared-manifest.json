@@ -478,7 +478,7 @@
     "tests/p5-permit-context.test.ts": "f796bc57acf85e44e1997ace31876b67a54349a88a520ff9fd4f1a3478e2e0d3",
     "tests/p5-phone-href.test.ts": "c1041f82d8bf1f570ce8e7a1d999282637d199b43933b189d5c637fc19c6be06",
     "tests/p5-plan-reconciliation.test.ts": "89b33449c987b6d350e0de9dbf6ce80d174d0389662f22065581dd677ac8244f",
-    "tests/p5-planning-books.test.ts": "01931bf7018a8d3ec0fcea5e0411e9c5b536591911e3e267cbc7cc04ea83db93",
+    "tests/p5-planning-books.test.ts": "318185d45bb8dfdca306998aac136ef8684de0b7707735f0c465382d0cc62897",
     "tests/p5-presentation.test.ts": "af25b1818e88d30bd14b0fa490fd63774f4a7376d8aa988e858ae06689c44040",
     "tests/p5-price-book-import.test.ts": "85de00525e2955c7417aa5f6af1063cdbfb68ee11ae37cee5ca1ac5235e9f0c4",
     "tests/p5-pricing-basis-consistency.test.ts": "6c96a1ad5a5254ea5e743b3c427cb370de44b27cdf98a5dacbe925bf94df05a7",
