@@ -245,7 +245,7 @@ const codesOf = (input: Pick<NarrativeInput, "tasks">) => input.tasks.map((t) =>
 const hasCode = (input: Pick<NarrativeInput, "tasks">, codes: Set<string>) => codesOf(input).some((c) => codes.has(c));
 
 /** Said under a handyman range. The pricing path holds every visit to at least one hour at the labor rate (price.ts). */
-export const HOURLY_MINIMUM_NOTE = "Handyman labor is $95 per hour, with a $135 minimum per visit.";
+export const HOURLY_MINIMUM_NOTE = "Handyman labor is billed by the hour. The visit minimum is included in the total.";
 
 /**
  * The short notes under the range: what the price assumes about plans and
