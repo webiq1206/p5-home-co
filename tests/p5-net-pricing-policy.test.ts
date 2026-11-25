@@ -21,7 +21,7 @@ test("verified terms, owner return, unallocated sales expenses and protected quo
   assert.ok(floor.lowerTier&&floor.netMargin>=.15);
   const normal=quoteForScope("addition","One story",[],140000,.20,0,150000,{...terms,competitive:{...competitive,cashCovered:false}});
   assert.ok(normal.price>floor.price && !normal.lowerTier);
-  for(const risk of ["Second story","Underpinning","Unknown utilities"]){
+  for(const risk of ["Second story","Underpinning","Unknown utilities","Major structural tie-in"]){
     const q=quoteForScope("addition",risk,[],140000,.20,0,235000,terms);
     assert.equal(q.jobClass,"protected");assert.ok(q.price>=235000 && !q.lowerTier);
   }
@@ -62,4 +62,18 @@ test("fixed rate and pass-through lines retain their amounts and a loss is withh
   const mixed=calculateP5Estimate({...doc,lines:[...doc.lines,{...doc.lines[0],id:"trade",fixedSaleUnitPrice:undefined,unitCost:450}]},finance,[],new Date("2026-11-24"));
   assert.equal(mixed.lines[0].sellingAmount,135);assert.equal(mixed.lines.reduce((n,l)=>n+l.sellingAmount,0),mixed.contractPrice);
   assert.ok(mixed.netPricing!.netMargin>=.15);assert.ok(Math.abs(mixed.reconciliation)<.00001);
+});
+
+test("a protected firm proposal requires an approved same-scope price", () => {
+  const input: PricingInput = {...doc, service:"new-construction", firmPrice:true,
+    lines:doc.lines.map(line=>({...line, fixedSaleUnitPrice:undefined, unitCost:45000})),
+    scopeSummary:"Detached new home"};
+  const date = new Date("2026-11-24");
+  const initial = calculateP5Estimate(input, finance, [], date);
+  assert.equal(initial.publishable, false);
+  assert.ok(initial.warnings.some(w => w.code === "protected-price-review" && w.severity === "block"));
+  const reviewed = calculateP5Estimate({...input, reviewedJobTerms:{jobClass:"protected", otherCostDollars:10000,
+    otherCostRate:0, costSource:"Reviewed job budget", approvedSameScopePrice:100000}}, finance, [], date);
+  assert.ok(reviewed.contractPrice >= 100000);
+  assert.ok(!reviewed.warnings.some(w => w.code === "protected-price-review"));
 });

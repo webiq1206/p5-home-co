@@ -584,6 +584,9 @@ export function priceScope(doc: ScopeDoc, ctx: PricingContext): PricingResult {
       issue({key:"net-cost-review", kind:"company-cost-review", blocking:true, message:"Confirm owner compensation, residual overhead, interest and company taxes before issuing a firm price."});
     }
     const ordinary = quoteForScope(ctx.service, scopeText, [], baseCost + reserve, residual.rate, fixedTotal, basePrice, doc.reviewedJobTerms);
+    if (ordinary.jobClass === "protected" && !doc.reviewedJobTerms?.approvedSameScopePrice) {
+      issue({key:"protected-price-review", kind:"company-cost-review", blocking:true, message:"Record the owner-approved price for this scope before issuing a firm proposal."});
+    }
     const subtotal = flexible.length ? ordinary.price : basePrice;
     const visitBalance = Math.max(0,minimum - subtotal);
     if (visitBalance) {

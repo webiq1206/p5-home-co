@@ -312,6 +312,10 @@ export function calculateP5Estimate(input: PricingInput, finance: FinancePolicy,
   const requestedNet = input.complexity === "complex" ? Math.max(input.targetMargin ?? 0, 0.20) : input.targetMargin;
   let economics=useNetPolicy?quoteForScope(service,input.scopeSummary,[...riskSet],riskAdjustedDirectCost,
     residual.rate,Math.max(fixedSell+projectServiceRecovery,input.service==="handyman"?135:0),baselinePrice,input.reviewedJobTerms,requestedNet):undefined;
+  if (economics?.jobClass === "protected" && !input.reviewedJobTerms?.approvedSameScopePrice) {
+    const preliminary = input.estimatePurpose === "preliminary" && !input.firmPrice;
+    warn("protected-price-review", "Record the owner-approved price for this scope before issuing a firm proposal.", preliminary ? "review" : "block");
+  }
   if(economics && input.targetMargin!==undefined && input.targetMargin<.15) warn("net-floor-enforced","The quote was raised to the required net minimum.");
   const fixedContract=Math.round((fixedSell+projectServiceRecovery-overlapCredit)*100)/100;
   const contractPrice = economics && variableCost===0 ? fixedContract : economics?.price??baselinePrice;
