@@ -9,6 +9,13 @@ import {calculateP5Estimate,customerEstimate,POLICY_VERSION,type PricingInput,ty
 import {adminRecipients} from "./deliveryAdapter.ts";
 import {ESTIMATOR_BRAND as brand} from "./brand.ts";
 
+export function authenticatedBidOwner(email: string): string {
+  const user = email.trim().toLowerCase();
+  if (user && user === process.env.P5_OWNER_NICK_EMAIL?.trim().toLowerCase()) return "Nick";
+  if (user && user === process.env.P5_OWNER_JARED_EMAIL?.trim().toLowerCase()) return "Jared";
+  throw new DraftError("A configured P5 owner must approve this bid concession.",403);
+}
+
 type Actor={id:string;email:string};
 export async function ensureReviewSchema(){
   await ensureSchema();
@@ -39,6 +46,10 @@ export async function saveManualReview(body:any,actor:Actor){
   const submittedVersion = isNetPricingVersion(savedVersion) ? savedVersion
     : draft.payload.projectServices?.hourlyRate === 125 ? LEGACY_NET_POLICY_VERSION : undefined;
   const input = {...body.input, pricingVersion: draft.status === "submitted" ? (historicalSubmission ? undefined : submittedVersion) : NET_POLICY_VERSION} as PricingInput;
+  if (input.reviewedJobTerms?.ownerConcession) {
+    input.reviewedJobTerms = {...input.reviewedJobTerms, ownerConcession:{
+      ...input.reviewedJobTerms.ownerConcession, approvedBy: authenticatedBidOwner(actor.email)}};
+  }
   // A legacy/signed draft cannot acquire new charges through an admin refresh.
   input.projectServices=draft.payload.projectServices?{...draft.payload.projectServices,...(input.projectServices?{hours:input.projectServices.hours}:{})}:undefined;
   if(draft.payload.answers?.complexity==="complex")input.complexity="complex";

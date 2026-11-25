@@ -20,7 +20,7 @@ import {
   companyAllocation,
   type FinancePolicy,
 } from "../../../lib/p5/pricing.ts";
-import {isNetPricingVersion, quoteForScope, checkFixedQuote, allocatePrice, creditVisitMinimum, fixedBookCharge, residualRate, type NetQuote} from "../../../lib/p5/netPricingPolicy.ts";
+import {NET_POLICY_VERSION,isNetPricingVersion, quoteForScope, checkFixedQuote, allocatePrice, creditVisitMinimum, fixedBookCharge, residualRate, type NetQuote} from "../../../lib/p5/netPricingPolicy.ts";
 import type { FinishTier } from "../../../lib/p5/priceBook.ts";
 import { projectServiceLines, projectServiceCode, isSuperintendentCode,projectOverheadCredit,billsInternalLaborInFull,PROJECT_OVERHEAD_CREDIT_ID,projectServiceCostBasis,type ProjectServiceBasis } from "../../../lib/p5/projectServices.ts";
 import {
@@ -593,7 +593,7 @@ export function priceScope(doc: ScopeDoc, ctx: PricingContext): PricingResult {
   if (newPolicy && basePrice > 0 && baseCost !== null) {
     const flexible = base.filter(line => !fixedLine(line));
     const fixedTotal = round2(base.filter(fixedLine).reduce((sum, line) => sum + line.price, 0));
-    const minimum = ctx.service === "handyman" ? 135 : 0;
+    const minimum = ctx.service === "handyman" || (doc.pricingVersion === NET_POLICY_VERSION && ctx.service === "re10") ? 135 : 0;
     const scopeText = [doc.summary, ...doc.siteConditions, ...doc.goals].join(" ");
     const residual = residualRate(ctx.finance ?? DEFAULT_FINANCE, overhead);
     if (!residual.confirmed && !doc.reviewedJobTerms) {

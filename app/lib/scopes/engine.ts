@@ -97,9 +97,13 @@ export async function commitDoc(
   source: string,
   note: string | null,
   userId: number | null,
-  opts: { clearProposal?: boolean } = {},
+  opts: { clearProposal?: boolean; pricingReview?: boolean } = {},
 ): Promise<{ version: VersionRow; computed: Computed }> {
   let doc = reconcileMeasurements(input);
+  if (!opts.pricingReview && doc.reviewedJobTerms?.ownerConcession) {
+    const {ownerConcession: _priorApproval, ...terms} = doc.reviewedJobTerms;
+    doc = {...doc, reviewedJobTerms: terms};
+  }
   if (!project.current_version_id) doc = {...doc, pricingVersion:NET_POLICY_VERSION, projectServices: doc.projectServices ?? newProjectServices(await loadProjectServiceDefaults())};
   doc = { ...doc, tasks: [...doc.tasks, ...supportingSuggestions(doc, project.service)] };
   const computed = await compute(project, doc);
@@ -375,7 +379,7 @@ export async function editScope(projectId: number, ops: EditOp[], userId: number
       case "pricing-terms": {
         if(!isNetPricingVersion(doc.pricingVersion)) throw new Error("Pricing terms apply to new-policy estimates only.");
         if(await latestEstimate(projectId)) throw new Error("Prepare revised terms on an unissued estimate.");
-        doc={...doc,reviewedJobTerms:validateReviewedTerms(o.terms)};
+        doc={...doc,pricingVersion:NET_POLICY_VERSION,reviewedJobTerms:validateReviewedTerms(o.terms)};
         break;
       }
       case "project-services": {
@@ -430,7 +434,7 @@ export async function editScope(projectId: number, ops: EditOp[], userId: number
       }
     }
   }
-  const { version } = await commitDoc(project, doc, ops.some((o) => o.op === "restore-version") ? "restored" : "edited", note, userId);
+  const { version } = await commitDoc(project, doc, ops.some((o) => o.op === "restore-version") ? "restored" : "edited", note, userId, {pricingReview:ops.length === 1 && ops[0].op === "pricing-terms"});
   return version;
 }
 
