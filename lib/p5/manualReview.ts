@@ -11,6 +11,7 @@ import {ESTIMATOR_BRAND as brand} from "./brand.ts";
 
 export function authenticatedBidOwner(email: string): string {
   const user = email.trim().toLowerCase();
+  if (user === "hello@p5homeco.com") return "P5 owners (hello@p5homeco.com)";
   if (user && user === process.env.P5_OWNER_NICK_EMAIL?.trim().toLowerCase()) return "Nick";
   if (user && user === process.env.P5_OWNER_JARED_EMAIL?.trim().toLowerCase()) return "Jared";
   throw new DraftError("A configured P5 owner must approve this bid concession.",403);
