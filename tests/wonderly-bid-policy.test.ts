@@ -56,19 +56,68 @@ test("quote cannot replace the complex-remodel policy with a generic discount", 
   assert.equal(stageWonderlyBid({ ...input, base: { ...base, netTarget: 0.15 } }).kind, "blocked");
   assert.equal(stageWonderlyBid({ ...input, baseCostBasis: { confirmed: true, excludesWonderlyFee: false } }).kind, "blocked");
 });
-test("unfunded or front-loaded obligations do not pass even if modeled net is sound", () => {
+const first = { installmentId: "fee-1", scheduleEvidenceId: "contract-billing-1", dueDate: "2026-12-16" };
+const second = { installmentId: "fee-2", scheduleEvidenceId: "contract-billing-2", dueDate: "2027-01-30" };
+const fundedEvidence = {
+  ...eligibleEvidence, depositProtectionAddendum: { evidenceId: "amended-timing", termsId: "terms-1" },
+} as const;
+function fundingFixture() {
   const candidate = model(stageWonderlyBid(input));
-  const fee = candidate.feeCents / 2;
-  const funding = [
-    { clearedCustomerCentsToDate: 4_000_000, jobCostsPaidCentsToDate: 0, workReserveCentsUntilNextCollection: 3_500_000, cumulativeWonderlyFeeDueCents: fee },
-    { clearedCustomerCentsToDate: candidate.priceCents, jobCostsPaidCentsToDate: 8_200_000, workReserveCentsUntilNextCollection: 0, cumulativeWonderlyFeeDueCents: candidate.feeCents },
-  ];
-  assert(!evaluateWonderlyFunding(funding, candidate.feeCents));
-  const goodFunding = [{ ...funding[0], clearedCustomerCentsToDate: 5_000_000 }, funding[1]];
-  assert(evaluateWonderlyFunding(goodFunding, candidate.feeCents, candidate.priceCents));
-  assert(!evaluateWonderlyFunding(goodFunding, candidate.feeCents, candidate.priceCents-100));
-  assert(!evaluateWonderlyFunding(goodFunding.slice(0, 1), candidate.feeCents));
-  assert(!evaluateWonderlyFunding(goodFunding.toReversed(), candidate.feeCents));
-  assert(model(stageWonderlyBid({ ...input, funding: goodFunding })).blockers.includes("written-deposit-protection-missing"));
-  assert.deepEqual(model(stageWonderlyBid({ ...input, funding: goodFunding, evidence: { ...eligibleEvidence, depositProtectionAddendum: { evidenceId: "amended-timing", termsId: "terms-1" } } })).blockers, []);
+  const installmentCents = candidate.feeCents / 2;
+  const schedule = {
+    customerAcceptanceDate: "2026-12-01", acceptanceEvidenceId: "customer-acceptance-1", signedTermsId: "terms-1",
+    installments: [{ ...first, installmentCents }, { ...second, installmentCents }],
+  };
+  const snapshots = schedule.installments.map((installment, index) => ({
+    installmentId: installment.installmentId, dueDate: installment.dueDate, installmentCents,
+    clearedReceiptsEvidenceId: "receipt-" + index, workCommitmentEvidenceId: "commitment-" + index,
+    clearedAsOfDate: installment.dueDate, workCommitmentAsOfDate: installment.dueDate,
+    clearedCustomerCentsToDate: index === 0 ? 5_000_000 : candidate.priceCents,
+    jobCostsPaidCentsToDate: index === 0 ? 0 : 8_200_000,
+    workReserveCentsUntilNextCollection: index === 0 ? 3_500_000 : 0,
+    cumulativeWonderlyFeeDueCents: installmentCents * (index+1),
+  }));
+  return { candidate, schedule, snapshots };
+}
+test("unfunded or front-loaded obligations do not pass even if modeled net is sound", () => {
+  const { candidate, schedule, snapshots } = fundingFixture();
+  const evaluate = (rows: typeof snapshots, supplied = schedule, ev = eligibleEvidence) =>
+    evaluateWonderlyFunding(rows, supplied, candidate.priceCents, candidate, ev);
+  assert(!evaluate([{ ...snapshots[0], clearedCustomerCentsToDate: 4_000_000 }, snapshots[1]]));
+  assert(evaluate(snapshots));
+  assert(!evaluate(snapshots.slice(0, 1)));
+  assert(!evaluate(snapshots.toReversed()));
+  assert(!evaluateWonderlyFunding(snapshots, schedule, candidate.priceCents-100, candidate, eligibleEvidence));
+  assert(model(stageWonderlyBid({ ...input, funding: snapshots, fundingSchedule: schedule })).blockers.includes("written-deposit-protection-missing"));
+  assert.deepEqual(model(stageWonderlyBid({ ...input, funding: snapshots, fundingSchedule: schedule, evidence: fundedEvidence })).blockers, []);
+});
+test("a fully funded final row cannot hide the missing first debit", () => {
+  const { candidate, schedule, snapshots } = fundingFixture();
+  assert(!evaluateWonderlyFunding(snapshots.slice(1), schedule, candidate.priceCents, candidate, fundedEvidence));
+  assert(!evaluateWonderlyFunding(snapshots.slice(1), { ...schedule, installments: schedule.installments.slice(1) }, candidate.priceCents, candidate, fundedEvidence));
+  assert(model(stageWonderlyBid({ ...input, funding: snapshots.slice(1), fundingSchedule: schedule, evidence: fundedEvidence })).blockers.includes("funding-not-established"));
+});
+test("each actual date, ID, installment amount, and work commitment need positive evidence", () => {
+  const { candidate, schedule, snapshots } = fundingFixture();
+  const evaluate = (rows: typeof snapshots, supplied = schedule) =>
+    evaluateWonderlyFunding(rows, supplied, candidate.priceCents, candidate, fundedEvidence);
+  for (const patch of [
+    { installmentId: "not-in-contract" }, { installmentCents: 0 }, { dueDate: "2026-12-17" },
+    { clearedAsOfDate: "2026-12-15" }, { clearedReceiptsEvidenceId: "" },
+    { workCommitmentEvidenceId: "" }, { workCommitmentAsOfDate: "2026-12-15" },
+  ]) assert(!evaluate([{ ...snapshots[0], ...patch }, snapshots[1]]));
+  assert(!evaluate(snapshots, { ...schedule, customerAcceptanceDate: "2026-11-31" }));
+  assert(!evaluate(snapshots, { ...schedule, acceptanceEvidenceId: "" }));
+  assert(!evaluateWonderlyFunding(snapshots, undefined, candidate.priceCents, candidate, fundedEvidence));
+  assert(!evaluate(snapshots, { ...schedule, installments: [{ ...schedule.installments[0], scheduleEvidenceId: "" }, schedule.installments[1]] }));
+});
+test("deferrals must match written approval and use exact later funding checkpoint dates", () => {
+  const { candidate, schedule, snapshots } = fundingFixture();
+  const dueDate = "2026-12-22";
+  const installment = { ...schedule.installments[0], dueDate, deferredByEvidenceId: "amended-timing" };
+  const deferred = { ...schedule, installments: [installment, schedule.installments[1]] };
+  const rows = [{ ...snapshots[0], dueDate, clearedAsOfDate: dueDate, workCommitmentAsOfDate: dueDate }, snapshots[1]];
+  assert(evaluateWonderlyFunding(rows, deferred, candidate.priceCents, candidate, fundedEvidence));
+  assert(!evaluateWonderlyFunding(rows, deferred, candidate.priceCents, candidate, eligibleEvidence));
+  assert(!evaluateWonderlyFunding(snapshots, deferred, candidate.priceCents, candidate, fundedEvidence));
 });
