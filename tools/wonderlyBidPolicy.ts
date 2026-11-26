@@ -3,6 +3,9 @@
  * invoke it from URL parameters, cookies, or a public estimate request body.
  * Use an authoritative lead lookup, verified scope, and the existing P5
  * economy snapshot. Nothing here enrolls a lead or executes a payment.
+ * Change orders are not new bids. Related increases inherit project origin
+ * and require a separate signed-terms workflow (14% within five business days);
+ * this module never releases, invoices, or pays a change-order fee.
  */
 import { NET_POLICY_VERSION, type NetQuote } from "../lib/p5/netPricingPolicy.ts";
 
@@ -32,7 +35,27 @@ export type WonderlyEvidence = {
   /** The quote is not releasable under default automatic debit timing. */
   depositProtectionAddendum?: { evidenceId: string; termsId: string };
 };
+export type FundingInstallment = {
+  installmentId: string;
+  scheduleEvidenceId: string;
+  dueDate: string;
+  installmentCents: number;
+  deferredByEvidenceId?: string;
+};
+export type FundingSchedule = {
+  signedTermsId: string;
+  customerAcceptanceDate: string;
+  acceptanceEvidenceId: string;
+  installments: readonly FundingInstallment[];
+};
 export type FundingCheckpoint = {
+  installmentId: string;
+  dueDate: string;
+  installmentCents: number;
+  clearedReceiptsEvidenceId: string;
+  clearedAsOfDate: string;
+  workCommitmentEvidenceId: string;
+  workCommitmentAsOfDate: string;
   clearedCustomerCentsToDate: number;
   jobCostsPaidCentsToDate: number;
   workReserveCentsUntilNextCollection: number;
@@ -67,17 +90,51 @@ export function wonderlyFeeForPrice(priceCents: number, qualifiedChannel: boolea
   ] };
 }
 
-export function evaluateWonderlyFunding(checkpoints: readonly FundingCheckpoint[], feeCents: number, priceCents = MAX_CENTS) {
-  if (!validCents(feeCents) || !validCents(priceCents) || feeCents <= 0 || !checkpoints.length) return false;
-  let previous = { collected: 0, paid: 0, fee: 0 };
-  for (const item of checkpoints) {
+function isoDate(value: string) {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return NaN;
+  const time = Date.parse(value + "T00:00:00Z");
+  return Number.isFinite(time) && new Date(time).toISOString().slice(0, 10) === value ? time : NaN;
+}
+
+export function evaluateWonderlyFunding(
+  checkpoints: readonly FundingCheckpoint[],
+  schedule: FundingSchedule | undefined,
+  priceCents: number,
+  quoteFee: ReturnType<typeof wonderlyFeeForPrice>,
+  evidence: WonderlyEvidence,
+) {
+  if (!schedule || !identified(schedule.signedTermsId) || schedule.signedTermsId !== evidence.signedTermsId ||
+      !identified(schedule.acceptanceEvidenceId) || checkpoints.length !== quoteFee.signedSchedule.length ||
+      schedule.installments.length !== quoteFee.signedSchedule.length || !validCents(priceCents) || priceCents <= 0) return false;
+  const acceptanceTime = isoDate(schedule.customerAcceptanceDate);
+  if (!Number.isFinite(acceptanceTime)) return false;
+  const installmentIds = new Set<string>();
+  let previous = { collected: 0, paid: 0, fee: 0, due: acceptanceTime };
+  for (const [i, signed] of quoteFee.signedSchedule.entries()) {
+    const installment = schedule.installments[i], item = checkpoints[i];
+    if (!installment || !item) return false;
+    const due = isoDate(installment.dueDate);
+    const originalDue = acceptanceTime + signed.dayAfterCustomerAcceptance * 86_400_000;
+    const amendment = evidence.depositProtectionAddendum;
+    const validDeferral = identified(installment.deferredByEvidenceId) &&
+      amendment?.termsId === evidence.signedTermsId && installment.deferredByEvidenceId === amendment?.evidenceId;
+    if (!Number.isFinite(due) || due < originalDue || due < previous.due ||
+        (due !== originalDue && !validDeferral) ||
+        !identified(installment.installmentId) || installmentIds.has(installment.installmentId) ||
+        !identified(installment.scheduleEvidenceId) || installment.installmentCents !== signed.installmentCents ||
+        item.installmentId !== installment.installmentId || item.dueDate !== installment.dueDate ||
+        item.installmentCents !== signed.installmentCents || item.clearedAsOfDate !== item.dueDate ||
+        item.workCommitmentAsOfDate !== item.dueDate ||
+        !identified(item.clearedReceiptsEvidenceId) || !identified(item.workCommitmentEvidenceId)) return false;
+    installmentIds.add(installment.installmentId);
     const { clearedCustomerCentsToDate: collected, jobCostsPaidCentsToDate: paid,
       workReserveCentsUntilNextCollection: reserve, cumulativeWonderlyFeeDueCents: fee } = item;
     if (![collected, paid, reserve, fee].every(validCents) || collected < previous.collected ||
-        paid < previous.paid || fee < previous.fee || fee > feeCents || collected > priceCents || collected < paid + reserve + fee) return false;
-    previous = { collected, paid, fee };
+        paid < previous.paid || fee !== previous.fee + signed.installmentCents ||
+        collected > priceCents || collected < paid + reserve + fee) return false;
+    previous = { collected, paid, fee, due };
   }
-  return previous.fee === feeCents;
+  return previous.fee === quoteFee.feeCents;
 }
 
 export type WonderlyBidInput = {
@@ -88,6 +145,8 @@ export type WonderlyBidInput = {
   /** Confirmed all-in base cost basis, with no Wonderly referral fee already included. */
   baseCostBasis: { confirmed: boolean; excludesWonderlyFee: boolean };
   evidence?: WonderlyEvidence;
+  /** Both schedule and checkpoint evidence come from authoritative internal records. */
+  fundingSchedule?: FundingSchedule;
   funding?: readonly FundingCheckpoint[];
 };
 
@@ -153,7 +212,7 @@ export function stageWonderlyBid(input: WonderlyBidInput) {
   const blockers = [
     ...(!evidenceComplete ? ["quote-channel-unverified"] : []),
     ...(!identified(addendum?.evidenceId) || addendum?.termsId !== evidence.signedTermsId ? ["written-deposit-protection-missing"] : []),
-    ...(!evaluateWonderlyFunding(input.funding ?? [], fee.feeCents, priceCents) ? ["funding-not-established"] : []),
+    ...(!evaluateWonderlyFunding(input.funding ?? [], input.fundingSchedule, priceCents, fee, evidence) ? ["funding-not-established"] : []),
   ];
   const netProfitCents = Number(modeledProfit(priceCents, fee.feeCents));
   return {
