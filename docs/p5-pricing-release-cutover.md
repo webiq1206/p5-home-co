@@ -35,3 +35,24 @@ The workbook reader is a pure compiler only. The credentialed read, draft queue/
 5. Verify the isolated authenticated QBO draft, provider GET readback and idempotent retry. Follow qbo-release-handoff-acceptance.md. No production QBO mutation is part of a source review.
 6. Change one controlled workbook rate in a test copy, preview invalid and valid drafts, promote, verify every tool switches, retry with old pin, restore previous release, then compare receipts.
 7. Exact-head CI, independent rendered verification, reviewed migration in isolated database, and owner-controlled import/publication. Report verified work by tool and version. Handoff email only when all requested artifacts, real live links, and audited unsent QBO draft actually exist.
+
+## Status, 28 November 2026
+
+Done in source and covered by tests (no deployment, no workbook publish, no QuickBooks or email action was taken):
+
+* One release prices everything the shared engines price. The guided and embedded estimator, the scope platform (Scope Creator, Estimate Creator) and the shared document estimator on all five sites read the catalog, class targets, rush floors and fixed selling prices from the approved release in scope. Until a release is published that is the catalog compiled into the build (`P5-BID-2026-11-25`), so no figure moved with this change.
+* Each request resolves one release; each priced result records its version and digest; a saved version priced under another release is locked.
+* `/admin/pricing`: preview the workbook (live sheet through a service account, or an uploaded .xlsx), see every rate and rule change, stage, publish, roll back, with an append-only audit log. An invalid workbook yields no candidate and the release in force stays live.
+* The family sites fetch the release from p5homeco.com with a shared token and verify its digest, schema and catalog compatibility before using it.
+* The compiler was corrected against the live workbook: item wording may change, project services stay the fixed $125 rate, fixed handyman charges travel in the release.
+
+Needs the owner or a live environment before it can be called complete:
+
+1. Settings. `P5_PRICING_RELEASE_TOKEN` (one long random value, the same on all five sites). For the live sheet: a Google service account with the workbook shared to it as viewer, its key in `P5_WORKBOOK_SERVICE_ACCOUNT` on p5homeco.com. Without the second, upload the .xlsx on the release screen.
+2. Migration 900 on the development database, then the publish checklist in CLAUDE.md ("never approve a DROP").
+3. First live preview. The compiler has been run against values shaped like the workbook and against a sample of its real rows, not against the whole live sheet. The first preview is that check, and a preview changes nothing.
+4. Handyman reconciliation (owner decision): the workbook's $95 all-in hour, $135 visit minimum and $50 pickup against the direction that every project carries the three $125 services, and against the $120 an hour in Boise Handyman's published copy rules. The engine still prices handyman at the workbook's figures and adds no project services to an all-in handyman job.
+5. Local planning engines that still compute a range of their own and take only their floor from the shared policy: Boise Cabinet's `/estimate` wizard and room page "typical range" (live to customers), the consultation routes on all four brand sites (accept a posted planning range; no live page on Construction, Remodeling or Handyman writes one), Remodeling's admin takeoff bid, Construction's millwork finalize route (no caller). Each needs its scope mapped to cost book codes, or to be retired the way the homepage sliders and the assistants' price tools were. No crosswalk was invented.
+6. Mixed-class jobs. `priceApprovedScope()` prices a remodel with cabinets by class and reconciles to the cent in tests; `priceScope()` still applies one class to a scope. Wiring it changes saved-scope data (a class per task) and needs review.
+7. Quote Calculator. The workbook tab still has its own formulas.
+8. Authenticated checks only a live environment can give: a QuickBooks sandbox draft read back line by line and retried, browser estimates on the five live sites, captured customer and team emails, HubSpot one-deal linkage. See `docs/qbo-release-handoff-acceptance.md`.
