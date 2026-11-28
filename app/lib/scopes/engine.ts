@@ -17,7 +17,8 @@ import type { FinancePolicy } from "../../../lib/p5/pricing.ts";
 import type { FinishTier } from "../../../lib/p5/priceBook.ts";
 import { extractScope, transcribe, type SourceInput } from "./ai.ts";
 import { supportingSuggestions } from "./checklist.ts";
-import { costBookEntry, COST_BOOK_VERSION } from "./costbook.ts";
+import { costBookEntry, costBookVersion } from "./costbook.ts";
+import { activeRelease, runWithPricing } from "../pricing-release/runtime.ts";
 import { classify, prepareForModel, readBytes } from "./files.ts";
 import { applyAnswer, deriveQuestions, readiness, reconcileMeasurements, type AnswerState } from "./gaps.ts";
 import { applyChanges, diffScopes, markEdited, type Proposal } from "./merge.ts";
@@ -76,18 +77,23 @@ export async function savedFinance(): Promise<FinancePolicy | undefined> {
 export async function compute(project: ProjectRow, doc: ScopeDoc, settings?: ScopeSettings): Promise<Computed> {
   const s = settings ?? (await loadScopeSettings());
   const { state, acknowledged } = await answerState(project.id);
-  const pricing = priceScope(doc, {
-    finance: await savedFinance(),
-    service: project.service,
-    finishTier: (project.finish_tier as FinishTier) || "mid",
-    settings: s,
-    acknowledged,
+  const finance = await savedFinance();
+  // One approved pricing release for the whole calculation.
+  const release = await activeRelease();
+  return runWithPricing(release, () => {
+    const pricing = priceScope(doc, {
+      finance,
+      service: project.service,
+      finishTier: (project.finish_tier as FinishTier) || "mid",
+      settings: s,
+      acknowledged,
+    });
+    // A "Not yet" on the price-age question is a real answer but must keep asking.
+    const age = state.get(costBookAgeKey());
+    if (age && !acknowledged.has(costBookAgeKey())) state.delete(costBookAgeKey());
+    const questions = deriveQuestions(doc, pricing, state);
+    return { doc, pricing, questions, readiness: readiness(doc, pricing, questions) };
   });
-  // A "Not yet" on the price-age question is a real answer but must keep asking.
-  const age = state.get(costBookAgeKey());
-  if (age && !acknowledged.has(costBookAgeKey())) state.delete(costBookAgeKey());
-  const questions = deriveQuestions(doc, pricing, state);
-  return { doc, pricing, questions, readiness: readiness(doc, pricing, questions) };
 }
 
 /** Normalize, add checklist suggestions, price and store a new version. */
@@ -473,10 +479,16 @@ export async function answerQuestion(input: {
  * updates price new work only. Returns the locked pricing, or null when the
  * version was priced on the current book (or has no pricing yet).
  */
-export function lockedPricing(version: Pick<VersionRow, "pricing"> | null | undefined): PricingResult | null {
+export async function lockedPricing(version: Pick<VersionRow, "pricing"> | null | undefined): Promise<PricingResult | null> {
   const pricing = version?.pricing;
   if (!pricing) return null;
-  return pricing.policy?.costBookVersion === COST_BOOK_VERSION ? null : pricing;
+  // A version is current only when both the catalog and the approved release
+  // (rates and bid rules together) are the ones in force now. Versions saved
+  // before releases were recorded are compared on the catalog alone.
+  const release = await activeRelease();
+  const sameBook = pricing.policy?.costBookVersion === runWithPricing(release, costBookVersion);
+  const saved = pricing.policy?.pricingRelease;
+  return sameBook && (!saved || saved.digest === release.digest) ? null : pricing;
 }
 
 /**
@@ -488,7 +500,7 @@ export async function reprice(projectId: number, userId: number, note: string, o
   const project = (await getProject(projectId))!;
   const { version, doc } = await currentDoc(project);
   if (!version) return;
-  if (opts.respectLock && lockedPricing(version)) return;
+  if (opts.respectLock && (await lockedPricing(version))) return;
   // A site estimate's version holds the customer prices a website gave
   // (leads/site-estimate.ts). There is no scope behind it to price again, so a
   // pricing change must not replace it with an empty one. Once a person builds

@@ -12,7 +12,7 @@
 
 import { PRICE_BOOK_SOURCE, type PriceBookRow } from "../../../lib/p5/priceBookData.ts";
 import {
-  PRICE_BOOK, PRICE_BOOK_VERSION,
+  PRICE_BOOK_VERSION, activeBook, activeBookRow, activeBookVersion,
   priceBookRate,
   serviceContext,
   type FinishTier,
@@ -25,7 +25,10 @@ import type { ItemKey } from "./types.ts";
  */
 export const COST_BOOK_REVIEWED_AT = "2026-11-24";
 export const COST_BOOK_SOURCE = PRICE_BOOK_SOURCE;
+/** The book compiled into this build. Use costBookVersion() for the release in scope. */
 export const COST_BOOK_VERSION = PRICE_BOOK_VERSION;
+/** Content hash of the catalog this calculation prices from. */
+export const costBookVersion = (): string => activeBookVersion();
 
 export type CostBookEntry = {
   code: string;
@@ -63,16 +66,25 @@ function entry(row: PriceBookRow): CostBookEntry {
   };
 }
 
-const ROWS = new Map<string, PriceBookRow>(PRICE_BOOK.map((r) => [r[0], r]));
-const ENTRIES = new Map<string, CostBookEntry>(PRICE_BOOK.map((r) => [r[0], entry(r)]));
+// Entries are derived once per catalog (the approved release in scope, or the compiled book).
+const ENTRY_CACHE = new WeakMap<object, Map<string, CostBookEntry>>();
+function entries(): Map<string, CostBookEntry> {
+  const rows = activeBook().rows;
+  let map = ENTRY_CACHE.get(rows);
+  if (!map) {
+    map = new Map(rows.map((r) => [r[0], entry(r)]));
+    ENTRY_CACHE.set(rows, map);
+  }
+  return map;
+}
 
 export function costBookEntry(code: string | null | undefined): CostBookEntry | null {
   if (!code) return null;
-  return ENTRIES.get(code.replace(/^PB-/, "")) ?? null;
+  return entries().get(code.replace(/^PB-/, "")) ?? null;
 }
 
 export function allCostBookEntries(): CostBookEntry[] {
-  return [...ENTRIES.values()];
+  return [...entries().values()];
 }
 
 /** Direct cost per unit for this project (finish tier, remodel premium where it applies). */
@@ -81,7 +93,7 @@ export function costBookRate(
   tier: FinishTier,
   service: string,
 ): { amount: number; unit: string; source: string } | null {
-  const row = ROWS.get(code.replace(/^PB-/, ""));
+  const row = activeBookRow(code);
   if (!row) return null;
   if (row[5] === "Percentage") {
     const tierValue = { builder: row[10], mid: row[11], high: row[12], luxury: row[13] }[tier];
@@ -129,7 +141,7 @@ export function itemForEntry(e: CostBookEntry, service: string): ItemKey {
 export function catalogForPrompt(): string {
   const out: string[] = [];
   let division = "";
-  for (const e of ENTRIES.values()) {
+  for (const e of entries().values()) {
     if (e.division !== division) {
       division = e.division;
       out.push(`# ${e.division} ${e.divisionName}`);
@@ -141,7 +153,7 @@ export function catalogForPrompt(): string {
 
 /** Cost book lines used for supporting-task suggestions (site protection, cleanup...). */
 export function findEntries(pattern: RegExp, division?: string): CostBookEntry[] {
-  return [...ENTRIES.values()].filter(
+  return [...entries().values()].filter(
     (e) => (!division || e.division === division) && pattern.test(`${e.section} ${e.item}`),
   );
 }

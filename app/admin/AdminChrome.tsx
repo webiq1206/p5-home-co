@@ -14,15 +14,16 @@ import Link from "next/link";
 
 import type { SessionUser } from "../lib/auth.ts";
 
-export type AdminSection = "dashboard" | "leads" | "scopes" | "finance" | "kb";
+export type AdminSection = "dashboard" | "leads" | "scopes" | "finance" | "pricing" | "kb";
 
-type Item = { id: AdminSection; href: string; label: string; financeOnly?: boolean };
+type Item = { id: AdminSection; href: string; label: string; financeOnly?: boolean; administratorOnly?: boolean };
 
 const SECTIONS: Item[] = [
   { id: "dashboard", href: "/admin", label: "Dashboard" },
   { id: "leads", href: "/admin/lead-manager", label: "Lead Manager" },
   { id: "scopes", href: "/scopes", label: "Scopes" },
   { id: "finance", href: "/admin/finance", label: "Finance", financeOnly: true },
+  { id: "pricing", href: "/admin/pricing", label: "Pricing", administratorOnly: true },
   { id: "kb", href: "/admin/kb", label: "Knowledge Center" },
 ];
 
@@ -40,7 +41,7 @@ export default function AdminChrome({
   subtitle?: string;
 }) {
   const finance = canSeeFinance(user.role);
-  const items = SECTIONS.filter((s) => !s.financeOnly || finance);
+  const items = SECTIONS.filter((s) => (!s.financeOnly || finance) && (!s.administratorOnly || user.role === "administrator"));
 
   return (
     <>

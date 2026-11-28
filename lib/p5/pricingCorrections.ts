@@ -1,6 +1,6 @@
 import type {CostRule,EstimatorConfiguration,ScopePriceResolution} from './costBook.ts';
 import type {ReviewedScope,ScopeExtraction} from './scope.ts';
-import {PRICE_BOOK} from './priceBookData.ts';
+import {activeBookRow} from './priceBook.ts';
 import {finishTier,priceBookRate,serviceContext} from './priceBook.ts';
 import {suggestedTrade} from './trades.ts';
 import {applyMinorWorkAllowance,minorWorkEligible} from './minorWorkAllowance.ts';
@@ -289,7 +289,7 @@ export function applyPricingCorrections(input:CorrectionInput):CorrectionResult{
       else{extra.quantity={...extra.quantity,fixed:remaining};if(extra.quantityRange)extra.quantityRange={low:Math.max(remaining,extra.quantityRange.low-priced),high:Math.max(remaining,extra.quantityRange.high-priced)};if(extra.evidence)extra.evidence.reference+='; [reconciled reconnect summary]';}
       notes.push(`${itemOf(extra.description)} is charged once per replaced fixture. ${overlap} overlapping installation${overlap===1?'':'s'} removed from the reconnection summary${remaining?`; ${remaining} additional connection${remaining===1?' remains':'s remain'} included`:''}.`);
     }
-    const row=PRICE_BOOK.find(r=>r[0]==='22-01-01');
+    const row=activeBookRow('22-01-01');
     const packages=resolution.rules.filter(rule=>ROUGH_AND_FINISH.test(itemOf(rule.description)));
     if(row&&packages.length){
       const rate=priceBookRate(row,finishTier(scope.answers.finish),serviceContext(scope.answers.service).remodel);
@@ -321,7 +321,7 @@ export function applyPricingCorrections(input:CorrectionInput):CorrectionResult{
     for(const packageRule of [...resolution.rules].filter(rule=>/\bPB-01-50-04\b/.test(rule.evidence?.reference||''))){
       const components=[{code:'01-50-10',quantity:roomArea,range:{low:roomArea,high:roomArea*2}},{code:'01-50-11',quantity:1,range:{low:1,high:2}}];
       const replacements=components.map((component,index)=>{
-        const row=PRICE_BOOK.find(row=>row[0]===component.code)!;
+        const row=activeBookRow(component.code)!;
         const rate=priceBookRate(row,finishTier(scope.answers.finish),serviceContext(scope.answers.service).remodel);
         return {...packageRule,id:index?packageRule.id+'-dust-barrier':packageRule.id,
           description:`${taskDescription(packageRule.scopeTaskId||'')}: ${rate.description}`,unit:rate.unit,

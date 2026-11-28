@@ -17,7 +17,7 @@ import type {EstimatorConfiguration} from './costBook.ts';
 import type {ProcessingStatus} from './processingStatus.ts';
 import {assertAnalysisMigrationSafe,assertProjectSourceCoverage,SOURCE_COVERAGE_REQUIRED} from './documentServiceClient.ts';
 
-type Input={kind:'analysis';draft:Draft;text:string;answers:ScopeAnswers}|{kind:'pricing';draft:Draft;configuration:EstimatorConfiguration};
+type Input={kind:'analysis';draft:Draft;text:string;answers:ScopeAnswers}|{kind:'pricing';draft:Draft;configuration:EstimatorConfiguration;pricingRelease?:string};
 type PricingQueueBinding={signature:string;legacyDate?:string};
 type Job={input:Input;state:'queued'|'running'|'complete'|'failed';progress:string;attempts:number;result?:any;retryAt?:number;retryUnits?:boolean;createdAt:string;processing?:ProcessingStatus;pricingQueue?:PricingQueueBinding};
 type DrainResult={drained:boolean;timedOut:boolean;startedInFlight:number;remainingInFlight:number};
@@ -315,7 +315,9 @@ async function runPass(draftId:string,workKey:string):Promise<number|null>{
       else{job.result=step;job.state='complete';job.progress=job.input.draft.uploads.length?'Source review finished. Review the page coverage and any unreadable content.':'Project review finished. Review your scope and any missing details.';}
     }else{
       const {priceSavedScope}=await import('./pricingWork.ts');
-      try{const identity=pricingDraftIdentity(job.input.draft);job.result=await priceSavedScope(job.input.draft.id,job.input.draft.reviewed!,job.input.configuration,new Date(job.createdAt),deadline,identity);job.state='complete';job.progress='Pricing calculation saved.';}
+      try{const identity=pricingDraftIdentity(job.input.draft),input=job.input;const {withSitePricing}=await import('./pricingReleaseClient.ts');
+        // Finish under the approved release the job was queued with, so its rate card and rules agree.
+        job.result=await withSitePricing(()=>priceSavedScope(input.draft.id,input.draft.reviewed!,input.configuration,new Date(job.createdAt),deadline,identity),input.pricingRelease);job.state='complete';job.progress='Pricing calculation saved.';}
       catch(error){
         if(!isPricingPending(error))throw error;
         if(error.fatal){job.state='failed';job.progress=error.message;job.attempts=3;again=null;console.error(`[p5-worker] pricing stopped: ${error.message}`);void recordEvent({draftId,estimator:job.input.draft.answers?.service||null,kind:'pricing',stage:'job',code:'fatal',message:error.message,outcome:'failed'});}

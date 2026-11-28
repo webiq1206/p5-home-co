@@ -1,6 +1,6 @@
 import type {PlanningRate} from './planningBooks.ts';
 import type {EstimatorConfiguration} from './costBook.ts';
-import {priceBookRates,PRICE_BOOK_VERSION,finishTier} from './priceBook.ts';
+import {priceBookRates,activeBookVersion,finishTier} from './priceBook.ts';
 import {withRateCard} from './rateCard.ts';
 import {projectCatalogSchema} from './projectRecordContracts.ts';
 import {ProjectRecordError,type ProjectRecord,type RecordProblem} from './projectRecord.ts';
@@ -31,5 +31,5 @@ export function checkedProjectCandidates(record:ProjectRecord,rates:PlanningRate
 /** Accepted classification controls rate context. Old reader-populated service
  * answers cannot silently override the authoritative project record. */
 export function projectConfiguration(saved:EstimatorConfiguration,record:ProjectRecord,finish?:string){
- return {...withRateCard(saved,priceBookRates({service:record.service,finish})),catalogVersion:`${saved.planningCatalog?.version||'missing'}+${PRICE_BOOK_VERSION}:${record.service}:${finishTier(finish)}`};
+ return {...withRateCard(saved,priceBookRates({service:record.service,finish})),catalogVersion:`${saved.planningCatalog?.version||'missing'}+${activeBookVersion()}:${record.service}:${finishTier(finish)}`};
 }

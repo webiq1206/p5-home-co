@@ -106,7 +106,9 @@ export async function savePolicyWithDeps(request:Request,deps:PolicySaveDeps={})
   if(!rows.length){const updated=await write("UPDATE p5_estimator_policy SET payload=$1::jsonb,updated_by=$2,updated_at=now(),version=version+1 WHERE id='current' AND version=$3 RETURNING version",[JSON.stringify(configuration),actor.id,raw.version]);if(!updated.length)throw new DraftError("Configuration changed. Reload before saving.",409);}
   return json({saved:true});
 }catch(error){return failed(error);}}
-export async function postAdminAction(request:Request){try{
+/** Staff pricing actions run inside one approved pricing release. */
+export async function postAdminAction(request:Request){const {withSitePricing}=await import('./pricingReleaseClient.ts');return withSitePricing(()=>postAdminActionImpl(request));}
+async function postAdminActionImpl(request:Request){try{
   protectRequest(request);const actor=await requireEstimatorAdmin();await ensureSchema();const body=JSON.parse(new TextDecoder().decode(await limitedBody(request,2000000)));
   if(body.action==="process-delivery"){
     // An administrator may drive one saved revision's deliveries without touching another revision's queue.
