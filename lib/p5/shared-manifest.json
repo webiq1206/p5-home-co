@@ -1,7 +1,7 @@
 {
   "source": "p5-home-co",
-  "commit": "3b06eb144ba822d6105c13357449430c78b5b3bf",
-  "generatedAt": "2026-11-28T19:17:46.953Z",
+  "commit": "1aefcdfd174f314dd725d1b0229026bbb92a1674",
+  "generatedAt": "2026-11-28T19:18:55.359Z",
   "note": "Shared estimator engine published from p5-home-co. Edit shared files there and run scripts/p5-sync.mjs; hash checks remain mandatory in every brand.",
   "files": {
     "app/admin/p5-estimators/page.tsx": "34f5b27e4966fbd15aa4019f85efeb746e6e9d6957ad94364bc3357fde628bad",
