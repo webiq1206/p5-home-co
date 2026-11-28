@@ -48,23 +48,23 @@ type Row = {id:string;groupId:string;code:string;unit:string;milliQuantity:numbe
 const must=(pass:unknown,message:string)=>{if(!pass)throw new Error(message);};
 const cash=(n:number,max=1_000_000_000_000)=>Number.isSafeInteger(n)&&n>=0&&n<=max;
 const clean=(s:unknown)=>typeof s==="string"&&s.trim()!==""&&s.length<=160;
-const rounds=(qty:number,cents:number)=>Number((BigInt(qty)*BigInt(cents)+500n)/1000n);
+const rounds=(qty:number,cents:number)=>Number((BigInt(qty)*BigInt(cents)+BigInt(500))/BigInt(1000));
 const sum=(nums:readonly number[])=>nums.reduce((a,b)=>a+b,0);
 /** Allocate each cent once in stable input order. Group output order is sorted by id. */
 function share(cents:number, weights:number[]){
   const base=sum(weights), B=BigInt(base||weights.length);
   const w=base?weights:weights.map(()=>1);
-  let through=0n,previous=0;
+  let through=BigInt(0),previous=0;
   return w.map(weight=>{
     through+=BigInt(weight);
-    const next=Number((BigInt(cents)*through+B/2n)/B);
+    const next=Number((BigInt(cents)*through+B/BigInt(2))/B);
     const part=next-previous;previous=next;return part;
   });
 }
 function wholeDollarFloor(dollarsCents:number,denomBps:number){
   must(denomBps>0,"The approved costs and margins leave no room for a quote.");
-  const numerator=BigInt(dollarsCents)*10000n, denominator=BigInt(denomBps)*100n;
-  return Number((numerator+denominator-1n)/denominator*100n);
+  const numerator=BigInt(dollarsCents)*BigInt(10000), denominator=BigInt(denomBps)*BigInt(100);
+  return Number((numerator+denominator-BigInt(1))/denominator*BigInt(100));
 }
 function verified(c?:Checks){return !!(c?.scopeDefined&&c.costsVerified&&c.capacityOrRepeat&&c.ownerReturnConfirmed&&c.cashCovered&&clean(c.reason));}
 
