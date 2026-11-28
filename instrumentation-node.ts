@@ -49,6 +49,12 @@ function schedulingIsPossible(label: string): boolean {
 }
 
 export async function register(): Promise<void> {
+  // This site owns the pricing release: its database is the source every
+  // calculation resolves from, including the shared document estimator's.
+  if (process.env.NEXT_PHASE !== "phase-production-build") {
+    await import("./app/lib/pricing-release/runtime.ts").catch(error =>
+      console.error("[pricing-release] startup registration failed:", (error as Error).message));
+  }
   if (schedulingIsPossible("meta-subscriptions") && process.env.NODE_ENV === "production") {
     // No provider work during builds or development. Nightly upkeep uses the
     // existing watchdog; missing owner-supplied token makes this a no-op.

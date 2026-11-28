@@ -20,13 +20,14 @@ import {
   companyAllocation,
   type FinancePolicy,
 } from "../../../lib/p5/pricing.ts";
-import {NET_POLICY_VERSION,isNetPricingVersion, quoteForScope, checkFixedQuote, allocatePrice, creditVisitMinimum, fixedBookCharge, residualRate, type NetQuote} from "../../../lib/p5/netPricingPolicy.ts";
+import {NET_POLICY_VERSION,isNetPricingVersion, quoteForScope, checkFixedQuote, allocatePrice, creditVisitMinimum, fixedBookCharge, releasedHandymanHour, releasedVisitMinimum, residualRate, type NetQuote} from "../../../lib/p5/netPricingPolicy.ts";
 import type { FinishTier } from "../../../lib/p5/priceBook.ts";
+import { pricingReceiptRef } from "../../../lib/p5/pricingReleaseScope.ts";
 import { projectServiceLines, projectServiceCode, isSuperintendentCode,projectOverheadCredit,billsInternalLaborInFull,PROJECT_OVERHEAD_CREDIT_ID,projectServiceCostBasis,type ProjectServiceBasis } from "../../../lib/p5/projectServices.ts";
 import {
   COST_BOOK_REVIEWED_AT,
   COST_BOOK_SOURCE,
-  COST_BOOK_VERSION,
+  costBookVersion,
   costBookEntry,
   costBookRate,
   itemForEntry,
@@ -83,7 +84,7 @@ export function priceMultiplier(service: string, now = new Date(), finance: Fina
 }
 
 export function costBookAgeKey(): string {
-  return `price-age:${COST_BOOK_VERSION}`;
+  return `price-age:${costBookVersion()}`;
 }
 
 /** Tasks that count toward pricing at all. */
@@ -140,7 +141,7 @@ export function priceScope(doc: ScopeDoc, ctx: PricingContext): PricingResult {
   const { multiplier, overhead, profit } = priceMultiplier(ctx.service, now, ctx.finance);
   const settings = ctx.settings;
   const newPolicy = isNetPricingVersion(doc.pricingVersion);
-  const laborRate = newPolicy ? (ctx.service === "handyman" || doc.handymanAllIn ? 95 : 125) : laborRateFor(ctx.service, settings);
+  const laborRate = newPolicy ? (ctx.service === "handyman" || doc.handymanAllIn ? releasedHandymanHour() : 125) : laborRateFor(ctx.service, settings);
   const fixedLines = new Set<string>();
   const visitMinimumIds = new Set<string>();
   const lines: EstimateLine[] = [];
@@ -593,7 +594,7 @@ export function priceScope(doc: ScopeDoc, ctx: PricingContext): PricingResult {
   if (newPolicy && basePrice > 0 && baseCost !== null) {
     const flexible = base.filter(line => !fixedLine(line));
     const fixedTotal = round2(base.filter(fixedLine).reduce((sum, line) => sum + line.price, 0));
-    const minimum = ctx.service === "handyman" || (doc.pricingVersion === NET_POLICY_VERSION && ctx.service === "re10") ? 135 : 0;
+    const minimum = ctx.service === "handyman" || (doc.pricingVersion === NET_POLICY_VERSION && ctx.service === "re10") ? releasedVisitMinimum() : 0;
     const scopeText = [doc.summary, ...doc.siteConditions, ...doc.goals].join(" ");
     const residual = residualRate(ctx.finance ?? DEFAULT_FINANCE, overhead);
     if (!residual.confirmed && !doc.reviewedJobTerms) {
@@ -676,7 +677,8 @@ export function priceScope(doc: ScopeDoc, ctx: PricingContext): PricingResult {
       laborRate,
       finishTier: ctx.finishTier,
       costBookSource: COST_BOOK_SOURCE,
-      costBookVersion: COST_BOOK_VERSION,
+      costBookVersion: costBookVersion(),
+      pricingRelease: pricingReceiptRef(),
     },
   };
 }

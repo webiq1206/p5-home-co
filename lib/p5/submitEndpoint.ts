@@ -6,11 +6,13 @@ import {withSupportedServiceBook} from './planningBooks.ts';
 import {HANDOFF_ISSUE} from './scopePricing.ts';
 import {ESTIMATOR_VERSION} from './version.ts';
 import {withRateCard} from './rateCard.ts';
-import {finishTier,priceBookRates,PRICE_BOOK_VERSION} from './priceBook.ts';
+import {finishTier,priceBookRates,activeBookVersion} from './priceBook.ts';
 import { query } from "./database.ts";
 import { draftCredentials,readDraft,DraftError,requireEstimateContact } from "./store.ts";
 import { EMPTY_CONFIGURATION,type EstimatorConfiguration } from "./costBook.ts";
 import {priceSavedScope} from "./pricingWork.ts";
+import {withSitePricing} from "./pricingReleaseClient.ts";
+import {pricingReceiptRef} from "./pricingReleaseScope.ts";
 import {queuedJob} from './backgroundJobs.ts';
 import {kickDriver} from './estimateDriver.ts';
 import {archivedVersion,changeSummary} from './estimateRevisions.ts';
@@ -93,7 +95,11 @@ export async function recordSubmitRequest(id:string,revision:number,notify:boole
 }
 /** Price (or wait for) a revision and, once it has a validated range, save it and queue its delivery.
  * Shared by the customer's request and the background driver, so the outcome is the same either way. */
-export async function completeSubmission(id:string,draft:Awaited<ReturnType<typeof readDraft>>&object,opts:{background:boolean;retry:boolean;holdMs?:number},schedule?:(task:()=>Promise<void>)=>void){
+export async function completeSubmission(...args:Parameters<typeof completeSubmissionImpl>){
+  // One approved pricing release for the rate card, the calculation and the saved record.
+  return withSitePricing(()=>completeSubmissionImpl(...args));
+}
+async function completeSubmissionImpl(id:string,draft:Awaited<ReturnType<typeof readDraft>>&object,opts:{background:boolean;retry:boolean;holdMs?:number},schedule?:(task:()=>Promise<void>)=>void){
   try{
     if(await hasIntakeTransferHold(id,query))throw new DraftError(TRANSFER_HOLD_MESSAGE,409);
     if(!(brand.services as readonly string[]).includes(String(draft.answers.service)))throw new DraftError("Choose a service offered by this company.");
@@ -105,7 +111,7 @@ export async function completeSubmission(id:string,draft:Awaited<ReturnType<type
     // existing home. They join the saved catalog; a code the owner has saved keeps its own amount.
     // Learned allowances join the regional rules in pricingWork, with their evidence intact.
     const book=process.env.P5_PRICE_BOOK==='off'?null:priceBookRates(draft.reviewed.answers);
-    const configuration={...(book?withRateCard(saved,book):saved),catalogVersion:`${saved.planningCatalog?.version||'no-saved-catalog'}${book?`+price-book:${PRICE_BOOK_VERSION}:${finishTier(draft.reviewed.answers.finish)}`:''}`};
+    const configuration={...(book?withRateCard(saved,book):saved),catalogVersion:`${saved.planningCatalog?.version||'no-saved-catalog'}${book?`+price-book:${activeBookVersion()}:${finishTier(draft.reviewed.answers.finish)}`:''}`};
     if(book)console.log(`[p5-rates] priced with ${configuration.planningCatalog?.rates.length} rates (${(configuration.planningCatalog?.rates.length||0)-(saved.planningCatalog?.rates.length||0)} from the master price book, ${finishTier(draft.reviewed.answers.finish)} finish)`);
     // Ask for a quantity the planning model cannot work without now, before any pricing work starts.
     const needed=pricingPreflight(draft.reviewed,configuration);
@@ -114,7 +120,7 @@ export async function completeSubmission(id:string,draft:Awaited<ReturnType<type
     if(deterministicOnly&&opts.background)return json({qaProviderHold:true,error:QA_PROVIDER_HOLD},422);
     const deterministic=deterministicOnly?priceDeterministicScope(draft.reviewed,withSupportedServiceBook(configuration,draft.reviewed.answers.service||'')):null;
     if(deterministicOnly&&!deterministic)return json({qaProviderHold:true,providerCalls:0,error:QA_PROVIDER_HOLD},422);
-    const job=opts.background?await queuedJob({kind:'pricing',draft,configuration},opts.retry,opts.holdMs):null;
+    const job=opts.background?await queuedJob({kind:'pricing',draft,configuration,pricingRelease:pricingReceiptRef().version},opts.retry,opts.holdMs):null;
     // A stopped job preserves the draft. Do not promise a human follow-up: this branch creates no delivery record.
     if(job&&job.state==='failed'){console.error(`[p5-pricing] handoff for draft ${id}: ${job.progress}`);return json({pricingReviewRequired:true,needsCustomerInput:false,handoff:true,missingFields:[],verificationItems:[],error:HANDOFF_ISSUE},422);}
     if(job&&job.state!=='complete')return json({pending:true,message:job.progress,processing:job.processing,retryAfterMs:2000},202);

@@ -223,7 +223,9 @@ export function estimateStatus(raw: RawEstimate | null | undefined, exists: bool
 // Changes made directly in QuickBooks
 // ---------------------------------------------------------------------------
 
-type ComparableLine = { d: string; q: number; p: number; a: number };
+type ComparableLine = { d: string; q: number; p: number; a: number; item: string | null; tax: string | null };
+type Readback = { Line?: unknown; TotalAmt?: number; CustomerRef?: { value?: string }; TxnTaxDetail?: { TotalTax?: number } };
+const refValue = (value: unknown) => typeof value === "string" && value.trim() ? value.trim() : null;
 
 function salesLines(lines: unknown): ComparableLine[] {
   if (!Array.isArray(lines)) return [];
@@ -234,18 +236,29 @@ function salesLines(lines: unknown): ComparableLine[] {
       q: Number(l.SalesItemLineDetail?.Qty ?? 0),
       p: Number(l.SalesItemLineDetail?.UnitPrice ?? 0),
       a: Math.round(Number(l.Amount ?? 0) * 100) / 100,
+      item: refValue(l.SalesItemLineDetail?.ItemRef?.value),
+      tax: refValue(l.SalesItemLineDetail?.TaxCodeRef?.value),
     }));
 }
 
 export type Drift = { changed: boolean; sentTotal: number; currentTotal: number; details: string[] };
 
 /** Compare what P5 sent with what QuickBooks holds now. */
-export function compareEstimate(sent: { Line: unknown }, current: { Line?: unknown; TotalAmt?: number }): Drift {
+export function compareEstimate(sent: Readback & { Line: unknown }, current: Readback): Drift {
   const a = salesLines(sent.Line);
   const b = salesLines(current.Line);
   const sentTotal = Math.round(a.reduce((s, l) => s + l.a, 0) * 100) / 100;
   const currentLinesTotal = Math.round(b.reduce((s, l) => s + l.a, 0) * 100) / 100;
   const details: string[] = [];
+  const expectedCustomer = refValue(sent.CustomerRef?.value);
+  if (expectedCustomer && refValue(current.CustomerRef?.value) !== expectedCustomer) {
+    details.push("QuickBooks customer or project does not match the saved estimate.");
+  }
+  const expectedTax = sent.TxnTaxDetail?.TotalTax;
+  const actualTax = current.TxnTaxDetail?.TotalTax;
+  if (typeof expectedTax === "number" && (typeof actualTax !== "number" || Math.abs(expectedTax - actualTax) >= 0.005)) {
+    details.push("QuickBooks tax total does not match the saved estimate.");
+  }
   // Match lines by description and by order within the same description, so
   // two lines with identical text are compared one to one.
   const keyed = (lines: ComparableLine[]) => {
@@ -264,13 +277,28 @@ export function compareEstimate(sent: { Line: unknown }, current: { Line?: unkno
   for (const [k, l] of inA) {
     const m = inB.get(k);
     if (!m) details.push(`Removed or renamed in QuickBooks: "${l.d}" (${money(l.a)})`);
-    else if (m.q !== l.q || m.p !== l.p || m.a !== l.a) {
-      details.push(`Changed in QuickBooks: "${l.d}" from ${l.q} x ${money(l.p)} = ${money(l.a)} to ${m.q} x ${money(m.p)} = ${money(m.a)}`);
+    else {
+      if (m.q !== l.q || m.p !== l.p || m.a !== l.a) {
+        details.push(`Changed in QuickBooks: "${l.d}" from ${l.q} x ${money(l.p)} = ${money(l.a)} to ${m.q} x ${money(m.p)} = ${money(m.a)}`);
+      }
+      if (l.item !== null && m.item !== l.item) details.push(`QuickBooks product or service differs on "${l.d}".`);
+      if (l.tax !== null && m.tax !== l.tax) details.push(`QuickBooks tax code differs on "${l.d}".`);
     }
   }
   for (const [k, l] of inB) if (!inA.has(k)) details.push(`Added in QuickBooks: "${l.d}" (${money(l.a)})`);
   if (Math.abs(currentLinesTotal - sentTotal) >= 0.01) {
     details.push(`Line total changed from ${money(sentTotal)} to ${money(currentLinesTotal)}`);
+  }
+  const expectedTotal = typeof sent.TotalAmt === "number" ? sent.TotalAmt : sentTotal;
+  // Old snapshots can lack the provider total or project reference. Do not call a
+  // difference reconciled when the provider total conflicts with otherwise equal lines.
+  if (typeof current.TotalAmt === "number" &&
+      Math.abs(current.TotalAmt - expectedTotal) >= 0.005 &&
+      (Math.abs(current.TotalAmt - currentLinesTotal) >= 0.005 || typeof sent.TotalAmt === "number")) {
+    details.push(`QuickBooks total differs from the saved total: ${money(current.TotalAmt)} vs ${money(expectedTotal)}.`);
+  }
+  if (expectedCustomer && (typeof current.TotalAmt !== "number" || !Number.isFinite(current.TotalAmt))) {
+    details.push("QuickBooks did not return an authoritative estimate total.");
   }
   return {
     changed: details.length > 0,

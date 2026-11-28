@@ -20,7 +20,7 @@
 import {NET_POLICY_VERSION, allocatePrice} from "../../../lib/p5/netPricingPolicy.ts";
 import type { FinancePolicy } from "../../../lib/p5/pricing.ts";
 import {newProjectServices,projectServiceCode,projectServiceDefaults,isSuperintendentCode,type ProjectServiceDefaults} from "../../../lib/p5/projectServices.ts";
-import { COST_BOOK_SOURCE, COST_BOOK_VERSION, costBookEntry, costBookRate } from "../scopes/costbook.ts";
+import { COST_BOOK_SOURCE, costBookVersion, costBookEntry, costBookRate } from "../scopes/costbook.ts";
 import type { RiskFactor } from "../../../lib/p5/pricing.ts";
 import { defaultPhase, divisionName, groupByPhaseDivision, phaseName } from "../scopes/divisions.ts";
 import { priceMultiplier, priceScope } from "../scopes/pricing.ts";
@@ -110,7 +110,7 @@ export type PricedEstimate = {
   guide: EstimateGuide;
   /** Empty when the estimate may go to the customer as an official estimate. */
   review: ReviewReason[];
-  versions: { rules: string; costBook: string; costBookSource: string };
+  versions: { rules: string; costBook: string; costBookSource: string; pricingRelease?: { version: string; digest: string; source: string } };
 };
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -370,7 +370,7 @@ export function priceEstimate(input: PriceInput, ctx: PriceContext = {}): Priced
     divisionShares: ranged.shares,
     guide,
     review,
-    versions: { rules: ESTIMATOR_RULES_VERSION, costBook: COST_BOOK_VERSION, costBookSource: COST_BOOK_SOURCE },
+    versions: { rules: ESTIMATOR_RULES_VERSION, costBook: costBookVersion(), costBookSource: COST_BOOK_SOURCE, pricingRelease: pricing.policy.pricingRelease },
   };
 }
 

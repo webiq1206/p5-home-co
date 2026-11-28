@@ -1,4 +1,5 @@
 /** Internal estimate economics for new work. Money inputs are dollars, rates are fractions of revenue. */
+import {activePricing} from "./pricingContext.ts";
 export const LEGACY_NET_POLICY_VERSION = "P5-NET15-2026-11-24";
 export const STANDING_NET_POLICY_VERSION = "P5-STANDING-2026-11-25";
 export const NET_POLICY_VERSION = "P5-BID-2026-11-25";
@@ -32,6 +33,16 @@ export const JOB_POLICIES = {
   "protected": [0, null, 0.2],
 } as const;
 export type JobClass = keyof typeof JOB_POLICIES;
+type PolicyRow = readonly [gross: number, concessionGross: number | null, net: number];
+/** The class schedule of the approved release in scope; the compiled schedule otherwise. */
+export function releasedJobPolicies(): Readonly<Record<JobClass, PolicyRow>> {
+  return activePricing()?.snapshot.rules.jobPolicies ?? JOB_POLICIES;
+}
+/** Rush floors of the approved release in scope: all rush work, and rush cabinets. */
+export function releasedRushFloors(): { rush: number; rushCabinet: number } {
+  const rules = activePricing()?.snapshot.rules;
+  return { rush: rules?.rushMinNet ?? 0.25, rushCabinet: rules?.rushCabinetMinNet ?? 0.3 };
+}
 
 /** Entered by staff on a new version. Amounts must exclude costs already in direct cost.
  * A lower tier additionally needs all five positive checks. A missing check defaults to target. */
@@ -115,7 +126,7 @@ export function netQuotePrice(input: QuoteEconomics) {
     (Number.isInteger(relationship?.priorBookedProjects) && (relationship?.priorBookedProjects ?? 0) >= 2));
   const jobClass = !legacy && input.jobClass === "builder-cabinets" && !qualifiedBuilder
     ? "retail-cabinets" : input.jobClass;
-  const rule = current ? JOB_POLICIES[jobClass] : HISTORICAL_POLICIES[jobClass];
+  const rule: PolicyRow = current ? releasedJobPolicies()[jobClass] : HISTORICAL_POLICIES[jobClass];
   const normalNet = legacy && jobClass.endsWith("-cabinets") ? 0.18 : rule[2];
   const decision = current ? input.ownerConcession : undefined;
   if (decision && (!verified || !decision.approvedBy?.trim() || rule[1] === null ||
@@ -189,19 +200,27 @@ export function quoteForScope(service:string,scope:string,risks:readonly string[
     otherCostRate:reviewed?.otherCostRate??rate,fixedSell,
     protectedPrice:Math.max(reviewed?.approvedSameScopePrice??0,jobClass==="protected"?oldPrice:0),
     builder:reviewed?.builder,bundledVisit:reviewed?.bundledVisit,ownerConcession:reviewed?.ownerConcession,
-    competitive:reviewed?.competitive,minimumNetTarget:Math.max(requestedNet??0,rushCabinet?.30:(service==="rush" || rush)?.25:0)});
+    competitive:reviewed?.competitive,minimumNetTarget:Math.max(requestedNet??0,rushCabinet?releasedRushFloors().rushCabinet:(service==="rush" || rush)?releasedRushFloors().rush:0)});
 }
 
 /** The book retains historic back-solved costs. Never present those as actual wages. */
 export function fixedBookCharge(rawCode:string): {price:number;hours?:number;zeroDirect?:boolean;visitMinimum?:boolean}|undefined {
   const code=rawCode.replace(/^PB-/,"");
-  if (["01-01-01","01-01-02","01-01-03"].includes(code)) return {price:95,hours:1};
-  if (code==="01-01-04") return {price:380,hours:4};
-  if (code==="01-01-05") return {price:760,hours:8};
-  if (code==="01-01-07") return {price:135,zeroDirect:true,visitMinimum:true};
-  if (code==="01-01-08") return {price:50,zeroDirect:true};
-  return undefined;
+  const shape=FIXED_CHARGES[code];
+  if(!shape) return undefined;
+  // The amount comes from the approved release; what kind of charge it is stays a rule of the engine.
+  const released=activePricing()?.snapshot.rules.fixedCharges?.[code];
+  return {...shape,price:released??shape.price};
 }
+/** Compiled fixed selling prices, as released from the cost book on 25 November 2026. */
+export const FIXED_CHARGES:Readonly<Record<string,{price:number;hours?:number;zeroDirect?:boolean;visitMinimum?:boolean}>>={
+  "01-01-01":{price:95,hours:1},"01-01-02":{price:95,hours:1},"01-01-03":{price:95,hours:1},
+  "01-01-04":{price:380,hours:4},"01-01-05":{price:760,hours:8},
+  "01-01-07":{price:135,zeroDirect:true,visitMinimum:true},"01-01-08":{price:50,zeroDirect:true},
+};
+/** The one-visit minimum and the all-in handyman hour of the release in scope. */
+export const releasedVisitMinimum=():number=>fixedBookCharge("01-01-07")!.price;
+export const releasedHandymanHour=():number=>fixedBookCharge("01-01-01")!.price;
 
 /** Credit other fixed charges against the dispatch minimum before flexible scope is priced. */
 export function creditVisitMinimum(amounts: (number | undefined)[], minimumIndexes: number[]) {

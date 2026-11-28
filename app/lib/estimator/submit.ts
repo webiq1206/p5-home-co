@@ -14,6 +14,8 @@ import { collectAttribution } from "../leads/attribution.ts";
 import { savedFinance } from "../scopes/engine.ts";
 import {loadProjectServiceDefaults} from "../../../lib/p5/projectServicePolicy.ts";
 import { globalAcknowledgements, loadScopeSettings } from "../scopes/store.ts";
+import { activeRelease, runWithPricing } from "../pricing-release/runtime.ts";
+import type { ActivePricing } from "../../../lib/p5/pricingContext.ts";
 import { brandConfig } from "./brands.ts";
 import { flowById } from "./flows.ts";
 import { customerEstimate, internalReport, priceEstimate, priceWithheld, type PriceContext, type PricedEstimate } from "./price.ts";
@@ -69,6 +71,8 @@ function readProperty(value: unknown): PropertyFacts | null {
 export type SubmitDeps = {
   /** Pricing inputs saved by the team. Defaults read them from the database. */
   loadContext?: () => Promise<PriceContext>;
+  /** The approved pricing release for this request. Defaults to the active one. */
+  pricingRelease?: () => Promise<ActivePricing>;
   store?: typeof insertGuided;
   /** Called once for a newly stored estimate, to run delivery after the response. */
   deliver?: (row: GuidedRow, estimate: PricedEstimate) => void;
@@ -142,20 +146,27 @@ export async function handleSubmit(request: Request, deps: SubmitDeps = {}): Pro
 
   try {
     const context = await (deps.loadContext ?? defaultContext)();
-    const estimate = priceEstimate(submission, context);
-    if (!estimate.doc.tasks.length) return Response.json({ ok: false, error: "Choose at least one item." }, { status: 422 });
-    const withheld = priceWithheld(estimate);
-    // QuickBooks keeps the itemized estimate for the team and never emails it
-    // to the customer (owner decision, 16 November 2026).
-    const officialCopy = "after-review";
-    const view = customerEstimate(estimate, { token: newToken(), address, createdAt: new Date(), officialCopy });
-    const { row, created } = await (deps.store ?? insertGuided)({
-      submission: { ...submission, tier: estimate.tier, answers: estimate.answers },
-      estimate,
-      customerView: view,
-      internal: internalReport(estimate),
-      priceWithheld: withheld,
+    // One approved pricing release for the whole request: the price, both projections and the stored record.
+    const release = await (deps.pricingRelease ?? activeRelease)();
+    const outcome = await runWithPricing(release, async () => {
+      const estimate = priceEstimate(submission, context);
+      if (!estimate.doc.tasks.length) return Response.json({ ok: false, error: "Choose at least one item." }, { status: 422 });
+      const withheld = priceWithheld(estimate);
+      // QuickBooks keeps the itemized estimate for the team and never emails it
+      // to the customer (owner decision, 16 November 2026).
+      const officialCopy = "after-review";
+      const view = customerEstimate(estimate, { token: newToken(), address, createdAt: new Date(), officialCopy });
+      const { row, created } = await (deps.store ?? insertGuided)({
+        submission: { ...submission, tier: estimate.tier, answers: estimate.answers },
+        estimate,
+        customerView: view,
+        internal: internalReport(estimate),
+        priceWithheld: withheld,
+      });
+      return { row, created, estimate };
     });
+    if (outcome instanceof Response) return outcome;
+    const { row, created, estimate } = outcome;
     if (created) deps.deliver?.(row, estimate);
     // A repeat returns the estimate stored the first time, never a second one.
     // publicEstimate also strips division prices from an estimate stored before 16 November 2026.

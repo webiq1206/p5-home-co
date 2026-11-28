@@ -2,6 +2,7 @@ import {createHash} from 'node:crypto';
 import {PRICE_BOOK as MASTER_PRICE_BOOK,PRICE_BOOK_SOURCE,type PriceBookRow} from './priceBookData.ts';
 import {PROJECT_SERVICE_ROLES,PROJECT_SERVICE_RATE,projectServiceCode} from './projectServices.ts';
 import type {PlanningRate} from './planningBooks.ts';
+import {activePricing} from './pricingContext.ts';
 /** Owner-authorized final-price supplement; never edit generated master rows. */
 export const PRICE_BOOK:PriceBookRow[]=[
  ...MASTER_PRICE_BOOK.filter(row=>!projectServiceCode(row[0])),
@@ -75,11 +76,32 @@ export const PRICE_BOOK_RATEABLE=PRICE_BOOK.filter(row=>UNITS[row[4]]&&COST_TYPE
 export const PRICE_BOOK_PERCENTAGE=PRICE_BOOK.filter(row=>row[5]==='Percentage'&&['% of const.','% of cost'].includes(row[4]));
 export const PRICE_BOOK_INVALID=PRICE_BOOK.filter(row=>!PRICE_BOOK_RATEABLE.includes(row)&&!PRICE_BOOK_PERCENTAGE.includes(row));
 if(PRICE_BOOK_INVALID.length)throw new Error('The price book contains unsupported units or cost types: '+PRICE_BOOK_INVALID.map(row=>row[0]).join(', '));
+/** The catalog this calculation prices from: the approved release in scope
+ * (pricingContext.ts), or the book compiled into this build. Derived lists are
+ * cached per release, so a request never mixes two books. */
+type BookView={rows:readonly PriceBookRow[];rateable:PriceBookRow[];byCode:Map<string,PriceBookRow>;version:string};
+const VIEWS=new WeakMap<object,BookView>();
+function bookView(rows:readonly PriceBookRow[]):BookView{
+  let view=VIEWS.get(rows);
+  if(!view){
+    const invalid=rows.filter(row=>!(UNITS[row[4]]&&COST_TYPES[row[5]])&&!(row[5]==='Percentage'&&['% of const.','% of cost'].includes(row[4])));
+    if(invalid.length)throw new Error('The price book contains unsupported units or cost types: '+invalid.map(row=>row[0]).join(', '));
+    view={rows,rateable:rows.filter(row=>UNITS[row[4]]&&COST_TYPES[row[5]]),byCode:new Map(rows.map(row=>[row[0],row])),
+      version:createHash('sha256').update(JSON.stringify(rows)).digest('hex').slice(0,12)};
+    VIEWS.set(rows,view);
+  }
+  return view;
+}
+export const activeBook=():BookView=>bookView(activePricing()?.snapshot.lines??PRICE_BOOK);
+/** One catalog row by book id (08-71-01) or catalog id (PB-08-71-01), from the release in scope. */
+export const activeBookRow=(code:string|null|undefined):PriceBookRow|undefined=>activeBook().byCode.get(String(code||'').replace(/^PB-/,''));
+/** Content hash of the catalog in scope. Equals PRICE_BOOK_VERSION for the compiled book. */
+export const activeBookVersion=():string=>activeBook().version;
 /** One shared cost-book line, priced. Older brand calculators call this instead of a local price table.
  * `code` may be the book id (08-71-01) or the catalog id (PB-08-71-01). Percentage lines are not
  * unit prices and return null. `remodel` adds the line's existing-home premium when the book has one. */
 export function sharedBookRate(code:string,tier:FinishTier='mid',remodel=false):PlanningRate|null{
-  const row=PRICE_BOOK.find(r=>r[0]===String(code||'').replace(/^PB-/,''));
+  const row=activeBookRow(code);
   if(!row||!UNITS[row[4]]||!COST_TYPES[row[5]])return null;
   return priceBookRate(row,tier,remodel);
 }
@@ -113,7 +135,7 @@ export function specifiedShowerGlassRate(rate:PlanningRate,task:string,service?:
  const framed=/\bframed\b/i.test(specified);
  if([custom,semi,frameless,framed].filter(Boolean).length!==1)return rate;
  const tier:FinishTier=custom?'luxury':semi?'mid':frameless?'high':'builder';
- const row=PRICE_BOOK.find(row=>row[0]==='08-83-01')!;
+ const row=activeBookRow('08-83-01')!;
  const selected=priceBookRate(row,tier,serviceContext(service).remodel);
  const label=custom?'Custom frameless':semi?'Semi-frameless':frameless?'Frameless':'Framed';
  return {...selected,description:`${label} shower glass enclosure (installed price, labor and material together; explicit enclosure type uses the book's ${TIER_LABEL[tier]} rate).`};
@@ -156,13 +178,16 @@ export function flooringComponentRates(row:PriceBookRow,tier:FinishTier,remodel:
 export function priceBookRates(answers:{service?:string|null;finish?:string|null}):PlanningRate[]{
   const {flags,remodel}=serviceContext(answers.service);
   const tier=finishTier(answers.finish);
-  const marked=PRICE_BOOK_RATEABLE.filter(row=>(row[8]&flags)!==0);
-  const rest=PRICE_BOOK_RATEABLE.filter(row=>(row[8]&flags)===0);
+  const rateable=activeBook().rateable;
+  const marked=rateable.filter(row=>(row[8]&flags)!==0);
+  const rest=rateable.filter(row=>(row[8]&flags)===0);
   return [...marked,...rest].flatMap(row=>[priceBookRate(row,tier,remodel),...cabinetComponentRates(row,tier,remodel),...flooringComponentRates(row,tier,remodel)]);
 }
 /** A content hash of the whole book: it changes whenever any line, price or flag changes, so an
  * estimate that records it can always be traced to the exact prices it used. */
 export const PRICE_BOOK_VERSION=createHash('sha256').update(JSON.stringify(PRICE_BOOK)).digest('hex').slice(0,12);
 export function priceBookSummary(){
-  return {source:PRICE_BOOK_SOURCE,version:PRICE_BOOK_VERSION,lines:PRICE_BOOK.length,rateable:PRICE_BOOK_RATEABLE.length,percentage:PRICE_BOOK_PERCENTAGE.length};
+  const book=activeBook(),release=activePricing();
+  return {source:PRICE_BOOK_SOURCE,version:book.version,lines:book.rows.length,rateable:book.rateable.length,percentage:book.rows.length-book.rateable.length,
+    release:release?{version:release.version,digest:release.digest,source:release.source}:null};
 }
