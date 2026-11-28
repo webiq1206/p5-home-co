@@ -1,0 +1,65 @@
+/* Internal contractor tools share the existing P5 operations shell and tokens. */
+.ct-main { min-width: 0; }
+.ct-heading { margin-bottom: clamp(16px, 4vw, 32px); }
+.ct-heading .admin-sub { margin: 8px 0 0; }
+.ct-kicker { margin: 0 0 8px; color: var(--ink-2); font-size: .8rem; line-height: 1.3; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.ct-surface { min-width: 0; display: grid; gap: 16px; scroll-margin-top: 96px; }
+.ct-surface:focus { outline: none; }
+.ct-panel { background: var(--paper); border: 1px solid var(--line); padding: clamp(12px, 3vw, 24px); min-width: 0; overflow-wrap: anywhere; }
+.ct-panel h2, .ct-panel h3 { margin: 0; color: var(--ink); }
+.ct-panel h2 { font-family: var(--font-display); font-weight: 500; font-size: clamp(1.35rem, 3vw, 1.75rem); line-height: 1.15; }
+.ct-panel h3 { font-size: 1.15rem; line-height: 1.35; }
+.ct-panel > h3 { margin: 16px 0 8px; }
+.ct-panel > .lead-action { margin-bottom: 12px; }
+.ct-panel-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px; min-width: 0; }
+.ct-panel-head p { margin-block: 4px 0; }
+.ct-toolbar, .ct-contact, .ct-tabs, .ct-pages, .ct-breadcrumb, .ct-editor-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.ct-contact, .ct-tabs { margin-top: 12px; }
+.ct-contact-name { font-weight: 650; width: 100%; }
+.ct-pages { justify-content: space-between; }
+.ct-breadcrumb { margin-bottom: 16px; }
+.ct-breadcrumb a { min-height: 44px; display: inline-flex; align-items: center; padding-inline: 8px; text-decoration: underline; text-underline-offset: .2em; }
+.ct-main .lead-action { min-height: 44px; min-width: 44px; white-space: normal; text-align: center; max-width: 100%; overflow-wrap: anywhere; }
+.ct-main .lead-action.ct-primary { background: var(--forest); color: #fff; border-color: var(--forest); }
+.ct-main .lead-action[disabled] { opacity: .62; cursor: default; }
+.ct-main :is(a,button,input,select,textarea,summary):focus-visible { outline: 2px solid var(--moss); outline-offset: 3px; }
+.ct-filters, .ct-fields { display: grid; gap: 12px; margin-top: 12px; min-width: 0; }
+.ct-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.ct-filters label, .ct-fields label { display: grid; min-width: 0; gap: 4px; font-weight: 650; }
+.ct-main :is(input:not([type="checkbox"]), select, textarea) { min-width: 0; max-width: 100%; width: 100%; min-height: 44px; font-size: 1rem; border: 1px solid var(--line); color: var(--ink); background: var(--bone); padding: 8px; border-radius: 0; }
+.ct-main textarea { resize: vertical; }
+.ct-main .ct-check { display: flex; width: fit-content; min-height: 44px; align-items: center; gap: 8px; font-weight: 650; }
+.ct-check input { width: 20px; height: 20px; margin: 0; }
+.ct-meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 12px; margin: 16px 0; }
+.ct-meta dt { color: var(--ink-2); font-weight: 700; }
+.ct-meta dd { margin: 4px 0 0; white-space: pre-wrap; }
+.ct-muted { color: var(--ink-2); font-size: .9rem; line-height: 1.45; margin-block: 4px 0; }
+.ct-result-count { color: var(--ink-2); margin: 0; }
+.ct-rows { min-width: 0; }
+.ct-group-heading { font-size: .95rem; margin: 16px 0 8px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; color: var(--ink); }
+.ct-group-heading span { color: var(--ink-2); font-weight: 500; }
+.ct-row { border: 1px solid var(--line); background: var(--paper); padding: 12px 16px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 4px; overflow-wrap: anywhere; }
+.ct-row > div { flex: 1 1 170px; min-width: 0; }
+.ct-badge { display: inline-block; align-self: start; padding: 4px 8px; font-size: .8rem; line-height: 1.2; color: var(--ink); background: var(--bone); border: 1px solid var(--line); }
+.ct-badge-warning { border-color: var(--bronze); color: var(--ink); font-weight: 700; }
+.ct-notice { border: 1px solid var(--line); background: var(--paper); padding: 12px; margin: 0; overflow-wrap: anywhere; }
+.ct-notice-error { border-left: 4px solid #9a2f2f; }
+.ct-notice :is(button,a) { margin-left: 8px; }
+.ct-capabilities, .ct-options, .ct-group-items { margin: 8px 0; padding-inline-start: 24px; }
+.ct-capabilities li, .ct-options li, .ct-group-items li { padding: 8px 0; border-bottom: 1px solid var(--line); }
+.ct-capabilities li .ct-badge { margin-inline-start: 8px; }
+.ct-capabilities li p, .ct-options li p { margin: 4px 0 0; }
+.ct-options a:not(.lead-action), .ct-panel h3 a { text-decoration: underline; text-underline-offset: .2em; }
+.ct-group-items li span { display: block; color: var(--ink-2); font-size: .85rem; }
+.ct-editor { width: min(100%, 680px); }
+.ct-editor-actions { justify-content: space-between; margin-top: 12px; }
+.ct-editor .ct-fields > details summary { display: list-item; min-height: 44px; padding: 10px 0; cursor: pointer; }
+.ct-editor :is(input,textarea,select) { scroll-margin-top: 96px; }
+@media (min-width: 880px) {
+  .ct-filters { grid-template-columns: 1.4fr 1fr 1fr 1fr; }
+}
+@media (max-width: 480px) {
+  .ct-tabs button { flex: 1 1 110px; }
+  .ct-panel-head > div { min-width: 0; }
+  .ct-editor .ct-contact { margin-top: 4px; }
+}

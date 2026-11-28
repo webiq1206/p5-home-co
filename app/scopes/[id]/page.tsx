@@ -1,5 +1,6 @@
 /** The project workspace: record, review scope, complete details, review pricing, create the estimate. */
 
+import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import { getScopeUser } from "../../lib/auth.ts";
@@ -39,6 +40,11 @@ export default async function ScopeWorkspace({
     <>
       <ScopesChrome user={user} />
       <main className="admin-main sc-main">
+        {workspace.viewer.internal && (
+          <nav aria-label="Project tools" className="lead-actions" style={{ marginBlock: "0 16px" }}>
+            <Link href={'/scopes/' + id + '/outreach'} className="lead-action">Trade outreach</Link>
+          </nav>
+        )}
         <Workspace initial={workspace} initialTab={tab} />
       </main>
     </>
