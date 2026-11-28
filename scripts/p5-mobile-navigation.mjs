@@ -33,8 +33,29 @@ try{
    if(isRemodeling(brand)&&['/','/estimate'].includes(route)){await verifyRemodelingEntry(page,route);results.push({width,route,passed:true});await page.close();continue;}
    if(isRemodeling(brand)&&route==='/re-10-repairs-boise'){await verifyRemodelingRe10Handoff(page);results.push({width,route,passed:true});await page.close();continue;}
    if(isHandyman(brand)&&route==='/'){await verifyHandymanHomeEntry(page);results.push({width,route,passed:true});await page.close();continue;}
-   await enterEstimator(page,{route,brand,parent});
-   const estimator=page.locator('[data-p5-estimator]').first();await estimator.waitFor();
+   const isHandymanRe10=isHandyman(brand)&&route==='/re-10-repairs-boise';
+   const re10=page.locator('#re10-wizard');
+   if(isHandymanRe10){
+    await re10.getByRole('heading',{name:'How do you want to price your RE-10?',exact:true}).waitFor({state:'visible'});
+    await re10.getByTestId('re10-choose-price').click();
+    await re10.getByRole('heading',{name:'Tap the repairs on your RE-10',exact:true}).waitFor({state:'visible'});
+    const frame=re10.locator('iframe[src]');
+    await frame.waitFor({state:'visible'});
+    const destination=new URL(await frame.getAttribute('src'));
+    assert.equal(destination.origin,'https://p5homeco.com');
+    assert.equal(destination.pathname,'/estimator/embed');
+    assert.equal(destination.searchParams.get('brand'),'handyman');
+    assert.equal(destination.searchParams.get('project'),'handyman');
+    // Cross-origin content is blocked by the navigation test. Verify the handoff, not live pricing.
+    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'RE-10 guided handoff has horizontal overflow');
+    await page.screenshot({path:`p5-verification/navigation-${width}-handyman-re10-guided.png`});
+    await re10.getByRole('button',{name:'Back to the first step',exact:true}).click();
+    await re10.getByTestId('re10-choose-send').click();
+    await re10.getByRole('heading',{name:'Upload your RE-10',exact:true}).first().waitFor({state:'visible'});
+   }else{
+    await enterEstimator(page,{route,brand,parent});
+   }
+   const estimator=(isHandymanRe10?re10:page).locator('[data-p5-estimator]').first();await estimator.waitFor();
    const input=estimator.getByLabel('Tell us about your project',{exact:true});await input.waitFor().catch(async error=>{console.log('Navigation failure',width,route,await page.locator('body').innerText());await page.screenshot({path:'p5-verification/navigation-failure.png',fullPage:true});throw error;});
    assert.equal(await estimator.getByLabel('Upload project files',{exact:true}).count(),1);
    assert.equal(await estimator.getByLabel('Upload estimating instructions',{exact:true}).count(),0);
@@ -43,7 +64,7 @@ try{
    const next=estimator.getByRole('button',{name:'Send message',exact:true});await next.scrollIntoViewIfNeeded();
    assert.ok(await next.evaluate(el=>{const r=el.getBoundingClientRect(),x=r.left+r.width/2,y=r.top+r.height/2;return r.width>0&&r.height>0&&x>=0&&x<innerWidth&&y>=0&&y<innerHeight&&el.contains(document.elementFromPoint(x,y));}),'Estimator action must be visible and unobstructed');
    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'Horizontal overflow');
-   await page.screenshot({path:`p5-verification/navigation-${width}-${route==='/'?'home':route.replaceAll('/','_')}.png`});results.push({width,route,passed:true});await page.close();
+   await page.screenshot({path:`p5-verification/navigation-${width}-${route==='/'?'home':route.replaceAll('/','_')}.png`});results.push({width,route,passed:true,...(isHandymanRe10?{branches:['guided-frame-handoff','document-entry']}: {})});await page.close();
   }
   await context.close();
  }
