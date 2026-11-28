@@ -14,7 +14,7 @@ import Link from "next/link";
 
 import type { SessionUser } from "../lib/auth.ts";
 
-export type AdminSection = "dashboard" | "leads" | "scopes" | "finance" | "kb";
+export type AdminSection = "dashboard" | "leads" | "scopes" | "contractors" | "finance" | "kb";
 
 type Item = { id: AdminSection; href: string; label: string; financeOnly?: boolean };
 
@@ -22,6 +22,7 @@ const SECTIONS: Item[] = [
   { id: "dashboard", href: "/admin", label: "Dashboard" },
   { id: "leads", href: "/admin/lead-manager", label: "Lead Manager" },
   { id: "scopes", href: "/scopes", label: "Scopes" },
+  { id: "contractors", href: "/admin/contractors", label: "Contractors" },
   { id: "finance", href: "/admin/finance", label: "Finance", financeOnly: true },
   { id: "kb", href: "/admin/kb", label: "Knowledge Center" },
 ];
