@@ -188,3 +188,34 @@ export async function promotePricingRelease(input: ActivationInput): Promise<{ve
 }
 
 export { PricingReleaseValidationError };
+
+export type ReleaseListing = {
+  active: { version: string; digest: string; generation: number; activatedAt: string; action: string; reason: string } | null;
+  releases: { version: string; digest: string; stagedAt: string; sourceRevision: string; approved: boolean; lines: number }[];
+  history: { generation: number; version: string; action: string; previousVersion: string | null; reason: string; verificationReference: string; activatedAt: string; by: string | null }[];
+};
+
+/** What the release screen shows: the pointer, every staged version and the full activation log. */
+export async function listPricingReleases(): Promise<ReleaseListing> {
+  await sessionAdministrator();
+  return transaction(async client => {
+    const history = (await client.query<{ generation: string; version: string; digest: string; action: string; previous_version: string | null; reason: string; verification_reference: string; activated_at: Date; by: string | null }>(
+      `SELECT a.generation::text, a.version, a.digest, a.action, a.previous_version, a.reason, a.verification_reference, a.activated_at,
+              COALESCE(to_jsonb(u)->>'name', to_jsonb(u)->>'email') AS by
+         FROM p5_pricing_release_activation a LEFT JOIN app_user u ON u.id = a.activated_by
+        ORDER BY a.generation DESC LIMIT 200`)).rows;
+    const releases = (await client.query<{ version: string; digest: string; staged_at: Date; source_revision: string; lines: string; approved: boolean }>(
+      `SELECT r.version, r.digest, r.staged_at, r.source_revision, jsonb_array_length(r.snapshot->'lines')::text AS lines,
+              EXISTS (SELECT 1 FROM p5_pricing_release_activation a WHERE a.version = r.version AND a.action = 'publish') AS approved
+         FROM p5_pricing_release r ORDER BY r.staged_at DESC LIMIT 200`)).rows;
+    const top = history[0];
+    return {
+      active: top ? { version: top.version, digest: top.digest, generation: Number(top.generation), activatedAt: top.activated_at.toISOString(), action: top.action, reason: top.reason } : null,
+      releases: releases.map(r => ({ version: r.version, digest: r.digest, stagedAt: r.staged_at.toISOString(), sourceRevision: r.source_revision, approved: r.approved, lines: Number(r.lines) })),
+      history: history.map(h => ({ generation: Number(h.generation), version: h.version, action: h.action, previousVersion: h.previous_version, reason: h.reason, verificationReference: h.verification_reference, activatedAt: h.activated_at.toISOString(), by: h.by })),
+    };
+  });
+}
+
+/** Administrator check for routes that read the workbook before anything is stored. */
+export async function requirePricingAdministrator(): Promise<number> { return sessionAdministrator(); }

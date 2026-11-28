@@ -285,6 +285,8 @@ export type PricingResult = {
     finishTier: string;
     costBookSource: string;
     costBookVersion: string;
+    /** The approved pricing release these figures came from. Absent on versions saved before releases were recorded. */
+    pricingRelease?: { version: string; digest: string; source: string };
   };
 };
 

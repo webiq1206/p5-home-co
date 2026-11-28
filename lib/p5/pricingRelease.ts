@@ -23,6 +23,8 @@ export type PricingSnapshot = {
     rushCabinetMinNet: number;
     builderMinimumDistinctBookedProjects: number;
     projectServices: ReleasedProjectService[];
+    /** Final customer prices the workbook marks "Fixed selling price" (handyman hour, half day, full day, visit minimum, materials pickup). Absent on releases staged before these were carried. */
+    fixedCharges?: Record<string, number>;
   };
 };
 
@@ -49,6 +51,8 @@ const TYPES = new Set([
   "Labor + Minor Materials", "Material Only",
 ]);
 const RULE_KEYS = ["minimumNetMargin", "jobPolicies", "rushMinNet", "rushCabinetMinNet", "builderMinimumDistinctBookedProjects", "projectServices"];
+/** The book lines whose selling price is fixed by policy, not derived from cost. */
+export const FIXED_CHARGE_CODES = ["01-01-01", "01-01-02", "01-01-03", "01-01-04", "01-01-05", "01-01-07", "01-01-08"] as const;
 const SERVICE_KEYS = ["code", "rate", "qboItemId", "minimumHours", "hoursPer1000"];
 
 export class PricingReleaseValidationError extends Error {
@@ -113,9 +117,18 @@ export function validatePricingSnapshot(value: unknown): PricingSnapshot {
     }
     if (!validNumber(premium, 0, 1)) issue(`${code}: invalid remodel premium.`);
   }
-  if (!object(rules) || !exactKeys(rules, RULE_KEYS)) {
+  if (!object(rules) || !(exactKeys(rules, RULE_KEYS) || exactKeys(rules, [...RULE_KEYS, "fixedCharges"]))) {
     issue("The release must include the full approved bid rule set.");
   } else {
+    if (rules.fixedCharges !== undefined) {
+      const fixed = rules.fixedCharges;
+      if (!object(fixed) || !exactKeys(fixed, FIXED_CHARGE_CODES) ||
+          !FIXED_CHARGE_CODES.every(code => validNumber(fixed[code], .01, 100000))) {
+        issue("Fixed selling prices must list each fixed handyman charge once, as a positive amount.");
+      } else if (FIXED_CHARGE_CODES.some(code => !lineMap.has(code))) {
+        issue("A fixed selling price names a cost code that is not in the catalog.");
+      }
+    }
     if (rules.minimumNetMargin !== .15) issue("The private concession floor must be 15% net.");
     if (rules.builderMinimumDistinctBookedProjects !== 2) issue("Builder stock pricing requires two prior distinct booked projects or verified steady-builder status.");
     if (!validNumber(rules.rushMinNet, .25, .95) || !validNumber(rules.rushCabinetMinNet, .30, .95) ||

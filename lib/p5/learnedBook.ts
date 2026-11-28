@@ -1,6 +1,6 @@
 import {createHash} from 'node:crypto';
 import {query} from './database.ts';
-import {PRICE_BOOK_RATEABLE} from './priceBook.ts';
+import {activeBook} from './priceBook.ts';
 import {meaningfulWords,conceptsOf} from './catalogSelection.ts';
 import {unitKey,UNIT_REGISTRY,rateLocation,reusableUnitRate} from './unitRates.ts';
 import {finishTier} from './priceBook.ts';
@@ -56,7 +56,7 @@ export function resemblesExisting(candidate:{description:string;unit:string},exi
 const TYPE:Record<string,PlanningRate['type']>={materials:'Material','field-labor':'Labor',subcontractors:'Subcontractor','equipment-rentals':'Equipment'};
 /** The out-of-book lines of a finished estimate that are safe to add. */
 export function learnableLines(rules:readonly CostRule[],service:string,draftId:string,known:readonly {description:string;unit:string}[],now=new Date(),context:LearningContext={location:''}):LearnedLine[]{
-  const book=PRICE_BOOK_RATEABLE.map(row=>({description:row[3],unit:row[4]}));
+  const book=activeBook().rateable.map(row=>({description:row[3],unit:row[4]}));
   const accepted:LearnedLine[]=[];
   for(const rule of rules){
     if(!/^(?:repair-)?(?:planning|market)-\d+$/.test(rule.id))continue;

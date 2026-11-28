@@ -115,7 +115,7 @@ export async function loadWorkspace(projectId: number, viewer: Pick<ScopeUser, "
   const fresh = await compute(project, doc, settings);
   // Current jobs keep their locked prices (owner rule, 24 November 2026): a
   // version priced on an earlier cost book shows its saved pricing.
-  const locked = lockedPricing(version);
+  const locked = await lockedPricing(version);
   const computed = locked ? { ...fresh, pricing: locked } : fresh;
   if (version && computed.readiness.status !== project.scope_status) {
     await setProjectState(projectId, { scope_status: computed.readiness.status });
